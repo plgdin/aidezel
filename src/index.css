@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* --- ROYAL BLUE TECH PALETTE --- */
+  
+  /* Backgrounds */
+  --bg-main: #ffffff;       /* White Body */
+  --bg-dark-header: #0f172a; /* Slate 900 (Dark Blue-Grey) */
+  --bg-hero-card: #1e3a8a;   /* Deep Royal Blue */
+  
+  /* Accents */
+  --accent-primary: #2563eb; /* Royal Blue */
+  --accent-light: #60a5fa;   /* Lighter Blue */
+  --accent-cyan: #22d3ee;    /* Cyan for "pop" */
+  
+  /* Text */
+  --text-main: #0f172a;      /* Dark Slate */
+  --text-muted: #64748b;     /* Slate 500 */
+  
+  /* Borders */
+  --border-light: #e2e8f0;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-main); }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent-primary); }

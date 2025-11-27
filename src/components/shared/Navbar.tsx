@@ -3,133 +3,127 @@ import { Link, useLocation } from 'react-router-dom';
 import { Search, ShoppingCart, User, Heart, Menu, Home, Filter } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 
+import logo from '../../assets/logo.png'; 
+
 const Navbar = () => {
   const { cartCount } = useCart();
   const location = useLocation();
 
-  const isActive = (path: string) => location.pathname === path ? "text-red-600" : "text-gray-600";
+  const isActive = (path: string) => location.pathname === path ? "text-[#2563eb]" : "text-gray-500";
 
   return (
     <>
       {/* =========================================================
           TOP NAVBAR
-          Desktop (lg): 'sticky top-0' -> STAYS VISIBLE at the top.
-          Mobile (default): 'relative' -> SCROLLS AWAY (moves up).
           ========================================================= */}
-      <nav className="relative lg:sticky lg:top-0 z-50 bg-black text-white shadow-md">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-8">
+      <nav className="sticky top-0 z-50 bg-[#0f172a] border-b border-slate-800 py-4">
+        <div className="container mx-auto px-4 flex items-center justify-between gap-8">
           
           {/* Logo & Menu */}
           <div className="flex items-center gap-4">
-            {/* Hamburger (Mobile Only) */}
-            <button className="p-2 hover:bg-gray-800 rounded-lg lg:hidden text-white">
+            <button className="p-2 hover:bg-slate-800 rounded-lg lg:hidden text-white">
               <Menu className="w-6 h-6" />
             </button>
             
-            {/* Brand Logo */}
-            <Link to="/" className="text-2xl font-bold text-white tracking-tight cursor-pointer flex items-center gap-2">
-              AIDE<span className="text-primary">ZEL</span>
-              <div className="w-8 h-2 bg-gradient-to-r from-primary to-transparent rounded-full ml-1"></div>
+            {/* FIXED: Restored the 120px Floating Logo */}
+            <Link to="/" className="shrink-0 relative z-50">
+              <img 
+                src={logo} 
+                alt="Aidezel" 
+                className="h-[120px] w-auto object-contain brightness-0 invert -my-10 hover:scale-105 transition-transform" 
+              />
             </Link>
           </div>
 
-          {/* Search Bar (Desktop View Only) */}
-          <div className="hidden lg:flex flex-1 max-w-2xl relative">
+          {/* Search Bar - LARGE */}
+          <div className="hidden lg:flex flex-1 max-w-3xl relative">
             <input 
               type="text" 
-              placeholder="Search for premium electronics..." 
-              className="w-full py-3 px-5 pl-12 bg-gray-900 border border-gray-700 rounded-full text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-gray-400"
+              placeholder="Search premium electronics..." 
+              className="w-full py-3 px-5 pl-12 bg-[#1e293b]/50 border border-slate-700 rounded-full text-white focus:outline-none focus:border-[#38bdf8] focus:ring-1 focus:ring-[#38bdf8] transition-all placeholder:text-slate-400 text-sm backdrop-blur-sm"
             />
-            <Search className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
-            <button className="absolute right-2 top-1.5 bg-primary text-black px-4 py-1.5 rounded-full text-sm font-bold hover:bg-yellow-400 transition-colors">
+            <Search className="absolute left-4 top-3.5 w-5 h-5 text-slate-400" />
+            <button className="absolute right-1.5 top-1.5 h-9 w-9 bg-gradient-to-br from-[#38bdf8] to-[#2563eb] rounded-full flex items-center justify-center text-white hover:scale-105 transition-transform shadow-lg">
               <Search size={18} />
             </button>
           </div>
 
-          {/* DESKTOP ICONS (Desktop View Only) */}
-          <div className="hidden lg:flex items-center gap-16">
+          {/* ICONS - WIDER GAP */}
+          <div className="hidden lg:flex items-center gap-14 text-slate-300">
             
-            {/* WISHLIST */}
             <Link 
               to="/wishlist" 
-              className="flex flex-col items-center cursor-pointer group transition-transform duration-300 hover:-translate-y-1"
+              className="flex flex-col items-center gap-1.5 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:text-[#38bdf8] group"
             >
-              <Heart className="w-6 h-6 text-gray-300 group-hover:text-primary transition-colors" />
-              <span className="text-sm font-medium mt-1 text-gray-300 group-hover:text-primary transition-colors">Wishlist</span>
+              <Heart size={26} strokeWidth={1.5} className="group-hover:fill-white/10" />
+              <span className="text-xs font-bold tracking-wide">Wishlist</span>
             </Link>
             
-            {/* ACCOUNT */}
             <Link 
               to="/account" 
-              className="flex flex-col items-center cursor-pointer group transition-transform duration-300 hover:-translate-y-1"
+              className="flex flex-col items-center gap-1.5 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:text-[#38bdf8] group"
             >
-              <User className="w-6 h-6 text-gray-300 group-hover:text-primary transition-colors" />
-              <span className="text-sm font-medium mt-1 text-gray-300 group-hover:text-primary transition-colors">Account</span>
+              <User size={26} strokeWidth={1.5} />
+              <span className="text-xs font-bold tracking-wide">Account</span>
             </Link>
             
-            {/* CART */}
             <Link 
               to="/cart" 
-              className="flex flex-col items-center cursor-pointer group relative transition-transform duration-300 hover:-translate-y-1"
+              className="flex flex-col items-center gap-1.5 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:text-[#38bdf8] group relative"
             >
-              {cartCount > 0 && (
-                 <div className="absolute -top-2 -right-2 w-5 h-5 bg-primary text-black rounded-full text-[11px] font-bold flex items-center justify-center">{cartCount}</div>
-              )}
-              <ShoppingCart className="w-6 h-6 text-gray-300 group-hover:text-primary transition-colors" />
-              <span className="text-sm font-medium mt-1 text-gray-300 group-hover:text-primary transition-colors">Cart</span>
+              <div className="relative">
+                <ShoppingCart size={26} strokeWidth={1.5} />
+                {cartCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-[#38bdf8] text-[#0f172a] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#0f172a]">
+                    {cartCount}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs font-bold tracking-wide">Cart</span>
             </Link>
-
           </div>
 
-          {/* Mobile Search Icon (Mobile View Only) */}
-          <div className="lg:hidden">
-             <Search className="w-6 h-6 text-white" />
+          {/* Mobile Search Icon */}
+          <div className="lg:hidden text-white">
+             <Search className="w-7 h-7" />
           </div>
         </div>
       </nav>
 
-      {/* =========================================================
-          BOTTOM NAVIGATION BAR (Mobile View Only)
-          This is 'fixed' so it ALWAYS stays at the bottom.
-          ========================================================= */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50 lg:hidden pb-safe">
-        <div className="flex justify-between items-center px-6 py-3">
-          
-          <Link to="/" className={`flex flex-col items-center gap-1 ${isActive('/')}`}>
+      {/* BOTTOM NAV (Mobile) */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50 lg:hidden pb-safe">
+        <div className="flex justify-between items-center px-6 py-2">
+          <Link to="/" className={`flex flex-col items-center gap-1 transition-colors ${isActive('/')}`}>
             <Home size={24} strokeWidth={1.5} />
-            <span className="text-[10px] font-medium">Shop</span>
+            <span className="text-[10px] font-bold">Shop</span>
           </Link>
-
-          <Link to="/shop" className={`flex flex-col items-center gap-1 ${isActive('/shop')}`}>
+          <Link to="/shop" className={`flex flex-col items-center gap-1 transition-colors ${isActive('/shop')}`}>
             <Filter size={24} strokeWidth={1.5} />
-            <span className="text-[10px] font-medium">Filters</span>
+            <span className="text-[10px] font-bold">Filters</span>
           </Link>
-
-          <Link to="/wishlist" className={`flex flex-col items-center gap-1 ${isActive('/wishlist')}`}>
+          <Link to="/wishlist" className={`flex flex-col items-center gap-1 transition-colors ${isActive('/wishlist')}`}>
             <Heart size={24} strokeWidth={1.5} />
-            <span className="text-[10px] font-medium">Wishlist</span>
+            <span className="text-[10px] font-bold">Wishlist</span>
           </Link>
-
-          <Link to="/cart" className={`flex flex-col items-center gap-1 relative ${isActive('/cart')}`}>
-            {cartCount > 0 && (
-              <div className="absolute -top-2 -right-1 w-4 h-4 bg-red-600 text-white rounded-full text-[10px] font-bold flex items-center justify-center animate-bounce">
-                {cartCount}
-              </div>
-            )}
-            <ShoppingCart size={24} strokeWidth={1.5} />
-            <span className="text-[10px] font-medium">Cart</span>
+          <Link to="/cart" className={`flex flex-col items-center gap-1 relative transition-colors ${isActive('/cart')}`}>
+            <div className="relative">
+              <ShoppingCart size={24} strokeWidth={1.5} />
+              {cartCount > 0 && (
+                <div className="absolute -top-2 -right-2 w-4 h-4 bg-[#2563eb] text-white rounded-full text-[10px] font-bold flex items-center justify-center">
+                  {cartCount}
+                </div>
+              )}
+            </div>
+            <span className="text-[10px] font-bold">Cart</span>
           </Link>
-
-          <Link to="/account" className={`flex flex-col items-center gap-1 ${isActive('/account')}`}>
+          <Link to="/account" className={`flex flex-col items-center gap-1 transition-colors ${isActive('/account')}`}>
             <User size={24} strokeWidth={1.5} />
-            <span className="text-[10px] font-medium">My account</span>
+            <span className="text-[10px] font-bold">Account</span>
           </Link>
-
         </div>
       </div>
       
-      {/* Spacer */}
-      <div className="h-16 lg:hidden"></div> 
+      <div className="h-20 lg:hidden"></div> 
     </>
   );
 };

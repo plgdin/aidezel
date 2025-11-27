@@ -5,10 +5,11 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import ProductCard, { Product } from '../../components/shared/ProductCard';
 
+// MODIFIED: Slightly increased icon size to 32
 const CATEGORIES = [
-  { name: 'Lighting', icon: <Lightbulb size={28} /> },
-  { name: 'Home & Kitchen', icon: <Armchair size={28} /> },
-  { name: 'Jewellery', icon: <Gem size={28} /> },
+  { name: 'Lighting', icon: <Lightbulb size={32} /> },
+  { name: 'Home & Kitchen', icon: <Armchair size={32} /> },
+  { name: 'Jewellery', icon: <Gem size={32} /> },
 ];
 
 const HeroBanner: React.FC = () => {
@@ -135,11 +136,9 @@ const HeroBanner: React.FC = () => {
               animate={{ opacity: 1, x: 0 }} 
               transition={{ duration: 0.6 }}
             >
-              {/* FIXED BADGE: Used inline-flex and items-center for perfect centering */}
-              <div className="inline-flex items-center border border-[#38bdf8]/50 px-4 py-2 rounded-full mb-6 bg-[#38bdf8]/10 backdrop-blur-md">
-                <span className="text-[#38bdf8] text-[10px] font-bold tracking-[0.15em] uppercase leading-none pt-[1px]">
-                  Limited Time Only
-                </span>
+              {/* Badge */}
+              <div className="inline-block border border-[#38bdf8]/50 px-4 py-1.5 rounded-full mb-6 bg-[#38bdf8]/10 backdrop-blur-md">
+                <span className="text-[#38bdf8] text-[10px] font-bold tracking-[0.15em] uppercase">Limited Time Only</span>
               </div>
               
               {/* Heading */}
@@ -199,10 +198,10 @@ const HomePage: React.FC = () => {
       <div className="bg-white py-8">
         <div className="container mx-auto px-4 flex justify-center gap-16 lg:gap-24 flex-wrap">
           {CATEGORIES.map((cat, idx) => (
-            <Link key={idx} to={`/shop?category=${cat.name}`} className="flex flex-col items-center gap-4 cursor-pointer">
+            <Link key={idx} to={`/shop?category=${cat.name}`} className="flex flex-col items-center gap-5 cursor-pointer">
               
-              {/* Circle Container */}
-              <div className="group relative w-16 h-16 rounded-full border border-slate-200 flex items-center justify-center overflow-hidden transition-all shadow-sm hover:shadow-md hover:border-[#3b82f6] bg-white">
+              {/* MODIFIED: Circle Container -> w-20 h-20 (80px) */}
+              <div className="group relative w-20 h-20 rounded-full border border-slate-200 flex items-center justify-center overflow-hidden transition-all shadow-sm hover:shadow-md hover:border-[#3b82f6] bg-white">
                 
                 {/* The Fill Layer */}
                 <div className="absolute bottom-0 left-0 w-full h-0 bg-[#3b82f6] transition-all duration-300 ease-out group-hover:h-full"></div>
@@ -214,7 +213,8 @@ const HomePage: React.FC = () => {
 
               </div>
               
-              <span className="text-sm font-bold text-slate-600 hover:text-[#0f172a] transition-colors">{cat.name}</span>
+              {/* MODIFIED: Text Label -> text-base */}
+              <span className="text-base font-bold text-slate-600 hover:text-[#0f172a] transition-colors">{cat.name}</span>
             </Link>
           ))}
         </div>

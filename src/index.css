@@ -3,21 +3,19 @@
 @tailwind utilities;
 
 :root {
-  /* --- ROYAL BLUE TECH PALETTE --- */
+  /* --- ROYAL BLUE PALETTE --- */
   
   /* Backgrounds */
   --bg-main: #ffffff;       /* White Body */
-  --bg-dark-header: #0f172a; /* Slate 900 (Dark Blue-Grey) */
-  --bg-hero-card: #1e3a8a;   /* Deep Royal Blue */
+  --bg-dark: #0f172a;       /* Dark Slate Header */
   
   /* Accents */
   --accent-primary: #2563eb; /* Royal Blue */
-  --accent-light: #60a5fa;   /* Lighter Blue */
-  --accent-cyan: #22d3ee;    /* Cyan for "pop" */
+  --accent-cyan: #38bdf8;    /* Sky Blue */
   
   /* Text */
-  --text-main: #0f172a;      /* Dark Slate */
-  --text-muted: #64748b;     /* Slate 500 */
+  --text-main: #0f172a;
+  --text-muted: #64748b;
   
   /* Borders */
   --border-light: #e2e8f0;

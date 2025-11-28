@@ -47,7 +47,7 @@ const HeroBanner: React.FC = () => {
             y: y,
             baseX: x,
             baseY: y,
-            size: 1.2, // Slightly smaller to fit the density
+            size: 1.2,
           });
         }
       }
@@ -59,24 +59,19 @@ const HeroBanner: React.FC = () => {
       for (let i = 0; i < dots.length; i++) {
         const dot = dots[i];
         
-        // Calculate distance between mouse and dot
         const dx = mouse.x - dot.x;
         const dy = mouse.y - dot.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const hoverRadius = 150; // Tighter interaction radius for dense grid
+        const hoverRadius = 150;
 
-        // LOGIC: "Raised Up" Effect
         if (dist < hoverRadius) {
           const force = (hoverRadius - dist) / hoverRadius;
-          const lift = force * 20; // Lift height
+          const lift = force * 20;
           
           dot.y = dot.baseY - lift;
-          dot.size = 1.2 + (force * 1.5); 
-          
-          // Bright Cyan when hovered
-          ctx.fillStyle = `rgba(56, 189, 248, ${0.4 + force})`; 
+          dot.size = 1.2 + (force * 1.5);
+          ctx.fillStyle = `rgba(56, 189, 248, ${0.4 + force})`;
         } else {
-          // Static state
           dot.y = dot.baseY;
           dot.size = 1.2;
           ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
@@ -92,7 +87,6 @@ const HeroBanner: React.FC = () => {
     init();
     animate();
 
-    // Track mouse relative to the hero container
     const handleMouseMove = (e: MouseEvent) => {
       const rect = container.getBoundingClientRect();
       mouse.x = e.clientX - rect.left;
@@ -118,30 +112,24 @@ const HeroBanner: React.FC = () => {
   }, []);
 
   return (
-    // WRAPPER: White Background
     <div className="w-full bg-white py-8 lg:py-12">
       <div className="container mx-auto px-4">
         
-        {/* THE CARD: Deep Royal Blue Gradient */}
         <div ref={containerRef} className="relative w-full rounded-[2.5rem] overflow-hidden bg-gradient-to-br from-[#0f172a] via-[#1e3a8a] to-[#172554] min-h-[500px] flex items-center shadow-2xl">
           
-          {/* Canvas Layer */}
           <canvas ref={canvasRef} className="absolute inset-0 z-0" />
           
           <div className="relative z-10 w-full px-8 lg:px-16 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             
-            {/* Text Content */}
             <motion.div 
               initial={{ opacity: 0, x: -30 }} 
               animate={{ opacity: 1, x: 0 }} 
               transition={{ duration: 0.6 }}
             >
-              {/* Badge */}
               <div className="inline-block border border-[#38bdf8]/50 px-4 py-1.5 rounded-full mb-6 bg-[#38bdf8]/10 backdrop-blur-md">
                 <span className="text-[#38bdf8] text-[10px] font-bold tracking-[0.15em] uppercase">Limited Time Only</span>
               </div>
               
-              {/* Heading */}
               <h1 className="text-6xl lg:text-7xl font-black italic uppercase tracking-tighter leading-[0.9] mb-6 text-white">
                 Price Drop <br/>
                 <span className="text-[#93c5fd]">Alert</span>
@@ -151,13 +139,11 @@ const HeroBanner: React.FC = () => {
                 Grab the latest collections at unbeatable prices.
               </p>
               
-              {/* Button */}
               <button className="bg-[#3b82f6] text-white px-8 py-3 rounded-full font-bold flex items-center gap-2 hover:bg-[#2563eb] transition-colors shadow-[0_0_20px_rgba(59,130,246,0.4)] hover:shadow-[0_0_30px_rgba(59,130,246,0.6)]">
                 Shop Now <ChevronRight size={18} strokeWidth={3}/>
               </button>
             </motion.div>
 
-            {/* Right Image Placeholder */}
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }} 
@@ -176,6 +162,51 @@ const HeroBanner: React.FC = () => {
 
 const HomePage: React.FC = () => {
   const [dbProducts, setDbProducts] = useState<Product[]>([]);
+
+  /**
+   * ⭐ NEW: Smooth-edge hover animation (no white gaps)
+   */
+  useEffect(() => {
+    const id = 'smooth-category-animation';
+    if (!document.getElementById(id)) {
+      const style = document.createElement('style');
+      style.id = id;
+      style.innerHTML = `
+        .category-item, .category-item * {
+          -webkit-font-smoothing: antialiased;
+          -webkit-backface-visibility: hidden;
+        }
+
+        .category-item .btn-circle {
+          border-radius: 9999px;
+          overflow: hidden;
+          background-clip: padding-box;
+          transform: translateZ(0);
+          will-change: transform;
+          transition: transform 260ms cubic-bezier(.2,.9,.2,1), box-shadow 260ms;
+        }
+
+        .category-item .gold-slide {
+          position: absolute;
+          inset: -1px; /* prevents white edges */
+          border-radius: inherit;
+          pointer-events: none;
+          transform: translateY(110%);
+          transition: transform 340ms cubic-bezier(.2,.9,.2,1);
+          background: #3b82f6; /* change to gold if needed */
+          will-change: transform;
+        }
+
+        .category-item:hover .gold-slide { transform: translateY(0%); }
+
+        .category-item:hover .btn-circle {
+          transform: translateY(-12%) scale(1.04);
+          box-shadow: 0 18px 36px rgba(0,0,0,0.08);
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  }, []);
 
   useEffect(() => {
     const fetchLatest = async () => {
@@ -197,26 +228,28 @@ const HomePage: React.FC = () => {
       {/* CATEGORIES */}
       <div className="bg-white py-8">
         <div className="container mx-auto px-4 flex justify-center gap-16 lg:gap-24 flex-wrap">
+          
           {CATEGORIES.map((cat, idx) => (
-            <Link key={idx} to={`/shop?category=${cat.name}`} className="flex flex-col items-center gap-5 cursor-pointer">
+            <Link 
+              key={idx} 
+              to={`/shop?category=${cat.name}`} 
+              className="flex flex-col items-center gap-5 cursor-pointer category-item active:scale-95"
+            >
               
-              {/* MODIFIED: Circle Container -> w-20 h-20 (80px) */}
-              <div className="group relative w-20 h-20 rounded-full border border-slate-200 flex items-center justify-center overflow-hidden transition-all shadow-sm hover:shadow-md hover:border-[#3b82f6] bg-white">
+              <div className="group btn-circle relative w-20 h-20 rounded-full border border-slate-200 flex items-center justify-center overflow-hidden bg-white">
                 
-                {/* The Fill Layer */}
-                <div className="absolute bottom-0 left-0 w-full h-0 bg-[#3b82f6] transition-all duration-300 ease-out group-hover:h-full"></div>
+                <span className="gold-slide" />
 
-                {/* The Icon */}
-                <div className="relative z-10 text-slate-400 transition-colors duration-300 group-hover:text-white">
+                <div className="relative z-10 text-slate-400 group-hover:text-white transition-colors">
                   {cat.icon}
                 </div>
 
               </div>
               
-              {/* MODIFIED: Text Label -> text-base */}
               <span className="text-base font-bold text-slate-600 hover:text-[#0f172a] transition-colors">{cat.name}</span>
             </Link>
           ))}
+
         </div>
       </div>
       
@@ -226,8 +259,8 @@ const HomePage: React.FC = () => {
         <section>
           <div className="flex items-end justify-between mb-10">
             <div>
-                <h2 className="text-3xl font-bold text-slate-900">Latest Launches</h2>
-                <p className="text-slate-500 mt-2 text-sm">Fresh technology just arrived.</p>
+              <h2 className="text-3xl font-bold text-slate-900">Latest Launches</h2>
+              <p className="text-slate-500 mt-2 text-sm">Fresh technology just arrived.</p>
             </div>
             <Link to="/shop" className="text-[#2563eb] font-bold hover:text-[#1d4ed8] transition-all flex items-center gap-1 pb-0.5 border-b border-transparent hover:border-[#1d4ed8]">
               View All <ChevronRight size={14}/>

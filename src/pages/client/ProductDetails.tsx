@@ -1,39 +1,46 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Star, Truck, ShieldCheck, RotateCcw, MapPin, User, Minus, Plus, ChevronDown, ChevronUp, ShoppingBag } from 'lucide-react';
+import { Star, ShieldCheck, User, Minus, Plus, ChevronDown, ChevronUp, ShoppingBag } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useCart } from '../../context/CartContext';
+import { Session } from '@supabase/supabase-js';
 
 const ProductDetails = () => {
   const { id } = useParams();
   const { addToCart } = useCart();
+  
+  // Product Data States
   const [product, setProduct] = useState<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [qty, setQty] = useState(1);
   
-  // Independent states for accordions
+  // Interactive Image Gallery State
+  const [activeImage, setActiveImage] = useState(0);
+  const [galleryImages, setGalleryImages] = useState<string[]>([]);
+
+  // Accordion States
   const [showDesc, setShowDesc] = useState(true);
   const [showReviews, setShowReviews] = useState(false);
 
-  // Interactive Image Gallery State
-  const [activeImage, setActiveImage] = useState(0);
-  // Placeholder gallery logic (since DB usually only has 1 image)
-  const [galleryImages, setGalleryImages] = useState<string[]>([]);
-
-  // Mock reviews
-  const reviews = [
-    { user: "Alex Johnson", rating: 5, date: "2 days ago", text: "Absolutely love the finish on this. Matches my kitchen perfectly." },
-    { user: "Sarah Smith", rating: 4, date: "1 week ago", text: "Great quality for the price. Installation was a bit tricky but worth it." }
-  ];
+  // --- NEW: Real Reviews & Session State ---
+  const [realReviews, setRealReviews] = useState<any[]>([]);
+  const [newReview, setNewReview] = useState('');
+  const [rating, setRating] = useState(5);
+  const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
+    // 1. Get User Session
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+
     const fetchData = async () => {
+      // 2. Fetch Product Details
       const { data: prod } = await supabase.from('products').select('*').eq('id', id).single();
       
       if (prod) {
         setProduct(prod);
-        // Mocking a gallery by using the main image multiple times for demo
+        // Mocking a gallery by using the main image multiple times (since DB has 1 image column)
         setGalleryImages([
             prod.image_url, 
             prod.image_url, 
@@ -41,17 +48,51 @@ const ProductDetails = () => {
             prod.image_url
         ]);
 
+        // 3. Fetch Related Products
         const { data: related } = await supabase.from('products').select('*')
           .eq('category', prod.category)
           .neq('id', prod.id)
           .limit(4);
         setRelatedProducts(related || []);
+
+        // 4. Fetch Real Reviews
+        const { data: reviewsData } = await supabase
+            .from('reviews')
+            .select('*')
+            .eq('product_id', id)
+            .order('created_at', { ascending: false });
+        
+        if (reviewsData) setRealReviews(reviewsData);
       }
       setLoading(false);
     };
+
     fetchData();
     window.scrollTo(0,0);
   }, [id]);
+
+  // --- NEW: Handle Review Submission ---
+  const submitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!session || !newReview.trim()) return alert("Please log in and write a comment.");
+
+    const { error } = await supabase.from('reviews').insert([{
+        product_id: id,
+        user_name: session.user.user_metadata.full_name || 'Verified User',
+        rating: rating,
+        comment: newReview
+    }]);
+
+    if (error) {
+        alert(error.message);
+    } else {
+        setNewReview('');
+        alert("Review submitted!");
+        // Refresh reviews locally
+        const { data } = await supabase.from('reviews').select('*').eq('product_id', id).order('created_at', { ascending: false });
+        if (data) setRealReviews(data);
+    }
+  };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white"><div className="animate-pulse text-xl font-medium text-gray-400">Loading...</div></div>;
   if (!product) return <div className="min-h-screen flex items-center justify-center">Product not found</div>;
@@ -79,7 +120,6 @@ const ProductDetails = () => {
                {/* Main Image */}
                <div className="aspect-[4/5] bg-gray-50 rounded-3xl flex items-center justify-center p-8 border border-gray-100 relative overflow-hidden group">
                  
-                 {/* FIX: Changed rounded-md to rounded-full for pill shape */}
                  {isOutOfStock && (
                    <div className="absolute top-6 left-6 z-20 bg-[#ef4444] text-white text-xs font-extrabold px-4 py-2 rounded-full uppercase tracking-widest shadow-sm">
                      Sold Out
@@ -92,9 +132,9 @@ const ProductDetails = () => {
                  )}
 
                  <img 
-                    src={galleryImages[activeImage] || product.image_url} 
-                    alt={product.name} 
-                    className={`w-full h-full object-cover mix-blend-multiply transition-all duration-500 group-hover:scale-105 ${isOutOfStock ? 'grayscale opacity-70' : ''}`} 
+                   src={galleryImages[activeImage] || product.image_url} 
+                   alt={product.name} 
+                   className={`w-full h-full object-cover mix-blend-multiply transition-all duration-500 group-hover:scale-105 ${isOutOfStock ? 'grayscale opacity-70' : ''}`} 
                  />
                </div>
 
@@ -108,7 +148,7 @@ const ProductDetails = () => {
                        activeImage === idx ? 'border-blue-600 ring-1 ring-blue-600/20' : 'border-transparent hover:border-gray-300'
                      }`}
                    >
-                     <img src={img} className="w-full h-full object-cover mix-blend-multiply" />
+                     <img src={img} className="w-full h-full object-cover mix-blend-multiply" alt="thumbnail" />
                    </button>
                  ))}
                </div>
@@ -124,7 +164,7 @@ const ProductDetails = () => {
                 <div className="flex text-yellow-400">
                   {[1,2,3,4,5].map(i => <Star key={i} size={18} fill="currentColor" />)}
                 </div>
-                <span className="text-sm text-gray-500 underline underline-offset-4">4 Verified Reviews</span>
+                <span className="text-sm text-gray-500 underline underline-offset-4">{realReviews.length} Verified Reviews</span>
               </div>
             </div>
 
@@ -182,7 +222,7 @@ const ProductDetails = () => {
                </div>
             </div>
 
-            {/* ACCORDION LOGIC - INDEPENDENT STATES */}
+            {/* ACCORDIONS */}
             <div className="border-t border-gray-200">
               
               {/* Description Toggle */}
@@ -199,30 +239,66 @@ const ProductDetails = () => {
                 )}
               </div>
 
-              {/* Reviews Toggle */}
+              {/* Reviews Toggle (UPDATED) */}
               <div className="border-b border-gray-200 py-6">
                 <button onClick={() => setShowReviews(!showReviews)} className="flex justify-between items-center w-full text-left group">
-                  <span className="font-bold text-lg group-hover:text-blue-600 transition-colors">Reviews ({reviews.length})</span>
+                  <span className="font-bold text-lg group-hover:text-blue-600 transition-colors">Reviews ({realReviews.length})</span>
                   {showReviews ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}
                 </button>
                 
                 {showReviews && (
                   <div className="mt-6 space-y-6 animate-in slide-in-from-top-2 duration-200">
-                    {reviews.map((review, idx) => (
-                      <div key={idx} className="bg-gray-50 p-5 rounded-xl border border-gray-100">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center"><User size={14}/></div>
-                            <span className="text-sm font-bold">{review.user}</span>
+                      
+                      {/* Review Form */}
+                      {session ? (
+                          <form onSubmit={submitReview} className="bg-gray-100 p-4 rounded-xl mb-6">
+                              <h4 className="font-bold mb-2">Write a Review</h4>
+                              <div className="flex gap-2 mb-2 text-yellow-500">
+                                  {[1,2,3,4,5].map(star => (
+                                      <button type="button" key={star} onClick={() => setRating(star)}>
+                                          <Star size={20} fill={star <= rating ? "currentColor" : "none"} />
+                                      </button>
+                                  ))}
+                              </div>
+                              <textarea 
+                                  className="w-full p-2 rounded-lg border border-gray-300 focus:outline-none focus:border-blue-500"
+                                  placeholder="Share your thoughts..."
+                                  value={newReview}
+                                  onChange={e => setNewReview(e.target.value)}
+                                  rows={3}
+                              />
+                              <button type="submit" className="mt-2 bg-black text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors">
+                                  Post Review
+                              </button>
+                          </form>
+                      ) : (
+                          <div className="bg-blue-50 p-4 rounded-xl text-blue-800 text-sm mb-4 border border-blue-100">
+                              Please <Link to="/login" className="font-bold underline hover:text-blue-900">login</Link> to write a review.
                           </div>
-                          <span className="text-xs text-gray-400">{review.date}</span>
+                      )}
+
+                      {/* List Real Reviews */}
+                      {realReviews.length === 0 && <p className="text-gray-500 italic">No reviews yet. Be the first!</p>}
+                      
+                      {realReviews.map((review) => (
+                        <div key={review.id} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-gray-500">
+                                 <User size={14}/>
+                              </div>
+                              <span className="text-sm font-bold text-gray-900">{review.user_name}</span>
+                            </div>
+                            <span className="text-xs text-gray-400">
+                                {new Date(review.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div className="flex text-yellow-400 mb-2">
+                            {[...Array(review.rating)].map((_, i) => <Star key={i} size={14} fill="currentColor"/>)}
+                          </div>
+                          <p className="text-sm text-gray-600">{review.comment}</p>
                         </div>
-                        <div className="flex text-yellow-400 mb-2">
-                          {[...Array(review.rating)].map((_, i) => <Star key={i} size={14} fill="currentColor"/>)}
-                        </div>
-                        <p className="text-sm text-gray-600">{review.text}</p>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 )}
               </div>

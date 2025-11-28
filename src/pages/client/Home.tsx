@@ -12,7 +12,7 @@ const CATEGORIES = [
   { name: 'Jewellery', icon: <Gem size={32} /> },
 ];
 
-const HeroBanner: React.FC = () => {
+const HeroBanner = ({ heroProduct }: { heroProduct: any }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   
@@ -127,30 +127,52 @@ const HeroBanner: React.FC = () => {
               transition={{ duration: 0.6 }}
             >
               <div className="inline-block border border-[#38bdf8]/50 px-4 py-1.5 rounded-full mb-6 bg-[#38bdf8]/10 backdrop-blur-md">
-                <span className="text-[#38bdf8] text-[10px] font-bold tracking-[0.15em] uppercase">Limited Time Only</span>
+                <span className="text-[#38bdf8] text-[10px] font-bold tracking-[0.15em] uppercase">
+                    {heroProduct ? 'Featured Product' : 'Limited Time Only'}
+                </span>
               </div>
               
               <h1 className="text-6xl lg:text-7xl font-black italic uppercase tracking-tighter leading-[0.9] mb-6 text-white">
-                Price Drop <br/>
-                <span className="text-[#93c5fd]">Alert</span>
+                {heroProduct ? (
+                    <>
+                        {heroProduct.name.split(' ').slice(0, 2).join(' ')} <br/>
+                        <span className="text-[#93c5fd]">Now £{heroProduct.price}</span>
+                    </>
+                ) : (
+                    <>
+                        Price Drop <br/>
+                        <span className="text-[#93c5fd]">Alert</span>
+                    </>
+                )}
               </h1>
               
-              <p className="text-blue-100 text-sm lg:text-base mb-8 font-medium max-w-md">
-                Grab the latest collections at unbeatable prices.
+              <p className="text-blue-100 text-sm lg:text-base mb-8 font-medium max-w-md line-clamp-2">
+                {heroProduct ? heroProduct.description : 'Grab the latest collections at unbeatable prices.'}
               </p>
               
-              <button className="bg-[#3b82f6] text-white px-8 py-3 rounded-full font-bold flex items-center gap-2 hover:bg-[#2563eb] transition-colors shadow-[0_0_20px_rgba(59,130,246,0.4)] hover:shadow-[0_0_30px_rgba(59,130,246,0.6)]">
+              <Link 
+                to={heroProduct ? `/product/${heroProduct.id}` : '/shop'} 
+                className="inline-flex bg-[#3b82f6] text-white px-8 py-3 rounded-full font-bold items-center gap-2 hover:bg-[#2563eb] transition-colors shadow-[0_0_20px_rgba(59,130,246,0.4)] hover:shadow-[0_0_30px_rgba(59,130,246,0.6)]"
+              >
                 Shop Now <ChevronRight size={18} strokeWidth={3}/>
-              </button>
+              </Link>
             </motion.div>
 
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }} 
               transition={{ duration: 0.8 }} 
-              className="relative w-full aspect-[16/10] bg-[#0f172a]/60 border border-white/10 rounded-3xl flex items-center justify-center backdrop-blur-md shadow-inner"
+              className="relative w-full aspect-[16/10] bg-[#0f172a]/60 border border-white/10 rounded-3xl flex items-center justify-center backdrop-blur-md shadow-inner overflow-hidden"
             >
-               <span className="text-white/20 font-bold tracking-widest uppercase text-sm">[ Hero Product Image ]</span>
+               {heroProduct ? (
+                 <img 
+                    src={heroProduct.image_url} 
+                    alt={heroProduct.name} 
+                    className="w-full h-full object-contain p-8 drop-shadow-2xl" 
+                 />
+               ) : (
+                 <span className="text-white/20 font-bold tracking-widest uppercase text-sm">[ Hero Product Image ]</span>
+               )}
             </motion.div>
 
           </div>
@@ -162,6 +184,7 @@ const HeroBanner: React.FC = () => {
 
 const HomePage: React.FC = () => {
   const [dbProducts, setDbProducts] = useState<Product[]>([]);
+  const [heroProduct, setHeroProduct] = useState<any>(null);
 
   /**
    * ⭐ NEW: Smooth-edge hover animation (no white gaps)
@@ -210,11 +233,23 @@ const HomePage: React.FC = () => {
 
   useEffect(() => {
     const fetchLatest = async () => {
+      // 1. Fetch Latest Products
       const { data } = await supabase.from('products').select('*').order('created_at', { ascending: false }).limit(4);
+      
       if (data) {
         setDbProducts(data.map((item: any) => ({
           id: item.id, name: item.name, price: `£${item.price}`, image: item.image_url, tag: 'New'
         })));
+
+        // 2. Fetch Hero Product (Find the one marked as is_hero)
+        const hero = data.find((p: any) => p.is_hero);
+        if (hero) {
+            setHeroProduct(hero);
+        } else {
+            // If the hero isn't in the top 4, fetch it separately
+            const { data: heroData } = await supabase.from('products').select('*').eq('is_hero', true).limit(1);
+            if (heroData && heroData.length > 0) setHeroProduct(heroData[0]);
+        }
       }
     };
     fetchLatest();
@@ -223,7 +258,8 @@ const HomePage: React.FC = () => {
   return (
     <div className="min-h-screen bg-white font-sans text-slate-900">
       
-      <HeroBanner />
+      {/* Pass the hero product state to the banner */}
+      <HeroBanner heroProduct={heroProduct} />
       
       {/* CATEGORIES */}
       <div className="bg-white py-8">

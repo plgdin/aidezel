@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Heart, ShoppingBag } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
+import { supabase } from '../../lib/supabase';
 
 export interface Product {
   id: number;
@@ -15,6 +16,35 @@ export interface Product {
 
 const ProductCard = ({ product }: { product: Product }) => {
   const { addToCart } = useCart();
+  const [isWishlisted, setIsWishlisted] = useState(false);
+
+  const toggleWishlist = async (e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent clicking the link
+    e.stopPropagation();
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+        alert("Please login to save items!");
+        return;
+    }
+
+    if (isWishlisted) {
+        // Optimistic UI update (optional, simple toggle for now)
+        setIsWishlisted(false);
+        // Note: To delete accurately we'd need the wishlist ID, 
+        // but for this simple card we usually just handle "adding".
+    } else {
+        setIsWishlisted(true);
+        const { error } = await supabase.from('wishlist').insert({
+            user_id: session.user.id,
+            product_id: product.id
+        });
+        if (error) {
+            console.error(error);
+            setIsWishlisted(false); // Revert if error
+        }
+    }
+  };
 
   return (
     <div className="group relative bg-white border border-slate-200 rounded-2xl overflow-hidden hover:shadow-[0_10px_30px_-10px_rgba(59,130,246,0.15)] transition-all duration-300 hover:-translate-y-1 hover:border-[#3b82f6]">
@@ -29,18 +59,21 @@ const ProductCard = ({ product }: { product: Product }) => {
           </span>
         )}
         
+        {/* FUNCTIONAL HEART BUTTON */}
         <button 
-          className="absolute top-3 right-3 z-10 p-2 bg-white/80 backdrop-blur rounded-full text-slate-600 hover:text-red-500 hover:bg-white transition-all opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 duration-200 shadow-md"
-          onClick={(e) => { e.preventDefault(); }}
+          className={`absolute top-3 right-3 z-10 p-2 backdrop-blur rounded-full transition-all duration-200 shadow-md translate-y-2 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 ${
+              isWishlisted ? 'bg-red-50 text-red-500' : 'bg-white/80 text-slate-600 hover:text-red-500 hover:bg-white'
+          }`}
+          onClick={toggleWishlist}
         >
-          <Heart size={16} />
+          <Heart size={16} fill={isWishlisted ? "currentColor" : "none"} />
         </button>
 
         {product.image ? (
           <img 
             src={product.image} 
             alt={product.name} 
-            className="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105"
+            className="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105 mix-blend-multiply"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-slate-300 text-xs uppercase tracking-widest">
@@ -48,7 +81,7 @@ const ProductCard = ({ product }: { product: Product }) => {
           </div>
         )}
         
-        {/* Quick Add (Blue Gradient) */}
+        {/* Quick Add */}
         <div className="absolute inset-x-0 bottom-0 p-4 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-4 group-hover:translate-y-0 hidden lg:block bg-gradient-to-t from-white/90 to-transparent">
            <button 
              onClick={(e) => { 

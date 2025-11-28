@@ -7,7 +7,7 @@ import AdminLayout from './components/layout/AdminLayout';
 
 // --- Pages: AUTH ---
 import Login from './pages/auth/Login';
-import Register from './pages/auth/Register'; // <--- ADDED THIS
+import Register from './pages/auth/Register';
 
 // --- Pages: CLIENT ---
 import HomePage from './pages/client/Home';
@@ -26,6 +26,8 @@ import Terms from './pages/client/Terms';
 import AdminDashboard from './pages/admin/Dashboard';
 import ManageProducts from './pages/admin/ManageProducts';
 import ManageOrders from './pages/admin/ManageOrders';
+import ManageCategories from './pages/admin/ManageCategories'; // NEW
+import Inventory from './pages/admin/Inventory'; // NEW
 
 function App() {
   return (
@@ -51,7 +53,7 @@ function App() {
         <Route path="contact" element={<Contact />} />
         <Route path="terms" element={<Terms />} />
         
-        {/* Placeholders for links in footer (point to existing pages for now) */}
+        {/* Footer Links Placeholders */}
         <Route path="privacy" element={<Terms />} />
         <Route path="cookies" element={<Terms />} />
         <Route path="returns" element={<Contact />} />
@@ -63,10 +65,16 @@ function App() {
           ========================================= */}
       <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<AdminDashboard />} />
+        
+        {/* Product Management */}
         <Route path="products" element={<ManageProducts />} />
+        <Route path="inventory" element={<Inventory />} />     {/* NEW PAGE */}
+        <Route path="categories" element={<ManageCategories />} /> {/* NEW PAGE */}
+        
+        {/* Order Management */}
         <Route path="orders" element={<ManageOrders />} />
         
-        {/* Placeholder for Analytics pointing to Dashboard */}
+        {/* Placeholders */}
         <Route path="analytics" element={<AdminDashboard />} />
         <Route path="settings" element={<AdminDashboard />} />
       </Route>
@@ -75,7 +83,7 @@ function App() {
           AUTH ROUTES (No Layout) 
           ========================================= */}
       <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} /> {/* <--- ADDED THIS */}
+      <Route path="/register" element={<Register />} />
       
     </Routes>
   );

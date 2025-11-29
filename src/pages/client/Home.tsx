@@ -1,17 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronRight, Lightbulb, Gem, Armchair, Zap, User, ShoppingCart } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Zap, User, ShoppingCart, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import ProductCard, { Product } from '../../components/shared/ProductCard';
 
-// MODIFIED: Slightly increased icon size to 32
-const CATEGORIES = [
-  { name: 'Lighting', icon: <Lightbulb size={32} /> },
-  { name: 'Home & Kitchen', icon: <Armchair size={32} /> },
-  { name: 'Jewellery', icon: <Gem size={32} /> },
-];
-
+// --- HERO BANNER (Unchanged) ---
 const HeroBanner = ({ heroProduct }: { heroProduct: any }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -28,7 +22,6 @@ const HeroBanner = ({ heroProduct }: { heroProduct: any }) => {
     let height = container.offsetHeight;
     let dots: any[] = [];
     
-    // Mouse state starts off-screen
     const mouse = { x: -1000, y: -1000 };
 
     const init = () => {
@@ -58,7 +51,6 @@ const HeroBanner = ({ heroProduct }: { heroProduct: any }) => {
       
       for (let i = 0; i < dots.length; i++) {
         const dot = dots[i];
-        
         const dx = mouse.x - dot.x;
         const dy = mouse.y - dot.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -182,71 +174,37 @@ const HeroBanner = ({ heroProduct }: { heroProduct: any }) => {
   );
 };
 
+// --- MAIN HOME PAGE ---
 const HomePage: React.FC = () => {
   const [dbProducts, setDbProducts] = useState<Product[]>([]);
   const [heroProduct, setHeroProduct] = useState<any>(null);
+  
+  const [categories, setCategories] = useState<any[]>([]);
+  const [catIndex, setCatIndex] = useState(0);
+  
+  // Show 8 categories at once
+  const VISIBLE_CATS = 8;
 
-  /**
-   * ⭐ NEW: Smooth-edge hover animation (no white gaps)
-   */
   useEffect(() => {
-    const id = 'smooth-category-animation';
-    if (!document.getElementById(id)) {
-      const style = document.createElement('style');
-      style.id = id;
-      style.innerHTML = `
-        .category-item, .category-item * {
-          -webkit-font-smoothing: antialiased;
-          -webkit-backface-visibility: hidden;
-        }
-
-        .category-item .btn-circle {
-          border-radius: 9999px;
-          overflow: hidden;
-          background-clip: padding-box;
-          transform: translateZ(0);
-          will-change: transform;
-          transition: transform 260ms cubic-bezier(.2,.9,.2,1), box-shadow 260ms;
-        }
-
-        .category-item .gold-slide {
-          position: absolute;
-          inset: -1px; /* prevents white edges */
-          border-radius: inherit;
-          pointer-events: none;
-          transform: translateY(110%);
-          transition: transform 340ms cubic-bezier(.2,.9,.2,1);
-          background: #3b82f6; /* change to gold if needed */
-          will-change: transform;
-        }
-
-        .category-item:hover .gold-slide { transform: translateY(0%); }
-
-        .category-item:hover .btn-circle {
-          transform: translateY(-12%) scale(1.04);
-          box-shadow: 0 18px 36px rgba(0,0,0,0.08);
-        }
-      `;
-      document.head.appendChild(style);
-    }
+    const fetchCats = async () => {
+        const { data } = await supabase.from('categories').select('*').order('id');
+        if (data) setCategories(data);
+    };
+    fetchCats();
   }, []);
 
   useEffect(() => {
     const fetchLatest = async () => {
-      // 1. Fetch Latest Products
       const { data } = await supabase.from('products').select('*').order('created_at', { ascending: false }).limit(4);
-      
       if (data) {
         setDbProducts(data.map((item: any) => ({
           id: item.id, name: item.name, price: `£${item.price}`, image: item.image_url, tag: 'New'
         })));
 
-        // 2. Fetch Hero Product (Find the one marked as is_hero)
         const hero = data.find((p: any) => p.is_hero);
         if (hero) {
             setHeroProduct(hero);
         } else {
-            // If the hero isn't in the top 4, fetch it separately
             const { data: heroData } = await supabase.from('products').select('*').eq('is_hero', true).limit(1);
             if (heroData && heroData.length > 0) setHeroProduct(heroData[0]);
         }
@@ -255,37 +213,92 @@ const HomePage: React.FC = () => {
     fetchLatest();
   }, []);
 
+  const nextCat = () => setCatIndex(prev => Math.min(prev + 1, categories.length - VISIBLE_CATS));
+  const prevCat = () => setCatIndex(prev => Math.max(prev - 1, 0));
+
+  // Determine if scrolling is needed
+  const isScrollable = categories.length > VISIBLE_CATS;
+  const isStart = catIndex === 0;
+  const isEnd = !isScrollable || catIndex >= categories.length - VISIBLE_CATS;
+
   return (
     <div className="min-h-screen bg-white font-sans text-slate-900">
       
-      {/* Pass the hero product state to the banner */}
       <HeroBanner heroProduct={heroProduct} />
       
-      {/* CATEGORIES */}
-      <div className="bg-white py-8">
-        <div className="container mx-auto px-4 flex justify-center gap-16 lg:gap-24 flex-wrap">
-          
-          {CATEGORIES.map((cat, idx) => (
-            <Link 
-              key={idx} 
-              to={`/shop?category=${cat.name}`} 
-              className="flex flex-col items-center gap-5 cursor-pointer category-item active:scale-95"
-            >
-              
-              <div className="group btn-circle relative w-20 h-20 rounded-full border border-slate-200 flex items-center justify-center overflow-hidden bg-white">
+      {/* --- DYNAMIC CATEGORIES CAROUSEL --- */}
+      <div className="bg-white py-12 relative group/carousel">
+        <div className="container mx-auto px-4">
+            
+            <div className="relative flex items-center justify-center gap-4">
                 
-                <span className="gold-slide" />
+                {/* PREV BUTTON (Only render if we have > 8 categories) */}
+                {isScrollable && (
+                    <button 
+                        onClick={prevCat}
+                        disabled={isStart}
+                        // UPDATED STYLE: Increased gap with lg:-left-8
+                        className={`absolute left-0 lg:-left-8 z-20 w-12 h-12 rounded-full flex items-center justify-center shadow-lg border border-white/50 text-slate-800 transition-all duration-300
+                            ${isStart ? 'opacity-30 cursor-not-allowed bg-gray-100' : 'bg-white/40 backdrop-blur-md hover:bg-white/80 hover:scale-110 cursor-pointer'}
+                        `}
+                    >
+                        <ChevronLeft size={24} />
+                    </button>
+                )}
 
-                <div className="relative z-10 text-slate-400 group-hover:text-white transition-colors">
-                  {cat.icon}
+                {/* THE CATEGORIES LIST */}
+                <div className="flex justify-center gap-6 lg:gap-10 transition-all duration-300 w-full overflow-hidden py-4 px-4 lg:px-12">
+                    {categories.slice(catIndex, catIndex + VISIBLE_CATS).map((cat, idx) => (
+                        <Link 
+                            key={idx} 
+                            to={`/shop?category=${cat.name}`} 
+                            className="flex flex-col items-center gap-4 cursor-pointer group w-32 flex-shrink-0"
+                        >
+                            <div className="relative w-28 h-28 lg:w-32 lg:h-32 rounded-3xl overflow-hidden shadow-sm border border-slate-100 group-hover:shadow-xl group-hover:-translate-y-2 transition-all duration-300 bg-white">
+                                
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors z-10" />
+
+                                {cat.image_url ? (
+                                    <img 
+                                        src={cat.image_url} 
+                                        alt={cat.name} 
+                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                                    />
+                                ) : (
+                                    <div className="w-full h-full bg-gradient-to-br from-blue-50 to-slate-100 flex items-center justify-center text-slate-400">
+                                        <span className="text-4xl font-black opacity-20 uppercase">{cat.name.charAt(0)}</span>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <span className="text-sm font-bold text-slate-600 group-hover:text-blue-600 transition-colors text-center leading-tight">
+                                {cat.name}
+                            </span>
+                        </Link>
+                    ))}
+                    
+                    {categories.length === 0 && (
+                        <div className="text-gray-400 text-sm flex items-center gap-2 py-10">
+                            <Loader2 className="animate-spin" /> Loading Categories...
+                        </div>
+                    )}
                 </div>
 
-              </div>
-              
-              <span className="text-base font-bold text-slate-600 hover:text-[#0f172a] transition-colors">{cat.name}</span>
-            </Link>
-          ))}
+                {/* NEXT BUTTON (Only render if we have > 8 categories) */}
+                {isScrollable && (
+                    <button 
+                        onClick={nextCat}
+                        disabled={isEnd}
+                        // UPDATED STYLE: Increased gap with lg:-right-8
+                        className={`absolute right-0 lg:-right-8 z-20 w-12 h-12 rounded-full flex items-center justify-center shadow-lg border border-white/50 text-slate-800 transition-all duration-300
+                            ${isEnd ? 'opacity-30 cursor-not-allowed bg-gray-100' : 'bg-white/40 backdrop-blur-md hover:bg-white/80 hover:scale-110 cursor-pointer'}
+                        `}
+                    >
+                        <ChevronRight size={24} />
+                    </button>
+                )}
 
+            </div>
         </div>
       </div>
       

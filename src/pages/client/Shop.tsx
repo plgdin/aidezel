@@ -12,8 +12,11 @@ const PRICE_RANGES = [
   { label: 'Over £10,000', min: 10000, max: 1000000 },
 ];
 
-// --- UTILITY: Levenshtein Distance ---
+// --- UTILITY: Levenshtein Distance (For Search Suggestions) ---
 const getLevenshteinDistance = (a: string, b: string) => {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  
   const matrix = [];
   for (let i = 0; i <= b.length; i++) { matrix[i] = [i]; }
   for (let j = 0; j <= a.length; j++) { matrix[0][j] = j; }
@@ -38,6 +41,9 @@ const Shop = () => {
   const [loading, setLoading] = useState(true);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   
+  // NEW: Dynamic Categories State
+  const [categories, setCategories] = useState<string[]>(['All']);
+  
   const [searchParams, setSearchParams] = useSearchParams(); 
   
   // Filters State
@@ -46,17 +52,34 @@ const Shop = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [suggestion, setSuggestion] = useState<string | null>(null);
 
-  // --- 1. LISTEN for URL changes ---
+  // --- 1. FETCH CATEGORIES FROM DB ---
   useEffect(() => {
+    const fetchCategories = async () => {
+        const { data } = await supabase.from('categories').select('name').order('name');
+        if (data) {
+            // Ensure "All" is always first
+            setCategories(['All', ...data.map(c => c.name)]);
+        }
+    };
+    fetchCategories();
+  }, []);
+
+  // --- 2. LISTEN for URL changes & FETCH PRODUCTS ---
+  useEffect(() => {
+    // A. Handle URL Params
     const categoryFromUrl = searchParams.get('category');
     const searchFromUrl = searchParams.get('search');
     
     if (categoryFromUrl) {
-      if (categoryFromUrl.trim() === 'Home' || categoryFromUrl === 'Home & Kitchen') {
-         setSelectedCategory('Home & Kitchen');
-      } else {
-         setSelectedCategory(categoryFromUrl);
-      }
+       // Decode URL just in case (e.g. "Home%20%26%20Kitchen")
+       const decodedCat = decodeURIComponent(categoryFromUrl);
+       
+       // Handle the "&" edge case if URL wasn't perfectly encoded
+       if (decodedCat.trim() === 'Home' && !categories.includes('Home')) {
+           setSelectedCategory('Home & Kitchen');
+       } else {
+           setSelectedCategory(decodedCat);
+       }
     } else {
       setSelectedCategory('All');
     }
@@ -67,11 +90,7 @@ const Shop = () => {
       setSearchTerm('');
     }
     
-    window.scrollTo(0, 0);
-  }, [searchParams]);
-
-  // --- Fetch Data ---
-  useEffect(() => {
+    // B. Fetch Products
     const fetchProducts = async () => {
       setLoading(true);
       const { data } = await supabase
@@ -88,14 +107,17 @@ const Shop = () => {
           image: item.image_url,
           category: item.category,
           brand: item.brand,
-          tag: item.status === 'Out of Stock' ? 'Sold Out' : 'New'
+          tag: item.status === 'Out of Stock' ? 'Sold Out' : (item.is_hero ? 'Featured' : 'New')
         }));
         setProducts(formatted);
       }
       setLoading(false);
     };
     fetchProducts();
-  }, []);
+    
+    // Scroll to top on load
+    // window.scrollTo(0, 0); 
+  }, [searchParams]); // Re-run when URL changes
 
   // --- Filter Logic ---
   const filteredProducts = products.filter((product: any) => {
@@ -123,12 +145,7 @@ const Shop = () => {
 
       products.forEach(p => {
         if (p.name) allTerms.add(p.name);
-        if (p.category) {
-            allTerms.add(p.category);
-            if (p.category === 'Home & Kitchen') allTerms.add('Kitchen');
-        }
-        // @ts-ignore
-        if (p.brand) allTerms.add(p.brand);
+        if (p.category) allTerms.add(p.category);
       });
 
       allTerms.forEach(term => {
@@ -151,8 +168,6 @@ const Shop = () => {
     }
   }, [searchTerm, filteredProducts, products]);
 
-  const categories = ['All', 'Lighting', 'Jewellery', 'Home & Kitchen'];
-
   const clearSearch = () => {
     setSearchTerm('');
     const newParams = new URLSearchParams(searchParams);
@@ -164,6 +179,7 @@ const Shop = () => {
     clearSearch();
     setSelectedPrice(null);
     setSelectedCategory('All');
+    setSearchParams({}); // Clear URL
   };
 
   const applySuggestion = () => {
@@ -178,7 +194,7 @@ const Shop = () => {
   const FilterContent = () => (
     <div className="space-y-8">
       
-      {/* CATEGORIES FILTER */}
+      {/* DYNAMIC CATEGORIES FILTER */}
       <div>
         <h3 className="font-bold text-lg mb-4">Categories</h3>
         <div className="space-y-3">
@@ -208,7 +224,6 @@ const Shop = () => {
       <div>
         <h3 className="font-bold text-lg mb-4">Price</h3>
         <div className="space-y-3">
-          {/* Option for All Prices */}
           <div className="flex items-center gap-3">
             <input 
               type="radio" 
@@ -223,7 +238,6 @@ const Shop = () => {
             </label>
           </div>
 
-          {/* Dynamic Ranges */}
           {PRICE_RANGES.map((range, index) => (
             <div key={index} className="flex items-center gap-3">
               <input 
@@ -246,7 +260,7 @@ const Shop = () => {
   );
 
   return (
-    <div className="container mx-auto px-4 pt-4 pb-24 min-h-screen">
+    <div className="container mx-auto px-4 pt-8 pb-24 min-h-screen">
       
       <div className="lg:hidden mb-6 flex gap-3 sticky top-[72px] z-30 bg-gray-50/95 backdrop-blur py-2">
         <button 
@@ -255,6 +269,7 @@ const Shop = () => {
         >
           <SlidersHorizontal size={18} /> Filters
         </button>
+        {/* Placeholder Sort Button */}
         <button className="flex-1 bg-white border border-gray-200 p-3 rounded-xl flex items-center justify-center gap-2 font-bold shadow-sm active:scale-95 transition-transform">
           <ChevronDown size={18} /> Sort By
         </button>
@@ -297,10 +312,9 @@ const Shop = () => {
                   <Search size={32} />
               </div>
               <h3 className="text-xl font-bold text-gray-800">No products found</h3>
-              <p className="text-gray-500 mt-2">We couldn't find anything for "{searchTerm}".</p>
+              <p className="text-gray-500 mt-2">We couldn't find anything for your filters.</p>
               
               {suggestion && (
-                // FIXED: Changed styles from yellow to neutral gray/blue
                 <div className="mt-6 bg-gray-100 border border-gray-200 p-4 rounded-lg inline-block">
                   <p className="text-gray-600 text-sm mb-1">Did you mean?</p>
                   <button 
@@ -313,7 +327,7 @@ const Shop = () => {
               )}
 
               <div className="mt-8">
-                 <button onClick={resetAllFilters} className="text-blue-600 font-bold hover:underline">Clear all filters</button>
+                  <button onClick={resetAllFilters} className="text-blue-600 font-bold hover:underline">Clear all filters</button>
               </div>
             </div>
           )}

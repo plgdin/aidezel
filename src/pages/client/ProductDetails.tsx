@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Star, ShieldCheck, User, Minus, Plus, ChevronDown, ChevronUp, ShoppingBag } from 'lucide-react';
+import { Star, ShieldCheck, User, MapPin, Share2, Heart, Truck, RefreshCw, ChevronDown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useCart } from '../../context/CartContext';
 import { Session } from '@supabase/supabase-js';
@@ -9,53 +9,28 @@ const ProductDetails = () => {
   const { id } = useParams();
   const { addToCart } = useCart();
   
-  // Product Data States
   const [product, setProduct] = useState<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [qty, setQty] = useState(1);
-  
-  // Interactive Image Gallery State
   const [activeImage, setActiveImage] = useState(0);
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
-
-  // Accordion States
-  const [showDesc, setShowDesc] = useState(true);
-  const [showReviews, setShowReviews] = useState(false);
-
-  // --- NEW: Real Reviews & Session State ---
   const [realReviews, setRealReviews] = useState<any[]>([]);
   const [newReview, setNewReview] = useState('');
   const [rating, setRating] = useState(5);
   const [session, setSession] = useState<Session | null>(null);
+  const [selectedColor, setSelectedColor] = useState(0);
 
   useEffect(() => {
-    // 1. Get User Session
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
 
     const fetchData = async () => {
-      // 2. Fetch Product Details
       const { data: prod } = await supabase.from('products').select('*').eq('id', id).single();
       
       if (prod) {
         setProduct(prod);
-        // Mocking a gallery by using the main image multiple times (since DB has 1 image column)
-        setGalleryImages([
-            prod.image_url, 
-            prod.image_url, 
-            prod.image_url, 
-            prod.image_url
-        ]);
+        // Mocking gallery for demo purposes
+        setGalleryImages([prod.image_url, prod.image_url, prod.image_url, prod.image_url]);
 
-        // 3. Fetch Related Products
-        const { data: related } = await supabase.from('products').select('*')
-          .eq('category', prod.category)
-          .neq('id', prod.id)
-          .limit(4);
-        setRelatedProducts(related || []);
-
-        // 4. Fetch Real Reviews
         const { data: reviewsData } = await supabase
             .from('reviews')
             .select('*')
@@ -71,10 +46,9 @@ const ProductDetails = () => {
     window.scrollTo(0,0);
   }, [id]);
 
-  // --- NEW: Handle Review Submission ---
   const submitReview = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!session || !newReview.trim()) return alert("Please log in and write a comment.");
+    if (!session || !newReview.trim()) return alert("Please log in.");
 
     const { error } = await supabase.from('reviews').insert([{
         product_id: id,
@@ -83,12 +57,9 @@ const ProductDetails = () => {
         comment: newReview
     }]);
 
-    if (error) {
-        alert(error.message);
-    } else {
+    if (!error) {
         setNewReview('');
         alert("Review submitted!");
-        // Refresh reviews locally
         const { data } = await supabase.from('reviews').select('*').eq('product_id', id).order('created_at', { ascending: false });
         if (data) setRealReviews(data);
     }
@@ -98,214 +69,208 @@ const ProductDetails = () => {
   if (!product) return <div className="min-h-screen flex items-center justify-center">Product not found</div>;
 
   const isOutOfStock = product.stock_quantity <= 0;
+  const mrp = (product.price * 1.25).toFixed(2);
+  const discount = Math.round(((parseFloat(mrp) - product.price) / parseFloat(mrp)) * 100);
+  const maxSelectable = Math.min(product.stock_quantity, 10);
+  const qtyOptions = Array.from({ length: maxSelectable > 0 ? maxSelectable : 1 }, (_, i) => i + 1);
+
+  // DATA HANDLING
+  const features = product.features && product.features.length > 0 
+    ? product.features 
+    : [
+        "Premium Build Quality: Designed for durability.",
+        "High Performance: Engineered for top-tier results.",
+        "Standard Warranty Included."
+      ];
+
+  const specs = product.specs && Object.keys(product.specs).length > 0
+    ? Object.entries(product.specs)
+    : [
+        ['Brand', product.brand || 'Aidezel'],
+        ['Model Name', product.name],
+        ['Category', product.category],
+        ['Origin', 'United Kingdom'],
+      ];
 
   return (
     <div className="bg-white min-h-screen font-sans text-gray-900 pb-24">
       
-      <div className="container mx-auto px-4 pt-6 lg:pt-12">
-        
-        {/* Breadcrumbs */}
-        <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-gray-400 mb-8">
-           <Link to="/" className="hover:text-black transition-colors">Home</Link> / 
-           <Link to={`/shop?category=${encodeURIComponent(product.category)}`} className="hover:text-black transition-colors">{product.category}</Link> / 
-           <span className="text-black font-medium truncate max-w-[200px]">{product.name}</span>
+      <div className="bg-gray-50 border-b border-gray-200">
+        <div className="container mx-auto px-4 py-2 text-xs text-gray-500 flex items-center gap-2">
+            <Link to="/" className="hover:text-blue-600">Home</Link> &rsaquo;
+            <Link to={`/shop?category=${encodeURIComponent(product.category)}`} className="hover:text-blue-600">{product.category}</Link> &rsaquo;
+            <span className="text-gray-900 font-medium truncate max-w-[200px]">{product.name}</span>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
+      <div className="container mx-auto px-4 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
-          {/* LEFT: GALLERY */}
-          <div className="relative">
-            <div className="sticky top-24 space-y-6">
-               
-               {/* Main Image */}
-               <div className="aspect-[4/5] bg-gray-50 rounded-3xl flex items-center justify-center p-8 border border-gray-100 relative overflow-hidden group">
-                 
-                 {isOutOfStock && (
-                   <div className="absolute top-6 left-6 z-20 bg-[#ef4444] text-white text-xs font-extrabold px-4 py-2 rounded-full uppercase tracking-widest shadow-sm">
-                     Sold Out
-                   </div>
-                 )}
-                 {!isOutOfStock && (
-                    <div className="absolute top-6 left-6 z-20 bg-black text-white text-xs font-extrabold px-4 py-2 rounded-full uppercase tracking-widest shadow-sm">
-                     In Stock
-                   </div>
-                 )}
-
-                 <img 
-                   src={galleryImages[activeImage] || product.image_url} 
-                   alt={product.name} 
-                   className={`w-full h-full object-cover mix-blend-multiply transition-all duration-500 group-hover:scale-105 ${isOutOfStock ? 'grayscale opacity-70' : ''}`} 
-                 />
-               </div>
-
-               {/* Thumbnail Grid */}
-               <div className="grid grid-cols-4 gap-4">
-                 {galleryImages.map((img, idx) => (
-                   <button 
-                     key={idx}
-                     onClick={() => setActiveImage(idx)}
-                     className={`aspect-square rounded-xl border-2 flex items-center justify-center p-2 bg-gray-50 transition-all overflow-hidden ${
-                       activeImage === idx ? 'border-blue-600 ring-1 ring-blue-600/20' : 'border-transparent hover:border-gray-300'
-                     }`}
-                   >
-                     <img src={img} className="w-full h-full object-cover mix-blend-multiply" alt="thumbnail" />
-                   </button>
-                 ))}
-               </div>
+          {/* GALLERY */}
+          <div className="lg:col-span-5">
+            <div className="sticky top-24">
+                <div className="relative w-full aspect-square bg-white border border-gray-200 rounded-2xl flex items-center justify-center p-6 mb-4 group overflow-hidden">
+                    <button className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white shadow-md text-gray-400 hover:text-red-500 transition-colors"><Heart size={20} /></button>
+                    <img src={galleryImages[activeImage]} alt={product.name} className={`w-full h-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-105 ${isOutOfStock ? 'grayscale opacity-70' : ''}`}/>
+                </div>
+                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                    {galleryImages.map((img, idx) => (
+                        <button key={idx} onMouseEnter={() => setActiveImage(idx)} className={`w-16 h-16 flex-shrink-0 rounded-lg border-2 p-1 ${activeImage === idx ? 'border-blue-600 shadow-md' : 'border-gray-200 hover:border-gray-300'}`}>
+                            <img src={img} alt="thumb" className="w-full h-full object-contain mix-blend-multiply"/>
+                        </button>
+                    ))}
+                </div>
             </div>
           </div>
 
-          {/* RIGHT: DETAILS */}
-          <div className="flex flex-col">
+          {/* DETAILS */}
+          <div className="lg:col-span-4 space-y-4">
+            <Link to="/shop" className="text-sm font-bold text-blue-600 hover:underline uppercase tracking-wide">Visit the {product.brand || 'Aidezel'} Store</Link>
+            <h1 className="text-2xl font-medium text-gray-900 leading-snug">{product.name}</h1>
             
-            <div className="mb-6">
-              <h1 className="text-3xl lg:text-5xl font-bold tracking-tight text-gray-900 mb-4 leading-tight">{product.name}</h1>
-              <div className="flex items-center gap-4">
-                <div className="flex text-yellow-400">
-                  {[1,2,3,4,5].map(i => <Star key={i} size={18} fill="currentColor" />)}
+            <div className="flex items-center gap-2 text-sm border-b border-gray-100 pb-4">
+                <div className="flex text-yellow-400">{[1,2,3,4,5].map(i => <Star key={i} size={16} fill="currentColor" />)}</div>
+                <span className="text-blue-600 hover:underline cursor-pointer">{realReviews.length} ratings</span>
+                <span className="text-gray-300">|</span>
+                <span className="text-gray-500">1K+ bought in past month</span>
+            </div>
+
+            <div className="space-y-1">
+                <div className="flex items-baseline gap-3">
+                    <span className="text-3xl text-red-700 font-light">-{discount}%</span>
+                    <span className="text-3xl font-bold text-gray-900"><sup className="text-sm">£</sup>{product.price}</span>
                 </div>
-                <span className="text-sm text-gray-500 underline underline-offset-4">{realReviews.length} Verified Reviews</span>
-              </div>
+                <div className="text-gray-500 text-sm">M.R.P.: <span className="line-through">£{mrp}</span></div>
+                <div className="text-sm text-gray-900">Inclusive of all taxes</div>
             </div>
 
-            <div className="mb-8">
-               <div className="flex items-end gap-4 mb-2">
-                 <span className="text-4xl font-extrabold text-black">£{product.price}</span>
-                 <span className="text-xl text-gray-400 line-through mb-1">£{(product.price * 1.2).toFixed(2)}</span>
-               </div>
-               <p className="text-sm text-green-600 font-medium flex items-center gap-1">
-                 <ShieldCheck size={14} /> Best Price Guaranteed
-               </p>
-            </div>
-
-            {/* Tech Specs Grid */}
-            <div className="grid grid-cols-4 gap-3 mb-8">
-              {['Fast Ship', 'Original', 'Warranty', 'Support'].map((spec, idx) => (
-                <div key={idx} className="bg-gray-50 rounded-xl p-3 text-center border border-gray-100">
-                  <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">{spec}</p>
-                  <div className="flex justify-center mt-1 text-blue-600"><ShieldCheck size={16}/></div>
+            <div className="pt-2">
+                <span className="text-sm font-bold text-gray-700">Color: </span>
+                <span className="text-sm text-gray-600">{['Black', 'White', 'Blue'][selectedColor]}</span>
+                <div className="flex gap-2 mt-2">
+                    {['bg-gray-900', 'bg-gray-100', 'bg-blue-800'].map((color, idx) => (
+                        <button key={idx} onClick={() => setSelectedColor(idx)} className={`w-9 h-9 rounded-full ${color} border-2 ${selectedColor === idx ? 'border-blue-600 ring-2 ring-blue-100' : 'border-transparent hover:border-gray-300'}`}/>
+                    ))}
                 </div>
-              ))}
             </div>
 
-            <div className="h-px bg-gray-100 w-full mb-8"></div>
-
-            {/* ACTIONS */}
-            <div className="space-y-6 mb-10">
-               <div className="flex items-center gap-6">
-                 <div className="flex items-center border border-gray-300 rounded-full px-4 py-3 gap-6">
-                    <button onClick={() => setQty(q => Math.max(1, q - 1))} disabled={isOutOfStock} className="text-gray-500 hover:text-black disabled:opacity-50"><Minus size={16}/></button>
-                    <span className="font-bold w-4 text-center">{qty}</span>
-                    <button onClick={() => setQty(q => Math.min(product.stock_quantity, q + 1))} disabled={isOutOfStock} className="text-gray-500 hover:text-black disabled:opacity-50"><Plus size={16}/></button>
-                 </div>
-               </div>
-
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                 <button 
-                   disabled={isOutOfStock}
-                   onClick={() => addToCart({...product, quantity: qty})}
-                   className="py-4 rounded-full border-2 border-gray-200 font-bold text-lg hover:border-black hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                 >
-                   Add to Cart
-                 </button>
-                 
-                 <button 
-                   disabled={isOutOfStock}
-                   className="py-4 rounded-full font-bold text-lg shadow-xl flex items-center justify-center gap-2 transition-transform hover:-translate-y-1 active:scale-95 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                   style={{ 
-                     background: isOutOfStock ? '#ccc' : 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
-                     boxShadow: isOutOfStock ? 'none' : '0 10px 25px -5px rgba(37, 99, 235, 0.4)'
-                   }}
-                 >
-                   <ShoppingBag size={20} /> {isOutOfStock ? 'Sold Out' : 'Buy Now'}
-                 </button>
-               </div>
+            {/* DYNAMIC BULLET POINTS */}
+            <div className="pt-4">
+                <h3 className="font-bold text-sm text-gray-900 mb-2">About this item</h3>
+                <ul className="list-disc pl-4 space-y-1 text-sm text-gray-700 marker:text-gray-400">
+                    {features.map((feature: string, idx: number) => (
+                        <li key={idx}>{feature}</li>
+                    ))}
+                </ul>
             </div>
-
-            {/* ACCORDIONS */}
-            <div className="border-t border-gray-200">
-              
-              {/* Description Toggle */}
-              <div className="border-b border-gray-200 py-6">
-                <button onClick={() => setShowDesc(!showDesc)} className="flex justify-between items-center w-full text-left group">
-                  <span className="font-bold text-lg group-hover:text-blue-600 transition-colors">Description</span>
-                  {showDesc ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}
-                </button>
-                
-                {showDesc && (
-                  <div className="mt-4 text-gray-600 leading-relaxed whitespace-pre-line animate-in slide-in-from-top-2 duration-200">
-                    {product.description || "Experience premium quality with this item. Designed for performance and style, it fits perfectly into modern lifestyles. \n\n Constructed with high-grade materials and backed by our official warranty."}
-                  </div>
-                )}
-              </div>
-
-              {/* Reviews Toggle (UPDATED) */}
-              <div className="border-b border-gray-200 py-6">
-                <button onClick={() => setShowReviews(!showReviews)} className="flex justify-between items-center w-full text-left group">
-                  <span className="font-bold text-lg group-hover:text-blue-600 transition-colors">Reviews ({realReviews.length})</span>
-                  {showReviews ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}
-                </button>
-                
-                {showReviews && (
-                  <div className="mt-6 space-y-6 animate-in slide-in-from-top-2 duration-200">
-                      
-                      {/* Review Form */}
-                      {session ? (
-                          <form onSubmit={submitReview} className="bg-gray-100 p-4 rounded-xl mb-6">
-                              <h4 className="font-bold mb-2">Write a Review</h4>
-                              <div className="flex gap-2 mb-2 text-yellow-500">
-                                  {[1,2,3,4,5].map(star => (
-                                      <button type="button" key={star} onClick={() => setRating(star)}>
-                                          <Star size={20} fill={star <= rating ? "currentColor" : "none"} />
-                                      </button>
-                                  ))}
-                              </div>
-                              <textarea 
-                                  className="w-full p-2 rounded-lg border border-gray-300 focus:outline-none focus:border-blue-500"
-                                  placeholder="Share your thoughts..."
-                                  value={newReview}
-                                  onChange={e => setNewReview(e.target.value)}
-                                  rows={3}
-                              />
-                              <button type="submit" className="mt-2 bg-black text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors">
-                                  Post Review
-                              </button>
-                          </form>
-                      ) : (
-                          <div className="bg-blue-50 p-4 rounded-xl text-blue-800 text-sm mb-4 border border-blue-100">
-                              Please <Link to="/login" className="font-bold underline hover:text-blue-900">login</Link> to write a review.
-                          </div>
-                      )}
-
-                      {/* List Real Reviews */}
-                      {realReviews.length === 0 && <p className="text-gray-500 italic">No reviews yet. Be the first!</p>}
-                      
-                      {realReviews.map((review) => (
-                        <div key={review.id} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-gray-500">
-                                 <User size={14}/>
-                              </div>
-                              <span className="text-sm font-bold text-gray-900">{review.user_name}</span>
-                            </div>
-                            <span className="text-xs text-gray-400">
-                                {new Date(review.created_at).toLocaleDateString()}
-                            </span>
-                          </div>
-                          <div className="flex text-yellow-400 mb-2">
-                            {[...Array(review.rating)].map((_, i) => <Star key={i} size={14} fill="currentColor"/>)}
-                          </div>
-                          <p className="text-sm text-gray-600">{review.comment}</p>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
-
-            </div>
-
           </div>
+
+          {/* BUY BOX */}
+          <div className="lg:col-span-3">
+            <div className="border border-gray-200 rounded-xl p-5 shadow-sm bg-white sticky top-24">
+                <div className="mb-4"><span className="text-2xl font-bold text-gray-900">£{product.price}</span></div>
+                
+                <div className="text-sm space-y-3 mb-6">
+                    <div className="text-gray-600">Delivery <span className="font-bold text-gray-900">Thursday, 5 Dec</span></div>
+                    <div className="flex items-start gap-2 text-blue-600 text-xs cursor-pointer hover:underline">
+                        <MapPin size={14} className="shrink-0 mt-0.5" /> Deliver to User - London W1...
+                    </div>
+                    <div className={`text-lg font-medium ${isOutOfStock ? 'text-red-600' : 'text-green-700'} mt-2`}>
+                        {isOutOfStock ? 'Currently unavailable.' : 'In Stock.'}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                        <p>Sold by <span className="text-blue-600">Aidezel Official</span></p>
+                        <p>Fulfilled by <span className="text-blue-600">Aidezel</span></p>
+                    </div>
+                </div>
+
+                <div className="space-y-3">
+                    <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 pointer-events-none z-10">Quantity:</span>
+                        <select value={qty} onChange={(e) => setQty(Number(e.target.value))} disabled={isOutOfStock} className="w-full border border-gray-300 rounded-lg py-2.5 pl-20 pr-10 text-sm font-bold shadow-sm focus:border-blue-500 outline-none bg-white appearance-none cursor-pointer hover:border-gray-400 transition-colors text-gray-900">
+                            {qtyOptions.map(n => <option key={n} value={n}>{n}</option>)}
+                        </select>
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"><ChevronDown size={16} /></div>
+                    </div>
+
+                    <button onClick={() => addToCart({...product, quantity: qty})} disabled={isOutOfStock} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-full text-sm shadow-sm transition-colors disabled:opacity-50">Add to Cart</button>
+                    <button disabled={isOutOfStock} className="w-full bg-black hover:bg-gray-900 text-white font-medium py-2.5 rounded-full text-sm shadow-sm transition-colors disabled:opacity-50">Buy Now</button>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between text-[10px] text-gray-500 text-center">
+                    <div className="flex flex-col items-center gap-1"><ShieldCheck size={18} className="text-blue-600"/><span>Secure</span></div>
+                    <div className="flex flex-col items-center gap-1"><Truck size={18} className="text-blue-600"/><span>Dispatched</span></div>
+                    <div className="flex flex-col items-center gap-1"><RefreshCw size={18} className="text-blue-600"/><span>Returns</span></div>
+                </div>
+            </div>
+          </div>
+
+        </div>
+        
+        {/* LOWER SECTION: PRODUCT INFORMATION TABLE */}
+        <div className="mt-16 border-t border-gray-200 pt-10">
+             <h2 className="text-xl font-bold text-gray-900 mb-6">Product Information</h2>
+             
+             {/* DYNAMIC SPECS TABLE */}
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 mb-10">
+                 {specs.map(([key, val]: any, idx: number) => (
+                    <div key={idx} className="flex border-b border-gray-100 py-2">
+                        <span className="w-1/2 text-gray-500 text-sm font-medium bg-gray-50 px-2 py-1 rounded">{key}</span>
+                        <span className="w-1/2 text-gray-900 text-sm px-2 py-1">{val}</span>
+                    </div>
+                 ))}
+             </div>
+
+             <h3 className="text-lg font-bold text-gray-900 mb-2">Product Description</h3>
+             <p className="text-gray-700 text-sm leading-relaxed mb-8 whitespace-pre-wrap">
+                {product.description || 'No description available.'}
+             </p>
+             
+             <hr className="my-8" />
+
+             {/* REVIEWS SECTION */}
+             <div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Customer Reviews</h2>
+                
+                <div className="flex items-center gap-4 mb-8">
+                    <div className="flex items-center gap-1 text-yellow-400">
+                        <Star size={24} fill="currentColor"/>
+                        <Star size={24} fill="currentColor"/>
+                        <Star size={24} fill="currentColor"/>
+                        <Star size={24} fill="currentColor"/>
+                        <Star size={24} fill="currentColor" className="text-gray-200"/>
+                    </div>
+                    <span className="text-lg font-medium">4.2 out of 5</span>
+                </div>
+
+                {session ? (
+                    <form onSubmit={submitReview} className="bg-gray-50 p-4 rounded-xl mb-8 border border-gray-200">
+                        <h4 className="font-bold text-sm mb-2">Write a review</h4>
+                        <div className="flex gap-1 mb-2 text-yellow-500">
+                            {[1,2,3,4,5].map(star => (
+                                <button type="button" key={star} onClick={() => setRating(star)}>
+                                    <Star size={20} fill={star <= rating ? "currentColor" : "none"} />
+                                </button>
+                            ))}
+                        </div>
+                        <textarea className="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:border-blue-500 text-sm" placeholder="What did you like or dislike?" value={newReview} onChange={e => setNewReview(e.target.value)} rows={3} />
+                        <button type="submit" className="mt-2 bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">Submit</button>
+                    </form>
+                ) : (
+                    <div className="mb-8 p-4 bg-blue-50 text-blue-800 text-sm rounded-lg">Please <Link to="/login" className="font-bold underline">login</Link> to write a review.</div>
+                )}
+
+                <div className="space-y-6 max-w-3xl">
+                    {realReviews.length === 0 && <p className="text-gray-500 text-sm">No reviews yet.</p>}
+                    {realReviews.map((review) => (
+                        <div key={review.id} className="border-b border-gray-100 pb-4">
+                            <div className="flex items-center gap-2 mb-1"><div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center"><User size={12}/></div><span className="text-sm font-medium">{review.user_name}</span></div>
+                            <div className="flex text-yellow-400 mb-2">{[...Array(review.rating)].map((_, i) => <Star key={i} size={12} fill="currentColor"/>)}</div>
+                            <p className="text-sm text-gray-700">{review.comment}</p>
+                        </div>
+                    ))}
+                </div>
+             </div>
         </div>
       </div>
     </div>

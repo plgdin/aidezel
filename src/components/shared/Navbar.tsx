@@ -7,17 +7,25 @@ import { supabase } from '../../lib/supabase';
 import logo from '../../assets/logo.png'; 
 
 // ==========================================
-// 🎨 NAVBAR CONFIGURATION (EDIT HERE)
+// 💎 NAVBAR CONFIGURATION (HEAVY GLASS)
 // ==========================================
 const NAV_STYLE = {
-  // 1. Background Color (Hex with Opacity)
-  backgroundColor: '#EFF6FFE6', 
-
-  // 2. Blur Intensity
-  blurAmount: '12px',
-
-  // 3. Accent Color (Hover Links & Buttons)
-  accentColor: '#2563eb' 
+  // 1. GRADIENT (Updated for Max Glass Effect):
+  // We use lower opacity (0.75) to let the background content show through.
+  // Start: Sky Blue (rgba(125, 211, 252, ...))
+  // End: Deep Navy (rgba(2, 6, 23, ...))
+  backgroundGradient: 'linear-gradient(100deg, rgba(125, 211, 252, 0.75) 0%, rgba(30, 58, 138, 0.80) 50%, rgba(2, 6, 23, 0.85) 100%)',
+  
+  // 2. BLUR: Very high blur for that premium "frosted" look
+  blurAmount: '24px',
+  
+  // 3. BORDER: A distinct semi-transparent white border to simulate the glass edge
+  borderBottom: '1px solid rgba(255, 255, 255, 0.25)',
+  
+  // 4. SHADOW: Deep blue tinted shadow to lift the glass off the page
+  boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.25)',
+  
+  accentColor: '#60a5fa'
 };
 // ==========================================
 
@@ -28,15 +36,14 @@ const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   
-  // Search States
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
-  // Updated to use the CSS variable for the accent color
+  // Active links logic
   const isActive = (path: string) => 
-    location.pathname === path ? "text-[var(--nav-accent)]" : "text-gray-500";
+    location.pathname === path ? "text-white font-bold opacity-100" : "text-blue-100 opacity-70";
 
   // --- LIVE SEARCH LOGIC ---
   useEffect(() => {
@@ -94,12 +101,13 @@ const Navbar = () => {
   return (
     <>
       <nav 
-        className="sticky top-0 z-50 border-b border-blue-100 py-3 shadow-sm transition-all duration-300"
+        className="sticky top-0 z-50 py-3 transition-all duration-300"
         style={{
-            backgroundColor: NAV_STYLE.backgroundColor,
+            background: NAV_STYLE.backgroundGradient,
             backdropFilter: `blur(${NAV_STYLE.blurAmount})`,
-            WebkitBackdropFilter: `blur(${NAV_STYLE.blurAmount})`,
-            // Inject the accent color as a CSS variable
+            WebkitBackdropFilter: `blur(${NAV_STYLE.blurAmount})`, // Safari
+            borderBottom: NAV_STYLE.borderBottom,
+            boxShadow: NAV_STYLE.boxShadow,
             '--nav-accent': NAV_STYLE.accentColor
         } as React.CSSProperties}
       >
@@ -107,15 +115,16 @@ const Navbar = () => {
           
           {/* Logo & Menu */}
           <div className="flex items-center gap-4">
-            <button className="p-2 hover:bg-black/5 rounded-lg lg:hidden text-slate-700">
+            <button className="p-2 hover:bg-white/10 rounded-lg lg:hidden text-slate-800">
               <Menu className="w-6 h-6" />
             </button>
             
-            <Link to="/" className="shrink-0 relative z-50">
+            <Link to="/" className="shrink-0 relative z-50 group">
+              {/* Logo stays Dark - Sits on the Sky Blue Glass section */}
               <img 
                 src={logo} 
                 alt="Aidezel" 
-                className="h-[120px] w-auto object-contain -my-10 hover:scale-105 transition-transform" 
+                className="h-[120px] w-auto object-contain -my-10 group-hover:scale-105 transition-transform drop-shadow-sm" 
               />
             </Link>
           </div>
@@ -124,12 +133,13 @@ const Navbar = () => {
           <div className="hidden lg:flex flex-1 max-w-3xl relative" ref={searchContainerRef}>
             <form 
                 onSubmit={handleSearchSubmit} 
-                className={`w-full relative flex items-center bg-white border border-blue-200 transition-all duration-200
-                    ${isDropdownOpen ? 'rounded-t-2xl border-b-0 z-50 shadow-md' : 'rounded-full'}
+                // Search bar also gets a subtle glass effect relative to the navbar
+                className={`w-full relative flex items-center bg-white/90 backdrop-blur-md border border-white/40 transition-all duration-200
+                  ${isDropdownOpen ? 'rounded-t-2xl border-b-0 z-50 shadow-xl' : 'rounded-full shadow-lg'}
                 `}
             >
                 <div className="absolute left-4 flex items-center pointer-events-none text-slate-400">
-                    <Search size={20} />
+                  <Search size={20} />
                 </div>
 
                 <input 
@@ -138,14 +148,13 @@ const Navbar = () => {
                   value={searchQuery}
                   onChange={(e) => { setSearchQuery(e.target.value); setShowDropdown(true); }}
                   onFocus={() => setShowDropdown(true)}
-                  className="w-full py-3 pl-12 pr-14 bg-transparent text-slate-900 focus:outline-none text-sm placeholder:text-slate-400 h-12"
+                  className="w-full py-3 pl-12 pr-14 bg-transparent text-slate-900 focus:outline-none text-sm placeholder:text-slate-500 h-12 rounded-full"
                 />
 
                 <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
-                    {/* Search Button now uses the accent color variable */}
                     <button 
                       type="submit" 
-                      className="h-9 w-9 rounded-full flex items-center justify-center text-white hover:scale-105 transition-transform shadow-md"
+                      className="h-9 w-9 rounded-full flex items-center justify-center text-white hover:scale-105 transition-transform shadow-sm"
                       style={{ backgroundColor: 'var(--nav-accent)' }}
                     >
                         <Search size={18} />
@@ -155,8 +164,7 @@ const Navbar = () => {
 
             {/* --- DROPDOWN --- */}
             {isDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 bg-white border-x border-b border-blue-200 rounded-b-2xl shadow-2xl overflow-hidden z-40">
-                    
+                <div className="absolute top-full left-0 right-0 bg-white border-x border-b border-gray-100 rounded-b-2xl shadow-2xl overflow-hidden z-40">
                     {searchQuery && suggestions.length > 0 && (
                         <div className="py-2">
                             <p className="px-5 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
@@ -170,7 +178,6 @@ const Navbar = () => {
                                             className="w-full text-left px-5 py-2.5 hover:bg-slate-50 flex items-center justify-between transition-colors group text-sm text-slate-700"
                                         >
                                             <div className="flex items-center gap-3">
-                                                {/* Replaced hardcoded color with dynamic variable class */}
                                                 <Search size={16} className="text-slate-400 group-hover:text-[var(--nav-accent)]" />
                                                 <span className="font-medium group-hover:text-[var(--nav-accent)]">
                                                     {term}
@@ -206,58 +213,56 @@ const Navbar = () => {
             )}
           </div>
 
-          {/* ICONS */}
-          <div className="hidden lg:flex items-center gap-14 text-slate-500">
-            {/* Replaced hover:text-[#2563eb] with hover:text-[var(--nav-accent)] */}
-            <Link to="/wishlist" className="flex flex-col items-center gap-1.5 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:text-[var(--nav-accent)] group">
-              <Heart size={26} strokeWidth={1.5} className="group-hover:fill-blue-100" />
-              <span className="text-xs font-bold tracking-wide text-slate-600 group-hover:text-[var(--nav-accent)]">Wishlist</span>
+          {/* ICONS - White Text */}
+          <div className="hidden lg:flex items-center gap-14 text-white">
+            <Link to="/wishlist" className="flex flex-col items-center gap-1.5 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:text-blue-100 group">
+              <Heart size={26} strokeWidth={1.5} className="group-hover:fill-white/20" />
+              <span className="text-xs font-bold tracking-wide text-blue-100 group-hover:text-white">Wishlist</span>
             </Link>
             
-            <Link to="/account" className="flex flex-col items-center gap-1.5 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:text-[var(--nav-accent)] group">
+            <Link to="/account" className="flex flex-col items-center gap-1.5 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:text-blue-100 group">
               <User size={26} strokeWidth={1.5} />
-              <span className="text-xs font-bold tracking-wide text-slate-600 group-hover:text-[var(--nav-accent)]">Account</span>
+              <span className="text-xs font-bold tracking-wide text-blue-100 group-hover:text-white">Account</span>
             </Link>
             
-            <Link to="/cart" className="flex flex-col items-center gap-1.5 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:text-[var(--nav-accent)] group relative">
+            <Link to="/cart" className="flex flex-col items-center gap-1.5 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:text-blue-100 group relative">
               <div className="relative">
                 <ShoppingCart size={26} strokeWidth={1.5} />
                 {cartCount > 0 && (
                   <span 
-                    className="absolute -top-2 -right-2 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-sm"
-                    style={{ backgroundColor: 'var(--nav-accent)' }}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white/20 shadow-sm"
                   >
                     {cartCount}
                   </span>
                 )}
               </div>
-              <span className="text-xs font-bold tracking-wide text-slate-600 group-hover:text-[var(--nav-accent)]">Cart</span>
+              <span className="text-xs font-bold tracking-wide text-blue-100 group-hover:text-white">Cart</span>
             </Link>
           </div>
 
           {/* Mobile Search Icon */}
-          <div className="lg:hidden text-slate-700">
-             <Search className="w-7 h-7" />
+          <div className="lg:hidden text-white">
+              <Search className="w-7 h-7" />
           </div>
         </div>
       </nav>
 
-      {/* BOTTOM NAV */}
+      {/* BOTTOM NAV - Mobile Only */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50 lg:hidden pb-safe">
         <div className="flex justify-between items-center px-6 py-2">
-          <Link to="/" className={`flex flex-col items-center gap-1 transition-colors ${isActive('/')}`}>
+          <Link to="/" className={`flex flex-col items-center gap-1 transition-colors ${location.pathname === '/' ? 'text-blue-600' : 'text-slate-400'}`}>
             <Home size={24} strokeWidth={1.5} />
             <span className="text-[10px] font-bold">Shop</span>
           </Link>
-          <Link to="/shop" className={`flex flex-col items-center gap-1 transition-colors ${isActive('/shop')}`}>
+          <Link to="/shop" className={`flex flex-col items-center gap-1 transition-colors ${location.pathname === '/shop' ? 'text-blue-600' : 'text-slate-400'}`}>
             <Filter size={24} strokeWidth={1.5} />
             <span className="text-[10px] font-bold">Filters</span>
           </Link>
-          <Link to="/wishlist" className={`flex flex-col items-center gap-1 transition-colors ${isActive('/wishlist')}`}>
+          <Link to="/wishlist" className={`flex flex-col items-center gap-1 transition-colors ${location.pathname === '/wishlist' ? 'text-blue-600' : 'text-slate-400'}`}>
             <Heart size={24} strokeWidth={1.5} />
             <span className="text-[10px] font-bold">Wishlist</span>
           </Link>
-          <Link to="/cart" className={`flex flex-col items-center gap-1 relative transition-colors ${isActive('/cart')}`}>
+          <Link to="/cart" className={`flex flex-col items-center gap-1 relative transition-colors ${location.pathname === '/cart' ? 'text-blue-600' : 'text-slate-400'}`}>
             <div className="relative">
               <ShoppingCart size={24} strokeWidth={1.5} />
               {cartCount > 0 && (
@@ -271,7 +276,7 @@ const Navbar = () => {
             </div>
             <span className="text-[10px] font-bold">Cart</span>
           </Link>
-          <Link to="/account" className={`flex flex-col items-center gap-1 transition-colors ${isActive('/account')}`}>
+          <Link to="/account" className={`flex flex-col items-center gap-1 transition-colors ${location.pathname === '/account' ? 'text-blue-600' : 'text-slate-400'}`}>
             <User size={24} strokeWidth={1.5} />
             <span className="text-[10px] font-bold">Account</span>
           </Link>

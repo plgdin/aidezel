@@ -4,14 +4,21 @@ import { Plus, Heart, ShoppingBag } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { supabase } from '../../lib/supabase';
 
+// --- UPDATED INTERFACE ---
 export interface Product {
-  id: number;
+  id: number | string; // Allow both for flexibility
   name: string;
-  price: string;
+  price: string | number;
   rawPrice?: number;
   image: string;
   tag?: string;
   category?: string;
+  subcategory?: string; // <--- Added this
+  brand?: string;       // <--- Added this
+  stock_quantity?: number;
+  description?: string;
+  features?: string[];
+  specs?: any;
 }
 
 const ProductCard = ({ product }: { product: Product }) => {
@@ -19,7 +26,7 @@ const ProductCard = ({ product }: { product: Product }) => {
   const [isWishlisted, setIsWishlisted] = useState(false);
 
   const toggleWishlist = async (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent clicking the link
+    e.preventDefault(); 
     e.stopPropagation();
 
     const { data: { session } } = await supabase.auth.getSession();
@@ -29,10 +36,7 @@ const ProductCard = ({ product }: { product: Product }) => {
     }
 
     if (isWishlisted) {
-        // Optimistic UI update (optional, simple toggle for now)
         setIsWishlisted(false);
-        // Note: To delete accurately we'd need the wishlist ID, 
-        // but for this simple card we usually just handle "adding".
     } else {
         setIsWishlisted(true);
         const { error } = await supabase.from('wishlist').insert({
@@ -41,7 +45,7 @@ const ProductCard = ({ product }: { product: Product }) => {
         });
         if (error) {
             console.error(error);
-            setIsWishlisted(false); // Revert if error
+            setIsWishlisted(false); 
         }
     }
   };
@@ -59,7 +63,6 @@ const ProductCard = ({ product }: { product: Product }) => {
           </span>
         )}
         
-        {/* FUNCTIONAL HEART BUTTON */}
         <button 
           className={`absolute top-3 right-3 z-10 p-2 backdrop-blur rounded-full transition-all duration-200 shadow-md translate-y-2 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 ${
               isWishlisted ? 'bg-red-50 text-red-500' : 'bg-white/80 text-slate-600 hover:text-red-500 hover:bg-white'
@@ -81,12 +84,11 @@ const ProductCard = ({ product }: { product: Product }) => {
           </div>
         )}
         
-        {/* Quick Add */}
         <div className="absolute inset-x-0 bottom-0 p-4 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-4 group-hover:translate-y-0 hidden lg:block bg-gradient-to-t from-white/90 to-transparent">
            <button 
              onClick={(e) => { 
                e.preventDefault(); 
-               addToCart({ ...product, quantity: 1, price: product.price, id: product.id.toString() }); 
+               addToCart({ ...product, quantity: 1, price: typeof product.price === 'string' ? parseFloat(product.price.replace(/[^0-9.]/g, '')) : product.price, id: product.id.toString() }); 
              }}
              className="w-full bg-[#0f172a] text-white py-3 rounded-xl font-bold text-sm shadow-lg hover:bg-[#2563eb] transition-colors flex items-center justify-center gap-2"
            >
@@ -104,12 +106,12 @@ const ProductCard = ({ product }: { product: Product }) => {
         
         <div className="flex items-center justify-between mt-2">
           <div className="flex flex-col">
-             <span className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">{product.category || 'Electronics'}</span>
-             <span className="font-bold text-lg text-[#0f172a]">{product.price}</span>
+              <span className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">{product.category || 'Electronics'}</span>
+              <span className="font-bold text-lg text-[#0f172a]">{typeof product.price === 'number' ? `£${product.price}` : product.price}</span>
           </div>
           
           <button 
-            onClick={() => addToCart({ ...product, quantity: 1, price: product.price, id: product.id.toString() })}
+            onClick={() => addToCart({ ...product, quantity: 1, price: typeof product.price === 'string' ? parseFloat(product.price.replace(/[^0-9.]/g, '')) : product.price, id: product.id.toString() })}
             className="lg:hidden w-9 h-9 bg-[#0f172a] text-white rounded-full flex items-center justify-center active:scale-95 shadow-md"
           >
             <Plus size={18} />

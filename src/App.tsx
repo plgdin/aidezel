@@ -8,6 +8,7 @@ import AdminLayout from './components/layout/AdminLayout';
 // --- Pages: AUTH ---
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
+import UpdatePassword from './pages/auth/UpdatePassword'; // <--- Newly Added Import
 
 // --- Pages: CLIENT ---
 import HomePage from './pages/client/Home';
@@ -26,8 +27,8 @@ import Terms from './pages/client/Terms';
 import AdminDashboard from './pages/admin/Dashboard';
 import ManageProducts from './pages/admin/ManageProducts';
 import ManageOrders from './pages/admin/ManageOrders';
-import ManageCategories from './pages/admin/ManageCategories'; // NEW
-import Inventory from './pages/admin/Inventory'; // NEW
+import ManageCategories from './pages/admin/ManageCategories';
+import Inventory from './pages/admin/Inventory';
 
 function App() {
   return (
@@ -45,6 +46,7 @@ function App() {
         
         {/* User Account Section */}
         <Route path="account" element={<UserAccount />} />
+        <Route path="account/update-password" element={<UpdatePassword />} /> {/* <--- New Route Added Here */}
         <Route path="orders" element={<OrderHistory />} />
         <Route path="wishlist" element={<Wishlist />} />
         
@@ -68,8 +70,8 @@ function App() {
         
         {/* Product Management */}
         <Route path="products" element={<ManageProducts />} />
-        <Route path="inventory" element={<Inventory />} />     {/* NEW PAGE */}
-        <Route path="categories" element={<ManageCategories />} /> {/* NEW PAGE */}
+        <Route path="inventory" element={<Inventory />} />
+        <Route path="categories" element={<ManageCategories />} />
         
         {/* Order Management */}
         <Route path="orders" element={<ManageOrders />} />

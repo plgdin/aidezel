@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import ProductCard, { Product } from '../../components/shared/ProductCard';
 
-// --- HERO BANNER (Unchanged) ---
+// --- HERO BANNER (FIXED) ---
 const HeroBanner = ({ heroProduct }: { heroProduct: any }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -154,16 +154,20 @@ const HeroBanner = ({ heroProduct }: { heroProduct: any }) => {
               initial={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }} 
               transition={{ duration: 0.8 }} 
-              className="relative w-full aspect-[16/10] bg-[#0f172a]/60 border border-white/10 rounded-3xl flex items-center justify-center backdrop-blur-md shadow-inner overflow-hidden"
+              className="relative w-full aspect-[16/10] rounded-3xl flex items-center justify-center overflow-hidden shadow-2xl bg-white/5 backdrop-blur-sm border border-white/10"
             >
                {heroProduct ? (
                  <img 
                    src={heroProduct.image_url} 
                    alt={heroProduct.name} 
-                   className="w-full h-full object-contain p-8 drop-shadow-2xl" 
+                   // --- FIX APPLIED HERE ---
+                   // Added 'scale-[1.005]' to eliminate the white edge line artifact.
+                   className="max-h-[90%] max-w-[90%] object-contain rounded-[2rem] transition-transform scale-[1.005] hover:scale-[1.05] duration-700 drop-shadow-2xl" 
                  />
                ) : (
-                 <span className="text-white/20 font-bold tracking-widest uppercase text-sm">[ Hero Product Image ]</span>
+                 <div className="w-full h-full bg-white/5 flex items-center justify-center border border-white/10 rounded-3xl">
+                    <span className="text-white/20 font-bold tracking-widest uppercase text-sm">[ Hero Product Image ]</span>
+                 </div>
                )}
             </motion.div>
 
@@ -181,6 +185,9 @@ const HomePage: React.FC = () => {
   
   const [categories, setCategories] = useState<any[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null); 
+
+  // Derived state to check if we have more than 5 items
+  const showArrows = categories.length > 5;
 
   useEffect(() => {
     const fetchCats = async () => {
@@ -210,14 +217,21 @@ const HomePage: React.FC = () => {
     fetchLatest();
   }, []);
 
+  // --- SCROLL FUNCTION ---
   const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {
-      // Adjusted scroll amount for smooth transitions
-      const scrollAmount = 600; 
-      scrollRef.current.scrollBy({
-        left: direction === 'left' ? -scrollAmount : scrollAmount,
-        behavior: 'smooth',
-      });
+      const container = scrollRef.current;
+      const firstCard = container.querySelector('.snap-start') as HTMLElement;
+      
+      if (firstCard) {
+        const itemSize = firstCard.offsetWidth + 16; 
+        const scrollAmount = itemSize * 3; 
+
+        container.scrollBy({
+          left: direction === 'left' ? -scrollAmount : scrollAmount,
+          behavior: 'smooth',
+        });
+      }
     }
   };
 
@@ -227,104 +241,94 @@ const HomePage: React.FC = () => {
       <HeroBanner heroProduct={heroProduct} />
       
       {/* --- NEW PREMIUM CATEGORIES SECTION --- */}
-      {/* W-FULL allows it to bleed to edges, but we use internal padding to align content */}
-      <div className="w-full py-16">
-        
-        {/* Header - Aligned with the grid */}
-        <div className="max-w-7xl mx-auto px-4 mb-6">
-            <h2 className="text-3xl font-bold text-slate-900">Shop by Category</h2>
-            <p className="text-slate-500 text-sm mt-1">Explore our wide range of collections</p>
-        </div>
-
-        {/* Carousel Container */}
-        <div className="relative group w-full">
-          
-          {/* LEFT ARROW - Positioned aligned with the content */}
-          <button 
-            onClick={() => scroll('left')} 
-            // This calculation positions the arrow relative to the 7xl container edge
-            className="absolute left-4 xl:left-[calc((100vw-80rem)/2+1rem)] top-1/2 -translate-y-1/2 z-20 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg border border-slate-100 text-slate-700 hover:text-blue-600 hover:scale-110 transition-all duration-300 opacity-0 group-hover:opacity-100 hidden lg:flex"
-          >
-            <ChevronLeft size={24} strokeWidth={2.5} />
-          </button>
-
-          {/* SCROLL AREA - THE SMART PADDING LOGIC */}
-          <div 
-            ref={scrollRef}
-            className="
-              flex gap-6 overflow-x-auto w-full snap-x snap-mandatory scrollbar-hide scroll-smooth
-              pt-10 pb-12
-              /* Mobile Padding */
-              px-4
-              /* Desktop Smart Padding: 
-                 (100vw - 80rem) / 2 + 1rem 
-                 This calculates the exact margin to align the first item with the max-w-7xl container 
-                 while letting the scrollbar extend to the screen edge.
-              */
-              xl:px-[calc((100vw-80rem)/2+1rem)]
-            "
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-          >
-            {categories.map((cat, idx) => (
-              <div key={idx} className="snap-start shrink-0">
-                 <Link to={`/shop?category=${cat.name}`}>
-                    {/* Rectangle Fix: transform-gpu + mask-image */}
-                    <div className="group/card relative w-48 h-64 rounded-[2rem] overflow-hidden cursor-pointer shadow-sm hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 border border-slate-100 transform-gpu [-webkit-mask-image:linear-gradient(white,white)]">
-                      
-                      {cat.image_url ? (
-                          <img 
-                              src={cat.image_url} 
-                              alt={cat.name} 
-                              className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110"
-                          />
-                      ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-blue-50 to-slate-200 flex items-center justify-center">
-                              <span className="text-4xl font-black text-slate-300 uppercase opacity-50">
-                                  {cat.name.charAt(0)}
-                              </span>
-                          </div>
-                      )}
-
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 transition-opacity group-hover/card:opacity-70" />
-
-                      <div className="absolute bottom-4 left-4 right-4">
-                        <div className="bg-white/10 backdrop-blur-md border border-white/20 py-3 rounded-xl text-center shadow-lg group-hover/card:bg-white/20 transition-colors">
-                           <span className="text-sm font-bold text-white tracking-wide uppercase drop-shadow-md">
-                             {cat.name}
-                           </span>
-                        </div>
-                      </div>
-
-                    </div>
-                 </Link>
-              </div>
-            ))}
-
-            {categories.length === 0 && (
-               <div className="w-full py-12 flex items-center justify-center gap-2 text-slate-400">
-                  <Loader2 className="animate-spin" /> Loading Collections...
-               </div>
-            )}
+      <div className="w-full py-16 bg-gray-50/50">
+        <div className="max-w-7xl mx-auto px-4">
             
-            {/* INVISIBLE SPACER FOR RIGHT SIDE 
-                This ensures that when you scroll to the very end, there is padding equal to the left start.
-            */}
-            <div className="shrink-0 w-4 xl:w-[calc((100vw-80rem)/2+1rem)]" />
-          </div>
+            {/* Header */}
+            <div className="mb-8">
+                <h2 className="text-3xl font-bold text-slate-900">Shop by Category</h2>
+                <p className="text-slate-500 text-sm mt-1">Explore our wide range of collections</p>
+            </div>
 
-          {/* RIGHT ARROW */}
-          <button 
-            onClick={() => scroll('right')} 
-            className="absolute right-4 xl:right-[calc((100vw-80rem)/2+1rem)] top-1/2 -translate-y-1/2 z-20 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg border border-slate-100 text-slate-700 hover:text-blue-600 hover:scale-110 transition-all duration-300 opacity-0 group-hover:opacity-100 hidden lg:flex"
-          >
-            <ChevronRight size={24} strokeWidth={2.5} />
-          </button>
+            {/* Flex Container for List + Arrows */}
+            <div className="flex items-center gap-4">
+            
+                {/* LEFT ARROW (Conditionally Rendered) */}
+                {showArrows && (
+                  <button 
+                      onClick={() => scroll('left')} 
+                      className="hidden lg:flex shrink-0 w-12 h-12 bg-white rounded-full items-center justify-center shadow-md border border-slate-200 text-slate-700 hover:text-blue-600 hover:border-blue-200 transition-all active:scale-95 z-10"
+                  >
+                      <ChevronLeft size={24} strokeWidth={2} />
+                  </button>
+                )}
 
+                {/* SCROLL AREA */}
+                <div 
+                    ref={scrollRef}
+                    className="flex gap-4 overflow-x-auto flex-1 snap-x snap-mandatory scrollbar-hide scroll-smooth py-4"
+                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                >
+                    {categories.map((cat, idx) => (
+                    <div 
+                        key={idx} 
+                        className="snap-start shrink-0 w-[40%] md:w-[28%] lg:w-[calc((100%-64px)/5)]"
+                    >
+                        <Link to={`/shop?category=${cat.name}`}>
+                            <div className="group/card relative w-full aspect-[3/4] rounded-[2rem] overflow-hidden cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-slate-200 bg-white transform-gpu [-webkit-mask-image:linear-gradient(white,white)]">
+                                
+                                {cat.image_url ? (
+                                    <img 
+                                        src={cat.image_url} 
+                                        alt={cat.name} 
+                                        className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+                                        <span className="text-4xl font-black text-slate-200 uppercase">
+                                            {cat.name.charAt(0)}
+                                        </span>
+                                    </div>
+                                )}
+
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 transition-opacity group-hover/card:opacity-70" />
+
+                                <div className="absolute bottom-0 inset-x-0 p-4">
+                                    <div className="bg-white/10 backdrop-blur-md border border-white/20 py-2.5 rounded-xl text-center shadow-sm group-hover/card:bg-white/20 transition-colors">
+                                        <span className="text-xs font-bold text-white tracking-widest uppercase truncate block px-2">
+                                            {cat.name}
+                                        </span>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </Link>
+                    </div>
+                    ))}
+
+                    {/* Loader */}
+                    {categories.length === 0 && (
+                        <div className="w-full py-12 flex items-center justify-center gap-2 text-slate-400">
+                            <Loader2 className="animate-spin" /> Loading Collections...
+                        </div>
+                    )}
+                </div>
+
+                {/* RIGHT ARROW (Conditionally Rendered) */}
+                {showArrows && (
+                  <button 
+                      onClick={() => scroll('right')} 
+                      className="hidden lg:flex shrink-0 w-12 h-12 bg-white rounded-full items-center justify-center shadow-md border border-slate-200 text-slate-700 hover:text-blue-600 hover:border-blue-200 transition-all active:scale-95 z-10"
+                  >
+                      <ChevronRight size={24} strokeWidth={2} />
+                  </button>
+                )}
+
+            </div>
         </div>
       </div>
       
       <main className="container mx-auto px-4 py-12 space-y-24">
-        
         {/* NEW ARRIVALS */}
         <section>
           <div className="flex items-end justify-between mb-10">

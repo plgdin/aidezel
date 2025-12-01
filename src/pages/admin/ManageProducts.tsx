@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Plus, Loader2, ImageIcon, Sparkles, Edit, Trash2, X, Save, ListPlus, TableProperties, MinusCircle } from 'lucide-react';
+import ConfirmModal from '../../components/shared/ConfirmModal';
 
 const generateAIDescription = (name: string, category: string, subcategory: string) => {
   return `Upgrade your lifestyle with the premium ${name}. \n\nPerfect for ${category} enthusiasts looking for ${subcategory}, this product combines industrial-grade durability with a sleek, modern aesthetic.\n\nKey Features:\n• Premium Build Quality\n• Easy to Install & Use\n• Designed for longevity\n• 1-Year Official Warranty`;
@@ -14,6 +15,10 @@ const ManageProducts = () => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
   
+  // Modal State
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<number | null>(null);
+
   // Form State
   const [newItem, setNewItem] = useState({
     name: '', price: '', category: '', subcategory: '', stock: '10', brand: 'Aidezel', description: '', 
@@ -55,10 +60,8 @@ const ManageProducts = () => {
         is_hero: product.is_hero || false
     });
 
-    // Populate Dynamic Fields (Safety checks for null)
     setFeatures(product.features && product.features.length > 0 ? product.features : ['']);
     
-    // Transform specs object back to array for editing
     if (product.specs && Object.keys(product.specs).length > 0) {
         const specArray = Object.entries(product.specs).map(([key, value]) => ({ key, value: String(value) }));
         setSpecs(specArray);
@@ -77,18 +80,28 @@ const ManageProducts = () => {
     setSpecs([{key: '', value: ''}]);
   };
 
-  // 4. Handle Delete
-  const handleDelete = async (id: number) => {
-    if (!window.confirm("Are you sure you want to delete this product?")) return;
+  // --- NEW DELETE HANDLERS ---
+  const confirmDelete = (id: number) => {
+    setProductToDelete(id);
+    setShowDeleteModal(true);
+  };
+
+  const executeDelete = async () => {
+    if (!productToDelete) return;
+    
     setIsDeleting(true);
-    const { error } = await supabase.from('products').delete().eq('id', id);
-    if (error) alert(error.message);
-    else {
-        alert("Product deleted");
+    const { error } = await supabase.from('products').delete().eq('id', productToDelete);
+    
+    if (error) {
+        alert(error.message);
+    } else {
         fetchData();
     }
+    
     setIsDeleting(false);
-  }
+    setShowDeleteModal(false);
+    setProductToDelete(null);
+  };
 
   // --- FEATURE & SPEC HANDLERS ---
   const updateFeature = (idx: number, val: string) => {
@@ -127,13 +140,11 @@ const ManageProducts = () => {
         finalImageUrl = publicUrl;
       }
 
-      // Convert specs array to object
       const specsObject = specs.reduce((acc, curr) => {
         if (curr.key.trim() && curr.value.trim()) acc[curr.key] = curr.value;
         return acc;
       }, {} as any);
 
-      // Filter empty features
       const cleanFeatures = features.filter(f => f.trim() !== '');
 
       const productData = {
@@ -147,8 +158,8 @@ const ManageProducts = () => {
         image_url: finalImageUrl,
         status: parseInt(newItem.stock) > 0 ? 'In Stock' : 'Out of Stock',
         is_hero: newItem.is_hero,
-        features: cleanFeatures, // SENDING ARRAY
-        specs: specsObject       // SENDING JSON OBJECT
+        features: cleanFeatures, 
+        specs: specsObject       
       };
 
       if (editingId) {
@@ -348,7 +359,7 @@ const ManageProducts = () => {
                                 <td className="px-6 py-3">{prod.brand}</td>
                                 <td className="px-6 py-3 text-right space-x-2">
                                     <button onClick={() => handleEditClick(prod)} className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg" title="Edit"><Edit size={18} /></button>
-                                    <button onClick={() => handleDelete(prod.id)} className="text-red-400 hover:bg-red-50 p-2 rounded-lg" title="Delete"><Trash2 size={18} /></button>
+                                    <button onClick={() => confirmDelete(prod.id)} className="text-red-400 hover:bg-red-50 p-2 rounded-lg" title="Delete"><Trash2 size={18} /></button>
                                 </td>
                             </tr>
                         ))}
@@ -357,6 +368,18 @@ const ManageProducts = () => {
             </div>
         </div>
       </div>
+
+      {/* --- CONFIRM DELETE MODAL --- */}
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        title="Delete Product?"
+        message="This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Keep it"
+        isDanger={true}
+        onConfirm={executeDelete}
+        onCancel={() => setShowDeleteModal(false)}
+      />
 
     </div>
   );

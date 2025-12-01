@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Plus, Trash2, Loader2, Tag, ImageIcon, X, Edit, Save } from 'lucide-react';
+import ConfirmModal from '../../components/shared/ConfirmModal';
 
 const ManageCategories = () => {
   const [categories, setCategories] = useState<any[]>([]);
@@ -17,6 +18,10 @@ const ManageCategories = () => {
   const [editName, setEditName] = useState('');
   const [editImage, setEditImage] = useState<File | null>(null);
 
+  // Modal State
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<number | null>(null);
+
   const fetchCategories = async () => {
     const { data } = await supabase.from('categories').select('*').order('id');
     if (data) setCategories(data);
@@ -29,7 +34,6 @@ const ManageCategories = () => {
 
   const addCategory = async () => {
     if (!newCatName.trim()) return alert("Category name is required");
-    // Image is optional now, providing a fallback if needed, but better to enforce consistency
     
     setUploading(true);
     try {
@@ -62,10 +66,18 @@ const ManageCategories = () => {
     }
   };
 
-  const deleteCategory = async (id: number) => {
-    if (!confirm("Delete this category?")) return;
-    await supabase.from('categories').delete().eq('id', id);
+  // --- NEW DELETE LOGIC ---
+  const confirmDelete = (id: number) => {
+    setCategoryToDelete(id);
+    setShowDeleteModal(true);
+  };
+
+  const executeDelete = async () => {
+    if (!categoryToDelete) return;
+    await supabase.from('categories').delete().eq('id', categoryToDelete);
     fetchCategories();
+    setShowDeleteModal(false);
+    setCategoryToDelete(null);
   };
 
   const addSubcategory = async (catId: number, currentSubs: string[]) => {
@@ -87,7 +99,7 @@ const ManageCategories = () => {
   const startEditing = (cat: any) => {
     setEditingCategory(cat);
     setEditName(cat.name);
-    setEditImage(null); // Reset file input
+    setEditImage(null); 
   };
 
   const saveCategoryChanges = async () => {
@@ -195,7 +207,7 @@ const ManageCategories = () => {
                         <button onClick={() => startEditing(cat)} className="text-blue-500 hover:text-blue-700 p-2 hover:bg-blue-50 rounded-full transition-colors">
                             <Edit size={18} />
                         </button>
-                        <button onClick={() => deleteCategory(cat.id)} className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-full transition-colors">
+                        <button onClick={() => confirmDelete(cat.id)} className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-full transition-colors">
                             <Trash2 size={18} />
                         </button>
                     </div>
@@ -283,6 +295,18 @@ const ManageCategories = () => {
             </div>
         </div>
       )}
+
+      {/* --- CONFIRM DELETE MODAL --- */}
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        title="Delete Category?"
+        message="Are you sure? Removing a category might leave products without a category."
+        confirmText="Yes, Delete"
+        cancelText="Cancel"
+        isDanger={true}
+        onConfirm={executeDelete}
+        onCancel={() => setShowDeleteModal(false)}
+      />
 
     </div>
   );

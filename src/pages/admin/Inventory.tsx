@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { RefreshCcw, Search, Edit, Trash2, Star, Save, X, Sparkles, ImageIcon } from 'lucide-react';
+import { RefreshCcw, Search, Edit, Trash2, Star, Save, X, Sparkles } from 'lucide-react';
+import ConfirmModal from '../../components/shared/ConfirmModal';
 
 // --- AI Generator Helper ---
 const generateAIDescription = (name: string, category: string, subcategory: string) => {
@@ -9,10 +10,14 @@ const generateAIDescription = (name: string, category: string, subcategory: stri
 
 const Inventory = () => {
   const [products, setProducts] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]); // To store available categories
+  const [categories, setCategories] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-  const [editingProduct, setEditingProduct] = useState<any>(null); 
+  const [editingProduct, setEditingProduct] = useState<any>(null);
+  
+  // Modal State
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<number | null>(null);
 
   // Fetch Products & Categories
   const fetchData = async () => {
@@ -54,22 +59,32 @@ const Inventory = () => {
     await supabase.from('products').update({ stock_quantity: newStock, status }).eq('id', id);
   };
 
-  const handleDelete = async (id: number) => {
-    if (confirm("Permanently delete this product?")) {
-      await supabase.from('products').delete().eq('id', id);
-      setProducts(products.filter(p => p.id !== id));
-    }
+  // --- NEW DELETE HANDLERS ---
+  const confirmDelete = (id: number) => {
+    setProductToDelete(id);
+    setShowDeleteModal(true);
+  };
+
+  const executeDelete = async () => {
+    if (!productToDelete) return;
+    
+    await supabase.from('products').delete().eq('id', productToDelete);
+    setProducts(products.filter(p => p.id !== productToDelete));
+    
+    // Cleanup
+    setShowDeleteModal(false);
+    setProductToDelete(null);
   };
 
   const handleSaveChanges = async () => {
      if (!editingProduct) return;
      const { error } = await supabase.from('products').update({
-        name: editingProduct.name,
-        price: parseFloat(editingProduct.price),
-        stock_quantity: parseInt(editingProduct.stock_quantity),
-        description: editingProduct.description,
-        category: editingProduct.category,       // NEW: Save Category
-        subcategory: editingProduct.subcategory  // NEW: Save Subcategory
+       name: editingProduct.name,
+       price: parseFloat(editingProduct.price),
+       stock_quantity: parseInt(editingProduct.stock_quantity),
+       description: editingProduct.description,
+       category: editingProduct.category,
+       subcategory: editingProduct.subcategory
      }).eq('id', editingProduct.id);
 
      if (!error) {
@@ -80,7 +95,6 @@ const Inventory = () => {
      }
   };
 
-  // Helper to find subcategories for the CURRENTLY editing product's selected category
   const currentSubcategories = editingProduct 
     ? categories.find(c => c.name === editingProduct.category)?.subcategories || [] 
     : [];
@@ -125,7 +139,7 @@ const Inventory = () => {
                         onClick={() => toggleHero(p.id, p.is_hero)}
                         className={`p-2 rounded-full transition-colors ${p.is_hero ? 'bg-yellow-100 text-yellow-600' : 'text-gray-300 hover:text-yellow-400'}`}
                       >
-                         <Star size={20} fill={p.is_hero ? "currentColor" : "none"} />
+                          <Star size={20} fill={p.is_hero ? "currentColor" : "none"} />
                       </button>
                    </td>
                    <td className="px-6 py-4">
@@ -148,7 +162,7 @@ const Inventory = () => {
                    <td className="px-6 py-4 text-right">
                      <div className="flex items-center justify-end gap-2">
                        <button onClick={() => setEditingProduct(p)} className="text-blue-500 p-2 hover:bg-blue-50 rounded-lg"><Edit size={18}/></button>
-                       <button onClick={() => handleDelete(p.id)} className="text-red-500 p-2 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
+                       <button onClick={() => confirmDelete(p.id)} className="text-red-500 p-2 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
                      </div>
                    </td>
                  </tr>
@@ -169,7 +183,6 @@ const Inventory = () => {
             </div>
             
             <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-               
                <div>
                  <label className="text-xs font-bold uppercase text-gray-500">Name</label>
                  <input className="w-full p-2 border rounded-lg" value={editingProduct.name} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})}/>
@@ -218,24 +231,22 @@ const Inventory = () => {
                <div className="relative">
                  <label className="text-xs font-bold uppercase text-gray-500">Description</label>
                  <textarea 
-                    className="w-full p-2 border rounded-lg h-32 text-sm" 
-                    value={editingProduct.description} 
-                    onChange={e => setEditingProduct({...editingProduct, description: e.target.value})}
+                   className="w-full p-2 border rounded-lg h-32 text-sm" 
+                   value={editingProduct.description} 
+                   onChange={e => setEditingProduct({...editingProduct, description: e.target.value})}
                  />
                  
-                 {/* AI AUTO-GEN BUTTON */}
                  <button 
-                    type="button" 
-                    onClick={() => setEditingProduct({
-                        ...editingProduct, 
-                        description: generateAIDescription(editingProduct.name, editingProduct.category, editingProduct.subcategory || '')
-                    })} 
-                    className="absolute top-0 right-0 text-[10px] bg-purple-100 text-purple-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-purple-200 font-bold transition-colors cursor-pointer"
+                   type="button" 
+                   onClick={() => setEditingProduct({
+                       ...editingProduct, 
+                       description: generateAIDescription(editingProduct.name, editingProduct.category, editingProduct.subcategory || '')
+                   })} 
+                   className="absolute top-0 right-0 text-[10px] bg-purple-100 text-purple-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-purple-200 font-bold transition-colors cursor-pointer"
                  >
                     <Sparkles size={12} /> Auto-Gen
                  </button>
                </div>
-
             </div>
             
             <div className="p-4 bg-gray-50 border-t flex justify-end gap-2">
@@ -247,6 +258,18 @@ const Inventory = () => {
           </div>
         </div>
        )}
+
+       {/* --- CONFIRM DELETE MODAL --- */}
+       <ConfirmModal
+          isOpen={showDeleteModal}
+          title="Delete Product?"
+          message="This will permanently remove this item from your inventory. This action cannot be undone."
+          confirmText="Delete Product"
+          cancelText="Cancel"
+          isDanger={true}
+          onConfirm={executeDelete}
+          onCancel={() => setShowDeleteModal(false)}
+        />
 
     </div>
   );

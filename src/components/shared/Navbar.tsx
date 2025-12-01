@@ -10,21 +10,16 @@ import logo from '../../assets/logo.png';
 // 💎 NAVBAR CONFIGURATION (HEAVY GLASS)
 // ==========================================
 const NAV_STYLE = {
-  // 1. GRADIENT (Updated for Max Glass Effect):
-  // We use lower opacity (0.75) to let the background content show through.
-  // Start: Sky Blue (rgba(125, 211, 252, ...))
-  // End: Deep Navy (rgba(2, 6, 23, ...))
-  backgroundGradient: 'linear-gradient(100deg, rgba(125, 211, 252, 0.75) 0%, rgba(30, 58, 138, 0.80) 50%, rgba(2, 6, 23, 0.85) 100%)',
+  // REPLACED: radial halo + linear gradient
+  // radial halo sits at left ~6% so logo pops, linear keeps royal blue -> deep navy
+  backgroundGradient:
+    'radial-gradient(circle at 6% 50%, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0) 110px), ' +
+    'linear-gradient(100deg, rgba(125,211,252,0.95) 0%, rgba(56,103,214,0.88) 45%, rgba(8,20,48,0.95) 100%)',
   
-  // 2. BLUR: Very high blur for that premium "frosted" look
+  // keep the heavy glass look
   blurAmount: '24px',
-  
-  // 3. BORDER: A distinct semi-transparent white border to simulate the glass edge
   borderBottom: '1px solid rgba(255, 255, 255, 0.25)',
-  
-  // 4. SHADOW: Deep blue tinted shadow to lift the glass off the page
   boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.25)',
-  
   accentColor: '#60a5fa'
 };
 // ==========================================
@@ -103,6 +98,7 @@ const Navbar = () => {
       <nav 
         className="sticky top-0 z-50 py-3 transition-all duration-300"
         style={{
+            /* use composed background (radial + linear) so logo area has a gentle halo */
             background: NAV_STYLE.backgroundGradient,
             backdropFilter: `blur(${NAV_STYLE.blurAmount})`,
             WebkitBackdropFilter: `blur(${NAV_STYLE.blurAmount})`, // Safari
@@ -119,12 +115,22 @@ const Navbar = () => {
               <Menu className="w-6 h-6" />
             </button>
             
-            <Link to="/" className="shrink-0 relative z-50 group">
-              {/* Logo stays Dark - Sits on the Sky Blue Glass section */}
+            <Link to="/" className="shrink-0 relative z-50 group" aria-label="home">
+              {/* Logo: small padding + drop-shadow so it reads over the gradient */
+                /* inline styles added to ensure visibility on both light and dark stops */
+              }
               <img 
                 src={logo} 
                 alt="Aidezel" 
-                className="h-[120px] w-auto object-contain -my-10 group-hover:scale-105 transition-transform drop-shadow-sm" 
+                className="h-[120px] w-auto object-contain -my-10 group-hover:scale-105 transition-transform"
+                style={{
+                  padding: 6,
+                  borderRadius: 8,
+                  background: 'transparent',
+                  /* subtle lift and edge clarity for raster logo */
+                  filter: 'drop-shadow(0 6px 18px rgba(2,6,23,0.45))',
+                  WebkitFilter: 'drop-shadow(0 6px 18px rgba(2,6,23,0.45))'
+                }}
               />
             </Link>
           </div>

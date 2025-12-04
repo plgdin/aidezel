@@ -122,7 +122,8 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
           {heroCount > 1 && (
             <button 
               onClick={onPrev}
-              className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-12 h-24 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-lg hidden md:flex"
+              // FIX: Removed 'flex' here because 'hidden md:flex' handles it correctly below
+              className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-12 h-24 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl hidden md:flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-lg"
             >
               <ChevronLeft size={28} />
             </button>
@@ -132,7 +133,8 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
           {heroCount > 1 && (
             <button 
               onClick={onNext}
-              className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-12 h-24 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-lg hidden md:flex"
+              // FIX: Removed 'flex' here because 'hidden md:flex' handles it correctly below
+              className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-12 h-24 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl hidden md:flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-lg"
             >
               <ChevronRight size={28} />
             </button>

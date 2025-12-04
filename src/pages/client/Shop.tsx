@@ -1,41 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-// FIX: Added 'ChevronRight' to the import list
 import { Filter, ChevronDown, X, SlidersHorizontal, Search, ArrowRight, Check, ChevronLeft, ChevronUp, ChevronRight } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom'; 
 import { supabase } from '../../lib/supabase';
 import ProductCard, { Product } from '../../components/shared/ProductCard';
 
-// --- CONSTANTS ---
-const PRICE_RANGES = [
-  { label: 'Under £50', min: 0, max: 50 },
-  { label: '£50 - £100', min: 50, max: 100 },
-  { label: '£100 - £500', min: 100, max: 500 },
-  { label: 'Over £500', min: 500, max: 1000000 },
-];
-
-// --- UTILITY: Levenshtein Distance ---
-const getLevenshteinDistance = (a: string, b: string) => {
-  if (a.length === 0) return b.length;
-  if (b.length === 0) return a.length;
-  
-  const matrix = [];
-  for (let i = 0; i <= b.length; i++) { matrix[i] = [i]; }
-  for (let j = 0; j <= a.length; j++) { matrix[0][j] = j; }
-
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i - 1) === a.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1)
-        );
-      }
-    }
-  }
-  return matrix[b.length][a.length];
-};
+// --- (PRICE_RANGES Removed) ---
 
 const Shop = () => {
   const [allProducts, setAllProducts] = useState<Product[]>([]);
@@ -51,7 +20,7 @@ const Shop = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedSubcats, setSelectedSubcats] = useState<string[]>([]); 
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);   
-  const [selectedPrice, setSelectedPrice] = useState<{min: number, max: number, label: string} | null>(null);
+  // (selectedPrice State Removed)
   const [searchTerm, setSearchTerm] = useState('');
   
   // New state for dynamic specs filtering (if needed for drill down)
@@ -79,7 +48,10 @@ const Shop = () => {
           subcategory: item.subcategory,
           brand: item.brand,
           specs: item.specs || {},
-          tag: item.status === 'Out of Stock' ? 'Sold Out' : (item.is_hero ? 'Featured' : 'New')
+          tag: item.status === 'Out of Stock' ? 'Sold Out' : (item.is_hero ? 'Featured' : 'New'),
+          
+          // --- FIX: RETAINED STOCK QUANTITY LOGIC ---
+          stock_quantity: item.stock_quantity
         }));
         setAllProducts(formatted);
       }
@@ -153,9 +125,7 @@ const Shop = () => {
           return product.specs && product.specs[key] && values.includes(product.specs[key]);
       });
 
-      const matchesPrice = selectedPrice 
-        ? (product.rawPrice >= selectedPrice.min && product.rawPrice <= selectedPrice.max)
-        : true;
+      // (matchesPrice logic Removed)
         
       const matchesDelivery = fastDeliveryOnly ? product.tag !== 'Sold Out' : true;
 
@@ -165,9 +135,9 @@ const Shop = () => {
         (product.category && product.category.toLowerCase().includes(searchLower)) ||
         (product.brand && product.brand.toLowerCase().includes(searchLower));
 
-      return matchesCategory && matchesSubcat && matchesBrand && matchesSpecs && matchesPrice && matchesDelivery && matchesSearch;
+      return matchesCategory && matchesSubcat && matchesBrand && matchesSpecs && matchesDelivery && matchesSearch;
     });
-  }, [allProducts, selectedCategory, selectedSubcats, selectedBrands, selectedSpecs, selectedPrice, fastDeliveryOnly, searchTerm]);
+  }, [allProducts, selectedCategory, selectedSubcats, selectedBrands, selectedSpecs, fastDeliveryOnly, searchTerm]);
 
 
   // --- HANDLERS ---
@@ -212,7 +182,7 @@ const Shop = () => {
 
   const resetAllFilters = () => {
     clearSearch();
-    setSelectedPrice(null);
+    // (setSelectedPrice(null) Removed)
     setSelectedSubcats([]);
     setSelectedBrands([]);
     setSelectedSpecs({});
@@ -346,26 +316,7 @@ const Shop = () => {
           </>
       )}
       
-      {/* 3. PRICE (Always visible) */}
-      <FilterSection title="Price">
-        <div className="space-y-1">
-          <div className="flex items-center gap-3 cursor-pointer group p-1.5 rounded-lg hover:bg-gray-50 transition-colors" onClick={() => setSelectedPrice(null)}>
-             <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${selectedPrice === null ? 'border-blue-600' : 'border-gray-300 group-hover:border-blue-400'}`}>
-                  {selectedPrice === null && <div className="w-2 h-2 rounded-full bg-blue-600" />}
-             </div>
-             <span className={`text-sm ${selectedPrice === null ? 'font-bold text-blue-600' : 'text-gray-600'}`}>Any Price</span>
-          </div>
-
-          {PRICE_RANGES.map((range, index) => (
-            <div key={index} className="flex items-center gap-3 cursor-pointer group p-1.5 rounded-lg hover:bg-gray-50 transition-colors" onClick={() => setSelectedPrice(range)}>
-                <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${selectedPrice?.label === range.label ? 'border-blue-600' : 'border-gray-300 group-hover:border-blue-400'}`}>
-                    {selectedPrice?.label === range.label && <div className="w-2 h-2 rounded-full bg-blue-600" />}
-                </div>
-                <span className={`text-sm ${selectedPrice?.label === range.label ? 'font-bold text-blue-600' : 'text-gray-600'}`}>{range.label}</span>
-            </div>
-          ))}
-        </div>
-      </FilterSection>
+      {/* (PRICE FILTER SECTION REMOVED) */}
 
     </div>
   );
@@ -389,7 +340,7 @@ const Shop = () => {
         <aside className="hidden lg:block w-64 space-y-8 h-fit sticky top-24 flex-shrink-0">
           <div className="flex items-center justify-between mb-2">
              <h2 className="text-xl font-bold">Filters</h2>
-             {(selectedCategory !== 'All' || selectedSubcats.length > 0 || selectedBrands.length > 0 || selectedPrice || Object.keys(selectedSpecs).length > 0 || fastDeliveryOnly) && (
+             {(selectedCategory !== 'All' || selectedSubcats.length > 0 || selectedBrands.length > 0 || Object.keys(selectedSpecs).length > 0 || fastDeliveryOnly) && (
                  <button onClick={resetAllFilters} className="text-xs text-red-500 font-bold hover:underline">Clear All</button>
              )}
           </div>

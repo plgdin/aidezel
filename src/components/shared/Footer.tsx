@@ -1,15 +1,19 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import logo from '../../assets/logo.png';
 
 const Footer = () => {
   return (
     <footer className="bg-white border-t border-gray-200 pt-12 pb-24 lg:pb-8 mt-auto">
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8 text-center md:text-left">
+          
+          {/* Logo Section */}
           <div>
-            <h3 className="text-xl font-bold text-blue-900 mb-4">Aidezel</h3>
+            <img src={logo} alt="Aidezel" className="h-12 w-auto mx-auto md:mx-0 mb-4 object-contain" />
             <p className="text-gray-500 text-sm leading-relaxed">Your premium destination for electronics and lifestyle products in the UK.</p>
           </div>
+
           <div>
             <h4 className="font-bold text-gray-900 mb-4">Shop</h4>
             <ul className="space-y-2 text-sm text-gray-600">
@@ -22,14 +26,14 @@ const Footer = () => {
             <h4 className="font-bold text-gray-900 mb-4">Support</h4>
             <ul className="space-y-2 text-sm text-gray-600">
               <li><Link to="/contact" className="hover:text-blue-600">Contact Us</Link></li>
-              <li><Link to="/account/orders" className="hover:text-blue-600">Order Status</Link></li>
+              <li><Link to="/orders" className="hover:text-blue-600">Order Status</Link></li>
             </ul>
           </div>
           <div>
             <h4 className="font-bold text-gray-900 mb-4">Legal</h4>
             <ul className="space-y-2 text-sm text-gray-600">
               <li><Link to="/terms" className="hover:text-blue-600">Terms & Conditions</Link></li>
-              <li><Link to="/privacy" className="hover:text-blue-600">Privacy Policy</Link></li>
+              <li><Link to="/terms" className="hover:text-blue-600">Privacy Policy</Link></li>
             </ul>
           </div>
         </div>

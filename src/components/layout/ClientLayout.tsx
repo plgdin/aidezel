@@ -1,17 +1,19 @@
 import React from 'react';
 import { Outlet, Link } from 'react-router-dom';
-// Import the separate Navbar component
 import Navbar from '../shared/Navbar'; 
+import logo from '../../assets/logo.png'; // Ensure this matches your path
 
 const ClientLayout = () => {
   return (
-    <div className="min-h-screen flex flex-col bg-white font-sans">
+    // FIX: Using the new CSS variable for the background
+    <div className="min-h-screen flex flex-col bg-[var(--bg-main)] font-sans">
       
       {/* --- NAVBAR --- */}
       <Navbar />
 
       {/* --- MAIN CONTENT --- */}
-      <main className="flex-1 bg-white">
+      {/* FIX: bg-transparent allows the grey body color to show through */}
+      <main className="flex-1 bg-transparent">
         <Outlet />
       </main>
 
@@ -22,7 +24,7 @@ const ClientLayout = () => {
           {/* 1. Brand Section */}
           <div>
             {/* Logo */}
-            <img src="/logo.png" alt="Aidezel" className="h-8 mb-6 opacity-80" />
+            <img src={logo} alt="Aidezel" className="h-8 mb-6 opacity-80" />
             <p className="text-sm leading-relaxed max-w-xs">
               Your premium destination for electronics and lifestyle products. Quality guaranteed.
             </p>
@@ -73,7 +75,6 @@ const ClientLayout = () => {
         <div className="container mx-auto px-4 border-t border-slate-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-xs">
           <p>© 2025 Aidezel LTD. All rights reserved.</p>
           <div className="flex gap-4">
-             {/* Optional Social Icons or Payment Methods could go here */}
              <span>Secure Payment</span>
              <span>SSL Encrypted</span>
           </div>

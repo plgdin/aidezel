@@ -5,8 +5,8 @@
 :root {
   /* --- ROYAL BLUE PALETTE --- */
   
-  /* Backgrounds */
-  --bg-main: #ffffff;       /* White Body */
+  /* FIXED: Darker Grey (Slate 200) for better contrast */
+  --bg-main: #e2e8f0;       
   --bg-dark: #0f172a;       /* Dark Slate Header */
   
   /* Accents */
@@ -18,7 +18,11 @@
   --text-muted: #64748b;
   
   /* Borders */
-  --border-light: #e2e8f0;
+  --border-light: #cbd5e1;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
@@ -32,5 +36,5 @@ body {
 /* Scrollbar */
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: var(--bg-main); }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--accent-primary); }

@@ -94,7 +94,7 @@ const UserAccount = () => {
   );
 
   return (
-    <div className="bg-gray-50 min-h-screen pb-20">
+    <div className="bg-transparent min-h-screen pb-20">
       
       {/* --- HEADER SECTION --- */}
       <div className="bg-[#0f172a] text-white pt-12 pb-24">
@@ -118,7 +118,7 @@ const UserAccount = () => {
             <div className="space-y-6">
                 {/* Quick Stats / Navigation Card */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-2 overflow-hidden">
-                    <Link to="/orders" className="flex items-center gap-4 p-4 hover:bg-gray-50 rounded-xl transition-colors group">
+                    <Link to="/orders" className="flex items-center gap-4 p-4 hover:bg-transparent rounded-xl transition-colors group">
                         <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
                             <Package size={20} />
                         </div>
@@ -128,7 +128,7 @@ const UserAccount = () => {
                         </div>
                     </Link>
                     
-                    <Link to="/wishlist" className="flex items-center gap-4 p-4 hover:bg-gray-50 rounded-xl transition-colors group">
+                    <Link to="/wishlist" className="flex items-center gap-4 p-4 hover:bg-transparent rounded-xl transition-colors group">
                         <div className="w-10 h-10 bg-pink-50 text-pink-600 rounded-lg flex items-center justify-center group-hover:bg-pink-600 group-hover:text-white transition-colors">
                             <Heart size={20} />
                         </div>
@@ -141,7 +141,7 @@ const UserAccount = () => {
                     <div className="h-px bg-gray-100 my-2"></div>
 
                     <button onClick={handleLogout} className="w-full flex items-center gap-4 p-4 hover:bg-red-50 rounded-xl transition-colors group text-left">
-                        <div className="w-10 h-10 bg-gray-50 text-gray-500 rounded-lg flex items-center justify-center group-hover:bg-red-600 group-hover:text-white transition-colors">
+                        <div className="w-10 h-10 bg-transparent text-gray-500 rounded-lg flex items-center justify-center group-hover:bg-red-600 group-hover:text-white transition-colors">
                             <LogOut size={20} />
                         </div>
                         <div>
@@ -218,7 +218,7 @@ const UserAccount = () => {
                                 type="email" 
                                 value={profile.email} 
                                 disabled 
-                                className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-500 cursor-not-allowed"
+                                className="w-full p-3 border border-gray-200 rounded-xl bg-transparent text-gray-500 cursor-not-allowed"
                             />
                             <p className="text-[10px] text-gray-400">Email cannot be changed manually.</p>
                         </div>

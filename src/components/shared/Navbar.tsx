@@ -1,28 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, Heart, Menu, Home, Filter, ArrowRight, TrendingUp } from 'lucide-react';
+import { Search, ShoppingCart, User, Heart, Menu, Home, ShoppingBag, ArrowRight, TrendingUp } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { supabase } from '../../lib/supabase';
 
 import logo from '../../assets/logo.png'; 
 
-// ==========================================
-// 💎 NAVBAR CONFIGURATION (HEAVY GLASS)
-// ==========================================
 const NAV_STYLE = {
-  // REPLACED: radial halo + linear gradient
-  // radial halo sits at left ~6% so logo pops, linear keeps royal blue -> deep navy
   backgroundGradient:
     'radial-gradient(circle at 6% 50%, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0) 110px), ' +
     'linear-gradient(100deg, rgba(125,211,252,0.95) 0%, rgba(56,103,214,0.88) 45%, rgba(8,20,48,0.95) 100%)',
-  
-  // keep the heavy glass look
   blurAmount: '24px',
   borderBottom: '1px solid rgba(255, 255, 255, 0.25)',
   boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.25)',
   accentColor: '#60a5fa'
 };
-// ==========================================
 
 const TRENDING_SEARCHES = ['Wireless Headphones', 'Smart Watch', 'Gaming Laptop', 'Mechanical Keyboard'];
 
@@ -36,10 +28,6 @@ const Navbar = () => {
   const [showDropdown, setShowDropdown] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
-  // Active links logic
-  const isActive = (path: string) => 
-    location.pathname === path ? "text-white font-bold opacity-100" : "text-blue-100 opacity-70";
-
   // --- LIVE SEARCH LOGIC ---
   useEffect(() => {
     const fetchSuggestions = async () => {
@@ -49,7 +37,7 @@ const Navbar = () => {
       }
       const { data } = await supabase
         .from('products')
-        .select('name, category, image_url')
+        .select('name, category')
         .or(`name.ilike.%${searchQuery}%,category.ilike.%${searchQuery}%`)
         .limit(5);
 
@@ -98,10 +86,9 @@ const Navbar = () => {
       <nav 
         className="sticky top-0 z-50 py-3 transition-all duration-300"
         style={{
-            /* use composed background (radial + linear) so logo area has a gentle halo */
             background: NAV_STYLE.backgroundGradient,
             backdropFilter: `blur(${NAV_STYLE.blurAmount})`,
-            WebkitBackdropFilter: `blur(${NAV_STYLE.blurAmount})`, // Safari
+            WebkitBackdropFilter: `blur(${NAV_STYLE.blurAmount})`,
             borderBottom: NAV_STYLE.borderBottom,
             boxShadow: NAV_STYLE.boxShadow,
             '--nav-accent': NAV_STYLE.accentColor
@@ -109,16 +96,13 @@ const Navbar = () => {
       >
         <div className="container mx-auto px-4 flex items-center justify-between gap-8">
           
-          {/* Logo & Menu */}
+          {/* Logo */}
           <div className="flex items-center gap-4">
             <button className="p-2 hover:bg-white/10 rounded-lg lg:hidden text-slate-800">
               <Menu className="w-6 h-6" />
             </button>
             
             <Link to="/" className="shrink-0 relative z-50 group" aria-label="home">
-              {/* Logo: small padding + drop-shadow so it reads over the gradient */
-                /* inline styles added to ensure visibility on both light and dark stops */
-              }
               <img 
                 src={logo} 
                 alt="Aidezel" 
@@ -127,7 +111,6 @@ const Navbar = () => {
                   padding: 6,
                   borderRadius: 8,
                   background: 'transparent',
-                  /* subtle lift and edge clarity for raster logo */
                   filter: 'drop-shadow(0 6px 18px rgba(2,6,23,0.45))',
                   WebkitFilter: 'drop-shadow(0 6px 18px rgba(2,6,23,0.45))'
                 }}
@@ -135,11 +118,10 @@ const Navbar = () => {
             </Link>
           </div>
 
-          {/* --- FIXED SEARCH CONTAINER --- */}
+          {/* --- SEARCH CONTAINER --- */}
           <div className="hidden lg:flex flex-1 max-w-3xl relative" ref={searchContainerRef}>
             <form 
                 onSubmit={handleSearchSubmit} 
-                // Search bar also gets a subtle glass effect relative to the navbar
                 className={`w-full relative flex items-center bg-white/90 backdrop-blur-md border border-white/40 transition-all duration-200
                   ${isDropdownOpen ? 'rounded-t-2xl border-b-0 z-50 shadow-xl' : 'rounded-full shadow-lg'}
                 `}
@@ -219,7 +201,7 @@ const Navbar = () => {
             )}
           </div>
 
-          {/* ICONS - White Text */}
+          {/* ICONS - Desktop */}
           <div className="hidden lg:flex items-center gap-14 text-white">
             <Link to="/wishlist" className="flex flex-col items-center gap-1.5 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:text-blue-100 group">
               <Heart size={26} strokeWidth={1.5} className="group-hover:fill-white/20" />
@@ -235,9 +217,7 @@ const Navbar = () => {
               <div className="relative">
                 <ShoppingCart size={26} strokeWidth={1.5} />
                 {cartCount > 0 && (
-                  <span 
-                    className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white/20 shadow-sm"
-                  >
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white/20 shadow-sm">
                     {cartCount}
                   </span>
                 )}
@@ -253,35 +233,39 @@ const Navbar = () => {
         </div>
       </nav>
 
-      {/* BOTTOM NAV - Mobile Only */}
+      {/* --- BOTTOM NAV - Mobile Only (UPDATED) --- */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50 lg:hidden pb-safe">
         <div className="flex justify-between items-center px-6 py-2">
+          
+          {/* 1. Shop changed to HOME */}
           <Link to="/" className={`flex flex-col items-center gap-1 transition-colors ${location.pathname === '/' ? 'text-blue-600' : 'text-slate-400'}`}>
             <Home size={24} strokeWidth={1.5} />
+            <span className="text-[10px] font-bold">Home</span>
+          </Link>
+
+          {/* 2. Filter changed to SHOP */}
+          <Link to="/shop" className={`flex flex-col items-center gap-1 transition-colors ${location.pathname === '/shop' ? 'text-blue-600' : 'text-slate-400'}`}>
+            <ShoppingBag size={24} strokeWidth={1.5} />
             <span className="text-[10px] font-bold">Shop</span>
           </Link>
-          <Link to="/shop" className={`flex flex-col items-center gap-1 transition-colors ${location.pathname === '/shop' ? 'text-blue-600' : 'text-slate-400'}`}>
-            <Filter size={24} strokeWidth={1.5} />
-            <span className="text-[10px] font-bold">Filters</span>
-          </Link>
+
           <Link to="/wishlist" className={`flex flex-col items-center gap-1 transition-colors ${location.pathname === '/wishlist' ? 'text-blue-600' : 'text-slate-400'}`}>
             <Heart size={24} strokeWidth={1.5} />
             <span className="text-[10px] font-bold">Wishlist</span>
           </Link>
+
           <Link to="/cart" className={`flex flex-col items-center gap-1 relative transition-colors ${location.pathname === '/cart' ? 'text-blue-600' : 'text-slate-400'}`}>
             <div className="relative">
               <ShoppingCart size={24} strokeWidth={1.5} />
               {cartCount > 0 && (
-                <div 
-                  className="absolute -top-2 -right-2 w-4 h-4 text-white rounded-full text-[10px] font-bold flex items-center justify-center"
-                  style={{ backgroundColor: 'var(--nav-accent)' }}
-                >
+                <div className="absolute -top-2 -right-2 w-4 h-4 text-white rounded-full text-[10px] font-bold flex items-center justify-center" style={{ backgroundColor: 'var(--nav-accent)' }}>
                   {cartCount}
                 </div>
               )}
             </div>
             <span className="text-[10px] font-bold">Cart</span>
           </Link>
+
           <Link to="/account" className={`flex flex-col items-center gap-1 transition-colors ${location.pathname === '/account' ? 'text-blue-600' : 'text-slate-400'}`}>
             <User size={24} strokeWidth={1.5} />
             <span className="text-[10px] font-bold">Account</span>
@@ -294,4 +278,4 @@ const Navbar = () => {
   );
 };
 
-export default Navbar;
+export default Navbar; 

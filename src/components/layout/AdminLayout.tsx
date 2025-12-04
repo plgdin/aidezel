@@ -10,7 +10,7 @@ const AdminLayout = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
+    <div className="flex min-h-screen bg-[var(--bg-main)]">
       {/* Sidebar */}
       <aside className="w-64 bg-blue-950 text-white flex flex-col fixed inset-y-0 left-0 z-50">
         <div className="p-6 border-b border-blue-900">

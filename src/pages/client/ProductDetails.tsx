@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Star, ShieldCheck, User, MapPin, Share2, Heart, Truck, RefreshCw, ChevronDown } from 'lucide-react';
+import { Star, ShieldCheck, User, MapPin, Heart, Truck, RefreshCw, ChevronDown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useCart } from '../../context/CartContext';
 import { Session } from '@supabase/supabase-js';
@@ -19,24 +19,37 @@ const ProductDetails = () => {
   const [rating, setRating] = useState(5);
   const [session, setSession] = useState<Session | null>(null);
   const [selectedColor, setSelectedColor] = useState(0);
+  
+  // STATE: Wishlist & Toast
+  const [isWishlisted, setIsWishlisted] = useState(false);
+  const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
 
     const fetchData = async () => {
       const { data: prod } = await supabase.from('products').select('*').eq('id', id).single();
-      
+      const { data: { user } } = await supabase.auth.getUser();
+
       if (prod) {
         setProduct(prod);
-        // Mocking gallery for demo purposes
         setGalleryImages([prod.image_url, prod.image_url, prod.image_url, prod.image_url]);
+
+        if (user) {
+            const { data: wishlistData } = await supabase
+                .from('wishlist')
+                .select('*')
+                .eq('user_id', user.id)
+                .eq('product_id', id)
+                .single();
+            if (wishlistData) setIsWishlisted(true);
+        }
 
         const { data: reviewsData } = await supabase
             .from('reviews')
             .select('*')
             .eq('product_id', id)
             .order('created_at', { ascending: false });
-        
         if (reviewsData) setRealReviews(reviewsData);
       }
       setLoading(false);
@@ -45,6 +58,43 @@ const ProductDetails = () => {
     fetchData();
     window.scrollTo(0,0);
   }, [id]);
+
+  // HELPER: Trigger Toast
+  const triggerToast = (message: string) => {
+    setToast({ show: true, message });
+    setTimeout(() => setToast({ show: false, message: '' }), 2000);
+  };
+
+  // FUNCTION: Toggle Wishlist
+  const toggleWishlist = async () => {
+    if (!session) return alert("Please log in to add items to your wishlist.");
+
+    // Optimistic UI Update (Toggle immediately)
+    const previousState = isWishlisted;
+    setIsWishlisted(!previousState);
+
+    if (previousState) {
+        // Remove from Wishlist
+        triggerToast("Removed from Wishlist");
+        const { error } = await supabase
+            .from('wishlist')
+            .delete()
+            .eq('user_id', session.user.id)
+            .eq('product_id', id);
+        
+        // Revert if error
+        if (error) setIsWishlisted(true);
+    } else {
+        // Add to Wishlist
+        triggerToast("Added to Wishlist");
+        const { error } = await supabase
+            .from('wishlist')
+            .insert([{ user_id: session.user.id, product_id: id }]);
+
+        // Revert if error
+        if (error) setIsWishlisted(false);
+    }
+  };
 
   const submitReview = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,13 +109,13 @@ const ProductDetails = () => {
 
     if (!error) {
         setNewReview('');
-        alert("Review submitted!");
+        alert("Review submitted!"); 
         const { data } = await supabase.from('reviews').select('*').eq('product_id', id).order('created_at', { ascending: false });
         if (data) setRealReviews(data);
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-white"><div className="animate-pulse text-xl font-medium text-gray-400">Loading...</div></div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="animate-pulse text-xl font-medium text-gray-400">Loading...</div></div>;
   if (!product) return <div className="min-h-screen flex items-center justify-center">Product not found</div>;
 
   const isOutOfStock = product.stock_quantity <= 0;
@@ -77,23 +127,19 @@ const ProductDetails = () => {
   // DATA HANDLING
   const features = product.features && product.features.length > 0 
     ? product.features 
-    : [
-        "Premium Build Quality: Designed for durability.",
-        "High Performance: Engineered for top-tier results.",
-        "Standard Warranty Included."
-      ];
+    : ["Premium Build Quality.", "High Performance.", "Standard Warranty Included."];
 
   const specs = product.specs && Object.keys(product.specs).length > 0
     ? Object.entries(product.specs)
     : [
-        ['Brand', product.brand || 'Aidezel'],
-        ['Model Name', product.name],
+        ['Brand', product.brand || 'Aidezel'], 
+        ['Model Name', product.name], 
         ['Category', product.category],
-        ['Origin', 'United Kingdom'],
+        ['Origin', 'United Kingdom']
       ];
 
   return (
-    <div className="bg-white min-h-screen font-sans text-gray-900 pb-24">
+    <div className="bg-white min-h-screen font-sans text-gray-900 pb-24 relative">
       
       <div className="bg-gray-50 border-b border-gray-200">
         <div className="container mx-auto px-4 py-2 text-xs text-gray-500 flex items-center gap-2">
@@ -110,7 +156,14 @@ const ProductDetails = () => {
           <div className="lg:col-span-5">
             <div className="sticky top-24">
                 <div className="relative w-full aspect-square bg-white border border-gray-200 rounded-2xl flex items-center justify-center p-6 mb-4 group overflow-hidden">
-                    <button className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white shadow-md text-gray-400 hover:text-red-500 transition-colors"><Heart size={20} /></button>
+                    {/* Wishlist Button */}
+                    <button 
+                        onClick={toggleWishlist}
+                        className={`absolute top-4 right-4 z-10 p-2 rounded-full bg-white shadow-md transition-all duration-200 ${isWishlisted ? 'text-red-500 bg-red-50' : 'text-gray-400 hover:text-red-500'}`}
+                    >
+                        <Heart size={20} fill={isWishlisted ? "currentColor" : "none"} />
+                    </button>
+
                     <img src={galleryImages[activeImage]} alt={product.name} className={`w-full h-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-105 ${isOutOfStock ? 'grayscale opacity-70' : ''}`}/>
                 </div>
                 <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
@@ -154,7 +207,6 @@ const ProductDetails = () => {
                 </div>
             </div>
 
-            {/* DYNAMIC BULLET POINTS */}
             <div className="pt-4">
                 <h3 className="font-bold text-sm text-gray-900 mb-2">About this item</h3>
                 <ul className="list-disc pl-4 space-y-1 text-sm text-gray-700 marker:text-gray-400">
@@ -178,12 +230,9 @@ const ProductDetails = () => {
                     <div className={`text-lg font-medium ${isOutOfStock ? 'text-red-600' : 'text-green-700'} mt-2`}>
                         {isOutOfStock ? 'Currently unavailable.' : 'In Stock.'}
                     </div>
-                    <div className="text-xs text-gray-500">
-                        <p>Sold by <span className="text-blue-600">Aidezel Official</span></p>
-                        <p>Fulfilled by <span className="text-blue-600">Aidezel</span></p>
-                    </div>
                 </div>
 
+                {/* --- SIMPLIFIED ADD TO CART LOGIC --- */}
                 <div className="space-y-3">
                     <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 pointer-events-none z-10">Quantity:</span>
@@ -193,7 +242,14 @@ const ProductDetails = () => {
                         <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"><ChevronDown size={16} /></div>
                     </div>
 
-                    <button onClick={() => addToCart({...product, quantity: qty})} disabled={isOutOfStock} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-full text-sm shadow-sm transition-colors disabled:opacity-50">Add to Cart</button>
+                    <button 
+                        onClick={() => addToCart({...product, quantity: qty})} 
+                        disabled={isOutOfStock} 
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-full text-sm shadow-sm transition-colors disabled:opacity-50"
+                    >
+                        Add to Cart
+                    </button>
+                    
                     <button disabled={isOutOfStock} className="w-full bg-black hover:bg-gray-900 text-white font-medium py-2.5 rounded-full text-sm shadow-sm transition-colors disabled:opacity-50">Buy Now</button>
                 </div>
 
@@ -204,14 +260,11 @@ const ProductDetails = () => {
                 </div>
             </div>
           </div>
-
         </div>
         
-        {/* LOWER SECTION: PRODUCT INFORMATION TABLE */}
+        {/* LOWER SECTION */}
         <div className="mt-16 border-t border-gray-200 pt-10">
              <h2 className="text-xl font-bold text-gray-900 mb-6">Product Information</h2>
-             
-             {/* DYNAMIC SPECS TABLE */}
              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 mb-10">
                  {specs.map(([key, val]: any, idx: number) => (
                     <div key={idx} className="flex border-b border-gray-100 py-2">
@@ -220,18 +273,11 @@ const ProductDetails = () => {
                     </div>
                  ))}
              </div>
-
              <h3 className="text-lg font-bold text-gray-900 mb-2">Product Description</h3>
-             <p className="text-gray-700 text-sm leading-relaxed mb-8 whitespace-pre-wrap">
-                {product.description || 'No description available.'}
-             </p>
-             
+             <p className="text-gray-700 text-sm leading-relaxed mb-8 whitespace-pre-wrap">{product.description || 'No description available.'}</p>
              <hr className="my-8" />
-
-             {/* REVIEWS SECTION */}
              <div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Customer Reviews</h2>
-                
                 <div className="flex items-center gap-4 mb-8">
                     <div className="flex items-center gap-1 text-yellow-400">
                         <Star size={24} fill="currentColor"/>
@@ -242,7 +288,6 @@ const ProductDetails = () => {
                     </div>
                     <span className="text-lg font-medium">4.2 out of 5</span>
                 </div>
-
                 {session ? (
                     <form onSubmit={submitReview} className="bg-gray-50 p-4 rounded-xl mb-8 border border-gray-200">
                         <h4 className="font-bold text-sm mb-2">Write a review</h4>
@@ -259,7 +304,6 @@ const ProductDetails = () => {
                 ) : (
                     <div className="mb-8 p-4 bg-blue-50 text-blue-800 text-sm rounded-lg">Please <Link to="/login" className="font-bold underline">login</Link> to write a review.</div>
                 )}
-
                 <div className="space-y-6 max-w-3xl">
                     {realReviews.length === 0 && <p className="text-gray-500 text-sm">No reviews yet.</p>}
                     {realReviews.map((review) => (
@@ -273,6 +317,15 @@ const ProductDetails = () => {
              </div>
         </div>
       </div>
+
+      {/* CUSTOM TOAST NOTIFICATION */}
+      {toast.show && (
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] bg-black/90 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 animate-in slide-in-from-bottom-5">
+            <Heart size={16} className="text-red-500 fill-red-500" />
+            <span className="text-sm font-bold">{toast.message}</span>
+        </div>
+      )}
+
     </div>
   );
 };

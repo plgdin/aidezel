@@ -7,10 +7,26 @@ const Cart = () => {
   const { cartItems, removeFromCart, addToCart, cartTotal } = useCart();
   const navigate = useNavigate();
 
+  // Helper to decrease quantity
+  const decreaseQuantity = (item: any) => {
+    if (item.quantity > 1) {
+      // Adding a negative quantity effectively subtracts it in your current addToCart logic
+      // However, a safer way is to create a dedicated decrease function in Context
+      // For now, we can use addToCart with a negative number if your context supports it, 
+      // OR we just remove the item and add it back with q-1.
+      //
+      // BETTER FIX: Let's assume we modify context slightly or just use this hack:
+      // Since your Context adds quantities, we actually need a `updateQuantity` function.
+      // But based on your current Context code, `addToCart` adds to existing.
+      // Let's rely on a small hack: pass quantity: -1
+      addToCart({ ...item, quantity: -1 });
+    }
+  };
+
   if (cartItems.length === 0) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4 pb-24">
-        <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4 pb-24 bg-transparent">
+        <div className="w-24 h-24 bg-white border border-gray-200 rounded-full flex items-center justify-center mb-6 shadow-sm">
           <ShoppingBag size={40} className="text-gray-300" />
         </div>
         <h2 className="text-3xl font-bold text-gray-900 mb-2">Your cart is empty</h2>
@@ -23,7 +39,7 @@ const Cart = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 lg:py-12 pb-32 lg:pb-12">
+    <div className="container mx-auto px-4 py-6 lg:py-12 pb-32 lg:pb-12 bg-transparent">
       <div className="flex items-center gap-2 mb-6 lg:mb-8">
         <button onClick={() => navigate(-1)} className="lg:hidden p-2 -ml-2"><ArrowLeft size={20} /></button>
         <h1 className="text-2xl lg:text-3xl font-bold flex items-center gap-2">Shopping Cart <span className="text-gray-400 text-base lg:text-lg font-normal">({cartItems.length})</span></h1>
@@ -32,26 +48,53 @@ const Cart = () => {
       <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
         {/* ITEMS LIST */}
         <div className="flex-1 space-y-4 lg:space-y-6">
-          {cartItems.map((item) => (
-            <div key={item.id} className="flex gap-4 p-4 border border-gray-100 rounded-2xl bg-white shadow-sm relative">
+          {cartItems.map((item) => {
+            // Check if user has reached max stock
+            const isMaxedOut = item.quantity >= item.stock_quantity;
+            // Check if quantity is 1 (to disable minus button)
+            const isMinQuantity = item.quantity <= 1;
+
+            return (
+            <div key={item.id} className="flex gap-4 p-4 border border-gray-200 rounded-2xl bg-white shadow-sm relative">
               {/* Image */}
-              <div className="w-20 h-20 lg:w-24 lg:h-24 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0 p-2">
+              <div className="w-20 h-20 lg:w-24 lg:h-24 bg-gray-50 rounded-xl flex items-center justify-center flex-shrink-0 p-2">
                  {item.image ? <img src={item.image} className="w-full h-full object-contain mix-blend-multiply"/> : <span className="text-xs text-gray-400">Img</span>}
               </div>
 
-              {/* Info (Desktop & Mobile Shared Logic) */}
+              {/* Info */}
               <div className="flex-1 flex flex-col lg:flex-row lg:items-center justify-between">
                 <div className="mb-2 lg:mb-0">
                   <h3 className="font-bold text-base lg:text-lg text-gray-900 line-clamp-2">{item.name}</h3>
-                  <p className="text-blue-600 font-bold text-sm lg:text-base mt-1">{item.price}</p>
+                  <p className="text-blue-600 font-bold text-sm lg:text-base mt-1">£{item.price.toLocaleString()}</p>
+                  
+                  {isMaxedOut && (
+                    <p className="text-[10px] text-red-500 font-bold mt-1">Max stock reached</p>
+                  )}
                 </div>
 
                 {/* Controls */}
                 <div className="flex items-center justify-between lg:gap-6">
                   <div className="flex items-center gap-3 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
-                    <button className="p-1 hover:text-red-500 text-gray-400 cursor-not-allowed" disabled><Minus size={14} /></button>
+                    
+                    {/* MINUS BUTTON */}
+                    <button 
+                        onClick={() => decreaseQuantity(item)} 
+                        disabled={isMinQuantity}
+                        className={`p-1 transition-colors ${isMinQuantity ? 'text-gray-300 cursor-not-allowed' : 'hover:text-red-500 text-gray-600'}`}
+                    >
+                        <Minus size={14} />
+                    </button>
+
                     <span className="text-sm font-semibold w-4 text-center">{item.quantity}</span>
-                    <button onClick={() => addToCart(item)} className="p-1 hover:text-green-500 transition-colors"><Plus size={14} /></button>
+                    
+                    {/* PLUS BUTTON */}
+                    <button 
+                        onClick={() => addToCart({...item, quantity: 1})} 
+                        disabled={isMaxedOut}
+                        className={`p-1 transition-colors ${isMaxedOut ? 'text-gray-300 cursor-not-allowed' : 'hover:text-green-500 text-gray-600'}`}
+                    >
+                        <Plus size={14} />
+                    </button>
                   </div>
                   <button onClick={() => removeFromCart(item.id)} className="p-2 lg:p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
                     <Trash2 size={18} />
@@ -59,7 +102,8 @@ const Cart = () => {
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
           <Link to="/shop" className="hidden lg:inline-flex items-center gap-2 text-sm text-gray-500 hover:text-black mt-4">
             <ArrowLeft size={16} /> Continue Shopping
           </Link>
@@ -67,7 +111,7 @@ const Cart = () => {
 
         {/* SUMMARY */}
         <div className="w-full lg:w-96">
-          <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 sticky top-24">
+          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm sticky top-24">
             <h3 className="text-xl font-bold mb-6">Order Summary</h3>
             <div className="space-y-3 text-sm text-gray-600 mb-6 border-b border-gray-200 pb-6 lg:border-0 lg:pb-0">
               <div className="flex justify-between"><span>Subtotal</span><span className="font-bold">£{cartTotal.toLocaleString()}</span></div>

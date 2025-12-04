@@ -43,10 +43,10 @@ const Inventory = () => {
     p.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // --- FIX: ALLOW MULTIPLE HEROES ---
   const toggleHero = async (id: number, currentStatus: boolean) => {
-    if (!currentStatus) {
-        await supabase.from('products').update({ is_hero: false }).neq('id', 0); // Reset all
-    }
+    // We REMOVED the code that resets all other products to false.
+    // Now you can toggle multiple products to 'true' for the slider.
     const { error } = await supabase.from('products').update({ is_hero: !currentStatus }).eq('id', id);
     if (!error) fetchData(); 
   };
@@ -59,7 +59,7 @@ const Inventory = () => {
     await supabase.from('products').update({ stock_quantity: newStock, status }).eq('id', id);
   };
 
-  // --- NEW DELETE HANDLERS ---
+  // --- DELETE HANDLERS ---
   const confirmDelete = (id: number) => {
     setProductToDelete(id);
     setShowDeleteModal(true);
@@ -71,7 +71,6 @@ const Inventory = () => {
     await supabase.from('products').delete().eq('id', productToDelete);
     setProducts(products.filter(p => p.id !== productToDelete));
     
-    // Cleanup
     setShowDeleteModal(false);
     setProductToDelete(null);
   };
@@ -138,6 +137,7 @@ const Inventory = () => {
                       <button 
                         onClick={() => toggleHero(p.id, p.is_hero)}
                         className={`p-2 rounded-full transition-colors ${p.is_hero ? 'bg-yellow-100 text-yellow-600' : 'text-gray-300 hover:text-yellow-400'}`}
+                        title="Toggle Hero Slider"
                       >
                           <Star size={20} fill={p.is_hero ? "currentColor" : "none"} />
                       </button>
@@ -199,7 +199,6 @@ const Inventory = () => {
                    </div>
                </div>
 
-               {/* CATEGORY SELECTORS */}
                <div className="grid grid-cols-2 gap-4">
                    <div>
                      <label className="text-xs font-bold uppercase text-gray-500">Category</label>

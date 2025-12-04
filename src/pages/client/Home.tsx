@@ -5,8 +5,15 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import ProductCard, { Product } from '../../components/shared/ProductCard';
 
-// --- HERO BANNER (FIXED) ---
-const HeroBanner = ({ heroProduct }: { heroProduct: any }) => {
+// --- HERO BANNER (FIXED WITH NAVIGATION) ---
+interface HeroBannerProps {
+  heroProduct: any;
+  heroCount: number;
+  onNext: () => void;
+  onPrev: () => void;
+}
+
+const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   
@@ -104,16 +111,37 @@ const HeroBanner = ({ heroProduct }: { heroProduct: any }) => {
   }, []);
 
   return (
-    <div className="w-full bg-white py-8 lg:py-12">
+    <div className="w-full bg-transparent py-8 lg:py-12">
       <div className="container mx-auto px-4">
         
-        <div ref={containerRef} className="relative w-full rounded-[2.5rem] overflow-hidden bg-gradient-to-br from-[#0f172a] via-[#1e3a8a] to-[#172554] min-h-[500px] flex items-center shadow-2xl">
+        <div ref={containerRef} className="relative w-full rounded-[2.5rem] overflow-hidden bg-gradient-to-br from-[#0f172a] via-[#1e3a8a] to-[#172554] min-h-[500px] flex items-center shadow-2xl group/hero">
           
           <canvas ref={canvasRef} className="absolute inset-0 z-0" />
+
+          {/* --- LEFT GLASS SLIDER (Vertical Rectangle) --- */}
+          {heroCount > 1 && (
+            <button 
+              onClick={onPrev}
+              className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-12 h-24 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-lg hidden md:flex"
+            >
+              <ChevronLeft size={28} />
+            </button>
+          )}
+
+          {/* --- RIGHT GLASS SLIDER (Vertical Rectangle) --- */}
+          {heroCount > 1 && (
+            <button 
+              onClick={onNext}
+              className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-12 h-24 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-lg hidden md:flex"
+            >
+              <ChevronRight size={28} />
+            </button>
+          )}
           
-          <div className="relative z-10 w-full px-8 lg:px-16 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <div className="relative z-10 w-full px-8 lg:px-24 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             
             <motion.div 
+              key={heroProduct ? heroProduct.id : 'loading'} 
               initial={{ opacity: 0, x: -30 }} 
               animate={{ opacity: 1, x: 0 }} 
               transition={{ duration: 0.6 }}
@@ -128,7 +156,7 @@ const HeroBanner = ({ heroProduct }: { heroProduct: any }) => {
                 {heroProduct ? (
                     <>
                         {heroProduct.name.split(' ').slice(0, 2).join(' ')} <br/>
-                        <span className="text-[#93c5fd]">Now £{heroProduct.price}</span>
+                        <span className="text-[#93c5fd]">Now {heroProduct.price}</span>
                     </>
                 ) : (
                     <>
@@ -151,6 +179,7 @@ const HeroBanner = ({ heroProduct }: { heroProduct: any }) => {
             </motion.div>
 
             <motion.div 
+              key={`img-${heroProduct ? heroProduct.id : 'load'}`}
               initial={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }} 
               transition={{ duration: 0.8 }} 
@@ -160,8 +189,6 @@ const HeroBanner = ({ heroProduct }: { heroProduct: any }) => {
                  <img 
                    src={heroProduct.image_url} 
                    alt={heroProduct.name} 
-                   // --- FIX APPLIED HERE ---
-                   // Added 'scale-[1.005]' to eliminate the white edge line artifact.
                    className="max-h-[90%] max-w-[90%] object-contain rounded-[2rem] transition-transform scale-[1.005] hover:scale-[1.05] duration-700 drop-shadow-2xl" 
                  />
                ) : (
@@ -180,10 +207,11 @@ const HeroBanner = ({ heroProduct }: { heroProduct: any }) => {
 
 // --- MAIN HOME PAGE ---
 const HomePage: React.FC = () => {
-  const [dbProducts, setDbProducts] = useState<Product[]>([]);
-  const [heroProduct, setHeroProduct] = useState<any>(null);
+  const [heroProducts, setHeroProducts] = useState<Product[]>([]);
+  const [latestProducts, setLatestProducts] = useState<Product[]>([]);
   
   const [categories, setCategories] = useState<any[]>([]);
+  const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null); 
 
   // Derived state to check if we have more than 5 items
@@ -197,25 +225,97 @@ const HomePage: React.FC = () => {
     fetchCats();
   }, []);
 
+  // --- FETCH HERO PRODUCTS (STARRED IN ADMIN) ---
   useEffect(() => {
-    const fetchLatest = async () => {
-      const { data } = await supabase.from('products').select('*').order('created_at', { ascending: false }).limit(4);
-      if (data) {
-        setDbProducts(data.map((item: any) => ({
-          id: item.id, name: item.name, price: `£${item.price}`, image: item.image_url, tag: 'New'
-        })));
+    const fetchHeroItems = async () => {
+      const { data } = await supabase
+        .from('products')
+        .select('*')
+        .eq('is_hero', true) 
+        .order('created_at', { ascending: false });
 
-        const hero = data.find((p: any) => p.is_hero);
-        if (hero) {
-            setHeroProduct(hero);
-        } else {
-            const { data: heroData } = await supabase.from('products').select('*').eq('is_hero', true).limit(1);
-            if (heroData && heroData.length > 0) setHeroProduct(heroData[0]);
+      if (data && data.length > 0) {
+        setHeroProducts(data.map((item: any) => ({
+          id: item.id, 
+          name: item.name, 
+          price: `£${item.price}`, 
+          image: item.image_url, 
+          tag: 'Featured', 
+          description: item.description, 
+          image_url: item.image_url,
+          
+          // --- FIX: ADDED STOCK QUANTITY HERE ---
+          stock_quantity: item.stock_quantity
+        })));
+      } else {
+        // Fallback
+        const { data: fallback } = await supabase
+            .from('products')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(1);
+        
+        if (fallback) {
+            setHeroProducts(fallback.map((item: any) => ({
+                id: item.id, 
+                name: item.name, 
+                price: `£${item.price}`, 
+                image: item.image_url, 
+                tag: 'New', 
+                description: item.description, 
+                image_url: item.image_url,
+                
+                // --- FIX: ADDED STOCK QUANTITY HERE ---
+                stock_quantity: item.stock_quantity
+            })));
         }
       }
     };
-    fetchLatest();
+    fetchHeroItems();
   }, []);
+
+  // --- FETCH LATEST PRODUCTS (FOR THE GRID BELOW) ---
+  useEffect(() => {
+    const fetchLatestGrid = async () => {
+        const { data } = await supabase
+            .from('products')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(8); 
+        
+        if (data) {
+            setLatestProducts(data.map((item: any) => ({
+                id: item.id, 
+                name: item.name, 
+                price: `£${item.price}`, 
+                image: item.image_url, 
+                tag: 'New',
+                
+                // --- FIX: ADDED STOCK QUANTITY HERE ---
+                stock_quantity: item.stock_quantity
+            })));
+        }
+    };
+    fetchLatestGrid();
+  }, []);
+
+  // Cycle Hero Logic (15 seconds)
+  useEffect(() => {
+    if (heroProducts.length <= 1) return; // Don't auto-scroll if only 1 item
+    const timer = setInterval(() => {
+        setCurrentHeroIndex(prev => (prev + 1) % heroProducts.length);
+    }, 15000); 
+    return () => clearInterval(timer);
+  }, [heroProducts]);
+
+  // --- MANUAL HERO NAVIGATION ---
+  const nextHero = () => {
+    setCurrentHeroIndex(prev => (prev + 1) % heroProducts.length);
+  };
+
+  const prevHero = () => {
+    setCurrentHeroIndex(prev => (prev - 1 + heroProducts.length) % heroProducts.length);
+  };
 
   // --- SCROLL FUNCTION ---
   const scroll = (direction: 'left' | 'right') => {
@@ -236,9 +336,15 @@ const HomePage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white font-sans text-slate-900 overflow-x-hidden">
+    <div className="min-h-screen bg-transparent font-sans text-slate-900 overflow-x-hidden">
       
-      <HeroBanner heroProduct={heroProduct} />
+      {/* Pass Hero Data + Navigation Functions */}
+      <HeroBanner 
+        heroProduct={heroProducts[currentHeroIndex]} 
+        heroCount={heroProducts.length}
+        onNext={nextHero}
+        onPrev={prevHero}
+      />
       
       {/* --- NEW PREMIUM CATEGORIES SECTION --- */}
       <div className="w-full py-16 bg-gray-50/50">
@@ -342,8 +448,8 @@ const HomePage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-            {dbProducts.length > 0 ? (
-              dbProducts.map((product) => <ProductCard key={product.id} product={product} />)
+            {latestProducts.length > 0 ? (
+              latestProducts.map((product) => <ProductCard key={product.id} product={product} />)
             ) : (
                <div className="col-span-4 py-20 text-center border border-dashed border-slate-200 rounded-2xl text-slate-400">
                  Inventory syncing...

@@ -3,14 +3,16 @@ import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 import { BrowserRouter } from 'react-router-dom'
-import { CartProvider } from './context/CartContext' // <--- Import this
+import { CartProvider } from './context/CartContext'
+import ScrollToTop from './components/shared/ScrollToTop' // <--- Import
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <CartProvider> {/* <--- WRAPPER START */}
+    <CartProvider>
       <BrowserRouter>
+        <ScrollToTop /> {/* <--- Add Here */}
         <App />
       </BrowserRouter>
-    </CartProvider> {/* <--- WRAPPER END */}
+    </CartProvider>
   </React.StrictMode>,
 )

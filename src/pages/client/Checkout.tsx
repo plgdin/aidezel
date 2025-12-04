@@ -44,7 +44,8 @@ const Checkout = () => {
           product_id: item.id,
           product_name: item.name,
           quantity: item.quantity,
-          price: parseFloat(item.price.replace(/[^0-9.]/g, ''))
+          // FIX: item.price is already a number now, so we pass it directly
+          price: item.price 
         });
 
         // B. Fetch current stock

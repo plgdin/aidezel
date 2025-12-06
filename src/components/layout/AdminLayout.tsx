@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Package, ShoppingCart, LogOut, Tags, ClipboardList } from 'lucide-react';
+import { Toaster } from '../ui/toaster'; // 👈 UPDATED (relative import)
 
 const AdminLayout = () => {
   const location = useLocation();
@@ -57,6 +58,9 @@ const AdminLayout = () => {
           <Outlet />
         </div>
       </main>
+
+      {/* 🔔 Toast root for admin side */}
+      <Toaster />
     </div>
   );
 };

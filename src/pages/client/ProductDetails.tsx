@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Star, ShieldCheck, User, MapPin, Heart, Truck, RefreshCw, ChevronDown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useCart } from '../../context/CartContext';
@@ -7,6 +7,7 @@ import { Session } from '@supabase/supabase-js';
 
 const ProductDetails = () => {
   const { id } = useParams();
+  const navigate = useNavigate();                        // ✅ NEW
   const { addToCart } = useCart();
   
   const [product, setProduct] = useState<any>(null);
@@ -232,25 +233,40 @@ const ProductDetails = () => {
                     </div>
                 </div>
 
-                {/* --- SIMPLIFIED ADD TO CART LOGIC --- */}
+                {/* --- ADD TO CART / BUY NOW --- */}
                 <div className="space-y-3">
                     <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 pointer-events-none z-10">Quantity:</span>
-                        <select value={qty} onChange={(e) => setQty(Number(e.target.value))} disabled={isOutOfStock} className="w-full border border-gray-300 rounded-lg py-2.5 pl-20 pr-10 text-sm font-bold shadow-sm focus:border-blue-500 outline-none bg-white appearance-none cursor-pointer hover:border-gray-400 transition-colors text-gray-900">
+                        <select
+                          value={qty}
+                          onChange={(e) => setQty(Number(e.target.value))}
+                          disabled={isOutOfStock}
+                          className="w-full border border-gray-300 rounded-lg py-2.5 pl-20 pr-10 text-sm font-bold shadow-sm focus:border-blue-500 outline-none bg-white appearance-none cursor-pointer hover:border-gray-400 transition-colors text-gray-900"
+                        >
                             {qtyOptions.map(n => <option key={n} value={n}>{n}</option>)}
                         </select>
                         <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"><ChevronDown size={16} /></div>
                     </div>
 
                     <button 
-                        onClick={() => addToCart({...product, quantity: qty})} 
+                        onClick={() => addToCart({ ...product, quantity: qty })} 
                         disabled={isOutOfStock} 
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-full text-sm shadow-sm transition-colors disabled:opacity-50"
                     >
                         Add to Cart
                     </button>
                     
-                    <button disabled={isOutOfStock} className="w-full bg-black hover:bg-gray-900 text-white font-medium py-2.5 rounded-full text-sm shadow-sm transition-colors disabled:opacity-50">Buy Now</button>
+                    <button
+                      disabled={isOutOfStock}
+                      onClick={() => {
+                        if (isOutOfStock) return;
+                        addToCart({ ...product, quantity: qty });   // ✅ add to cart
+                        navigate('/checkout');                        // ✅ go to checkout
+                      }}
+                      className="w-full bg-black hover:bg-gray-900 text-white font-medium py-2.5 rounded-full text-sm shadow-sm transition-colors disabled:opacity-50"
+                    >
+                      Buy Now
+                    </button>
                 </div>
 
                 <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between text-[10px] text-gray-500 text-center">

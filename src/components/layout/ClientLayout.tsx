@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import Navbar from '../shared/Navbar'; 
 import logo from '../../assets/logo.png'; // Ensure this matches your path
+import { Toaster } from '../ui/toaster'; // 👈 UPDATED (relative import)
 
 const ClientLayout = () => {
   return (
@@ -81,6 +82,8 @@ const ClientLayout = () => {
         </div>
       </footer>
 
+      {/* 🔔 Toast root for client side */}
+      <Toaster />
     </div>
   );
 };

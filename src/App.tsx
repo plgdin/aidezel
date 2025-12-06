@@ -8,7 +8,7 @@ import AdminLayout from './components/layout/AdminLayout';
 // --- Pages: AUTH ---
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
-import UpdatePassword from './pages/auth/UpdatePassword'; // <--- Newly Added Import
+import UpdatePassword from './pages/auth/UpdatePassword';
 
 // --- Pages: CLIENT ---
 import HomePage from './pages/client/Home';
@@ -22,6 +22,8 @@ import OrderHistory from './pages/client/OrderHistory';
 import About from './pages/client/About';
 import Contact from './pages/client/Contact';
 import Terms from './pages/client/Terms';
+import OrderInvoice from './pages/client/OrderInvoice';
+import BuyAgain from './pages/client/BuyAgain';
 
 // --- Pages: ADMIN ---
 import AdminDashboard from './pages/admin/Dashboard';
@@ -29,32 +31,35 @@ import ManageProducts from './pages/admin/ManageProducts';
 import ManageOrders from './pages/admin/ManageOrders';
 import ManageCategories from './pages/admin/ManageCategories';
 import Inventory from './pages/admin/Inventory';
+import OrderInvoiceAdmin from './pages/admin/OrderInvoiceAdmin';
 
 function App() {
   return (
     <Routes>
-      
       {/* =========================================
-          CLIENT ROUTES (Navbar + Footer) 
+          CLIENT ROUTES (Navbar + Footer)
           ========================================= */}
       <Route path="/" element={<ClientLayout />}>
+        {/* Main */}
         <Route index element={<HomePage />} />
         <Route path="shop" element={<ShopPage />} />
         <Route path="product/:id" element={<ProductDetails />} />
         <Route path="cart" element={<Cart />} />
         <Route path="checkout" element={<Checkout />} />
-        
+
         {/* User Account Section */}
         <Route path="account" element={<UserAccount />} />
-        <Route path="account/update-password" element={<UpdatePassword />} /> {/* <--- New Route Added Here */}
+        <Route path="account/update-password" element={<UpdatePassword />} />
         <Route path="orders" element={<OrderHistory />} />
+        <Route path="orders/:id" element={<OrderInvoice />} />
+        <Route path="buy-again/:orderId" element={<BuyAgain />} />
         <Route path="wishlist" element={<Wishlist />} />
-        
+
         {/* Info Pages */}
         <Route path="about" element={<About />} />
         <Route path="contact" element={<Contact />} />
         <Route path="terms" element={<Terms />} />
-        
+
         {/* Footer Links Placeholders */}
         <Route path="privacy" element={<Terms />} />
         <Route path="cookies" element={<Terms />} />
@@ -63,31 +68,30 @@ function App() {
       </Route>
 
       {/* =========================================
-          ADMIN ROUTES (Sidebar + Dashboard) 
+          ADMIN ROUTES (Sidebar + Dashboard)
           ========================================= */}
       <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<AdminDashboard />} />
-        
+
         {/* Product Management */}
         <Route path="products" element={<ManageProducts />} />
         <Route path="inventory" element={<Inventory />} />
         <Route path="categories" element={<ManageCategories />} />
-        
+
         {/* Order Management */}
         <Route path="orders" element={<ManageOrders />} />
-        
+        <Route path="orders/:id" element={<OrderInvoiceAdmin />} />
+
         {/* Placeholders */}
         <Route path="analytics" element={<AdminDashboard />} />
         <Route path="settings" element={<AdminDashboard />} />
       </Route>
 
       {/* =========================================
-          AUTH ROUTES (No Layout) 
+          AUTH ROUTES (No Layout)
           ========================================= */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-      
-      
     </Routes>
   );
 }

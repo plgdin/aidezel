@@ -2,39 +2,98 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ===========================
+   GLOBAL THEME VARIABLES
+   =========================== */
 :root {
-  /* --- ROYAL BLUE PALETTE --- */
-  
-  /* FIXED: Darker Grey (Slate 200) for better contrast */
-  --bg-main: #e2e8f0;       
-  --bg-dark: #0f172a;       /* Dark Slate Header */
-  
-  /* Accents */
-  --accent-primary: #2563eb; /* Royal Blue */
-  --accent-cyan: #38bdf8;    /* Sky Blue */
-  
-  /* Text */
+  /* Backgrounds */
+  --bg-main: #e5edf7;          /* Light bluish page background */
+  --bg-header: #020617;        /* Very dark navy */
+  --bg-card: #ffffff;
+
+  /* Brand colours */
+  --brand-primary: #1d4ed8;    /* Royal blue */
+  --brand-secondary: #0f172a;  /* Deep navy */
+  --brand-accent: #38bdf8;     /* Sky accent */
+
+  /* Text colours */
   --text-main: #0f172a;
-  --text-muted: #64748b;
-  
-  /* Borders */
-  --border-light: #cbd5e1;
+  --text-soft: #64748b;
 }
 
-html {
-  scroll-behavior: smooth;
+/* ===========================
+   BASE STYLES
+   =========================== */
+
+html,
+body,
+#root {
+  height: 100%;
 }
 
 body {
+  @apply antialiased;
   background-color: var(--bg-main);
   color: var(--text-main);
-  font-family: 'Inter', sans-serif;
-  margin: 0;
-  padding: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter",
+    "Segoe UI", sans-serif;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: var(--bg-main); }
-::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: var(--accent-primary); }
+/* Make everything feel better on mobile */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Limit page width & add nice padding */
+.container {
+  @apply mx-auto;
+  max-width: 1400px;           /* ⬅️ widened to match live look */
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+}
+
+@media (min-width: 1024px) {
+  .container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+/* Utility for main page sections */
+.page-section {
+  @apply w-full;
+}
+
+/* ===========================
+   SCROLLBAR & UTILITIES
+   =========================== */
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Slightly tighter padding on mobile for all main content blocks */
+  .mobile-px {
+    @apply px-4;
+  }
+
+  /* Card look used all over the site */
+  .card {
+    @apply bg-white rounded-2xl border border-slate-100 shadow-sm;
+  }
+}
+
+/* Smooth nav shadow on scroll (optional helper) */
+.nav-shadow {
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
+}
+
+/* Prevent horizontal scroll issues on small screens */
+body {
+  overflow-x: hidden;
+}

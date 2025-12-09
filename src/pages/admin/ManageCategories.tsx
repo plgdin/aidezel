@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plus, Trash2, Loader2, Tag, ImageIcon, X, Edit, Save, ChevronDown, ChevronUp, Zap } from 'lucide-react';
+import { Plus, Trash2, Loader2, Tag, ImageIcon, X, Edit, Save, ChevronDown, ChevronUp, Zap, RotateCcw } from 'lucide-react';
 import ConfirmModal from '../../components/shared/ConfirmModal';
 
 // Interface for stricter typing
@@ -14,7 +14,7 @@ interface Category {
   name: string;
   image_url?: string;
   subcategories: Subcategory[];
-  is_illuminated?: boolean; // NEW: The toggle field
+  is_illuminated?: boolean; 
 }
 
 const ManageCategories = () => {
@@ -25,18 +25,21 @@ const ManageCategories = () => {
   // Create State
   const [newCatName, setNewCatName] = useState('');
   const [newCatImage, setNewCatImage] = useState<File | null>(null);
-  const [newIsIlluminated, setNewIsIlluminated] = useState(false); // NEW STATE
+  const [newIsIlluminated, setNewIsIlluminated] = useState(false);
   
   // Subcategory Input State
   const [activeCatId, setActiveCatId] = useState<number | null>(null);
   const [newSubName, setNewSubName] = useState('');
   const [newSubImage, setNewSubImage] = useState<File | null>(null);
+  
+  // --- NEW: Subcategory Edit State ---
+  const [editingSubIndex, setEditingSubIndex] = useState<number | null>(null);
 
-  // Edit State
+  // Edit State (Category)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editName, setEditName] = useState('');
   const [editImage, setEditImage] = useState<File | null>(null);
-  const [editIsIlluminated, setEditIsIlluminated] = useState(false); // NEW STATE
+  const [editIsIlluminated, setEditIsIlluminated] = useState(false);
 
   // Modal State
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -50,7 +53,7 @@ const ManageCategories = () => {
             subcategories: Array.isArray(cat.subcategories) 
                 ? cat.subcategories.map((sub: any) => typeof sub === 'string' ? { name: sub, image_url: '' } : sub)
                 : [],
-            is_illuminated: cat.is_illuminated || false // Load from DB
+            is_illuminated: cat.is_illuminated || false 
         }));
         setCategories(formatted);
     }
@@ -80,14 +83,14 @@ const ManageCategories = () => {
             name: newCatName, 
             subcategories: [],
             image_url: publicUrl,
-            is_illuminated: newIsIlluminated // Save the toggle
+            is_illuminated: newIsIlluminated 
         });
 
         if (dbError) throw dbError;
 
         setNewCatName('');
         setNewCatImage(null);
-        setNewIsIlluminated(false); // Reset toggle
+        setNewIsIlluminated(false); 
         fetchCategories();
 
     } catch (error: any) {
@@ -110,19 +113,16 @@ const ManageCategories = () => {
     setCategoryToDelete(null);
   };
 
-  // --- NEW FUNCTION: Toggle Hero Mode directly ---
   const toggleHeroMode = async (cat: Category) => {
       const newValue = !cat.is_illuminated;
       
-      // Optimistic Update (Update UI instantly)
       setCategories(prev => prev.map(c => c.id === cat.id ? { ...c, is_illuminated: newValue } : c));
 
-      // Update Database
       const { error } = await supabase.from('categories').update({ is_illuminated: newValue }).eq('id', cat.id);
       
       if (error) {
           console.error("Error updating hero mode:", error);
-          fetchCategories(); // Revert on error
+          fetchCategories(); 
       }
   };
 
@@ -159,18 +159,76 @@ const ManageCategories = () => {
     }
   };
 
+  // --- NEW: Edit Subcategory Logic ---
+
+  const startEditingSub = (subIndex: number, sub: Subcategory) => {
+      setEditingSubIndex(subIndex);
+      setNewSubName(sub.name);
+      setNewSubImage(null); // Reset image input (user only sets this if they want to CHANGE it)
+  };
+
+  const cancelEditingSub = () => {
+      setEditingSubIndex(null);
+      setNewSubName('');
+      setNewSubImage(null);
+  };
+
+  const updateSubcategory = async (catId: number, currentSubs: Subcategory[]) => {
+      if (editingSubIndex === null) return;
+      if (!newSubName.trim()) return alert("Subcategory name required");
+      setUploading(true);
+
+      try {
+          const oldSub = currentSubs[editingSubIndex];
+          let finalImageUrl = oldSub.image_url; // Default to old image
+
+          // If user selected a new image, upload it
+          if (newSubImage) {
+              const fileExt = newSubImage.name.split('.').pop();
+              const fileName = `sub_upd_${Date.now()}.${fileExt}`;
+              const { error: uploadError } = await supabase.storage.from('category-images').upload(fileName, newSubImage);
+              if (uploadError) throw uploadError;
+              const { data } = supabase.storage.from('category-images').getPublicUrl(fileName);
+              finalImageUrl = data.publicUrl;
+          }
+
+          // Create new array with updated item
+          const updatedSubs = [...currentSubs];
+          updatedSubs[editingSubIndex] = {
+              name: newSubName.trim(),
+              image_url: finalImageUrl
+          };
+
+          const { error } = await supabase.from('categories').update({ subcategories: updatedSubs }).eq('id', catId);
+          if (error) throw error;
+
+          cancelEditingSub();
+          fetchCategories();
+
+      } catch (error: any) {
+          alert("Error updating subcategory: " + error.message);
+      } finally {
+          setUploading(false);
+      }
+  };
+
+  // ------------------------------------
+
   const removeSubcategory = async (catId: number, currentSubs: Subcategory[], subName: string) => {
+    // If we are currently editing the one being deleted, cancel edit
+    if (editingSubIndex !== null) cancelEditingSub();
+    
     const updatedSubs = currentSubs.filter(s => s.name !== subName);
     await supabase.from('categories').update({ subcategories: updatedSubs }).eq('id', catId);
     fetchCategories();
   };
 
-  // --- EDIT LOGIC ---
+  // --- EDIT LOGIC (Category) ---
   const startEditing = (cat: Category) => {
     setEditingCategory(cat);
     setEditName(cat.name);
     setEditImage(null);
-    setEditIsIlluminated(cat.is_illuminated || false); // Load current setting
+    setEditIsIlluminated(cat.is_illuminated || false); 
   };
 
   const saveCategoryChanges = async () => {
@@ -193,7 +251,7 @@ const ManageCategories = () => {
             .update({ 
                 name: editName, 
                 image_url: imageUrl,
-                is_illuminated: editIsIlluminated // Update toggle
+                is_illuminated: editIsIlluminated 
             })
             .eq('id', editingCategory.id);
 
@@ -276,7 +334,10 @@ const ManageCategories = () => {
       <div className="grid grid-cols-1 gap-6">
         {categories.map(cat => (
             <div key={cat.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm flex flex-col">
-                <div className="bg-gray-50 p-4 border-b border-gray-200 flex justify-between items-center cursor-pointer" onClick={() => setActiveCatId(activeCatId === cat.id ? null : cat.id)}>
+                <div className="bg-gray-50 p-4 border-b border-gray-200 flex justify-between items-center cursor-pointer" onClick={() => {
+                    setActiveCatId(activeCatId === cat.id ? null : cat.id);
+                    cancelEditingSub(); // Reset sub editing when switching categories
+                }}>
                     <div className="flex items-center gap-3">
                         <div className="w-12 h-12 bg-white rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden p-1">
                             {cat.image_url ? (
@@ -331,22 +392,31 @@ const ManageCategories = () => {
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                             {cat.subcategories.map((sub, idx) => (
-                                <div key={idx} className="flex items-center gap-3 p-2 border border-gray-100 rounded-lg bg-gray-50 group hover:border-blue-200 transition-colors">
+                                <div key={idx} className={`flex items-center gap-3 p-2 border rounded-lg bg-gray-50 group transition-colors ${editingSubIndex === idx ? 'border-blue-500 bg-blue-50' : 'border-gray-100 hover:border-blue-200'}`}>
                                     <div className="w-10 h-10 bg-white rounded border border-gray-200 flex items-center justify-center overflow-hidden">
                                         {sub.image_url ? <img src={sub.image_url} className="w-full h-full object-cover"/> : <Tag size={14} className="text-gray-300"/>}
                                     </div>
                                     <span className="font-medium text-sm flex-1">{sub.name}</span>
-                                    <button onClick={() => removeSubcategory(cat.id, cat.subcategories, sub.name)} className="text-gray-400 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <X size={16} />
-                                    </button>
+                                    
+                                    <div className="flex gap-1">
+                                        {/* NEW: Edit Subcategory Button */}
+                                        <button onClick={() => startEditingSub(idx, sub)} className="text-gray-400 hover:text-blue-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Edit size={16} />
+                                        </button>
+                                        <button onClick={() => removeSubcategory(cat.id, cat.subcategories, sub.name)} className="text-gray-400 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <X size={16} />
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
 
-                        {/* ADD SUBCATEGORY FORM */}
-                        <div className="flex gap-3 items-end bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                        {/* ADD/EDIT SUBCATEGORY FORM */}
+                        <div className={`flex gap-3 items-end p-4 rounded-xl border transition-colors ${editingSubIndex !== null ? 'bg-orange-50 border-orange-200' : 'bg-blue-50/50 border-blue-100'}`}>
                             <div className="flex-1">
-                                <label className="block text-xs font-bold text-gray-500 mb-1">Subcategory Name</label>
+                                <label className="block text-xs font-bold text-gray-500 mb-1">
+                                    {editingSubIndex !== null ? 'Edit Name' : 'Subcategory Name'}
+                                </label>
                                 <input 
                                     className="w-full p-2 border border-gray-300 rounded-md text-sm"
                                     placeholder="e.g. Wireless Headsets"
@@ -355,7 +425,9 @@ const ManageCategories = () => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1">Image</label>
+                                <label className="block text-xs font-bold text-gray-500 mb-1">
+                                    {editingSubIndex !== null ? 'Change Image (Optional)' : 'Image'}
+                                </label>
                                 <div className="relative">
                                     <input 
                                         type="file" 
@@ -369,13 +441,32 @@ const ManageCategories = () => {
                                     </label>
                                 </div>
                             </div>
-                            <button 
-                                onClick={() => addSubcategory(cat.id, cat.subcategories)}
-                                disabled={uploading}
-                                className="bg-blue-600 text-white px-4 py-2.5 rounded-md font-bold text-sm hover:bg-blue-700 flex items-center gap-2"
-                            >
-                                {uploading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Add
-                            </button>
+                            
+                            {editingSubIndex !== null ? (
+                                <>
+                                    <button 
+                                        onClick={() => updateSubcategory(cat.id, cat.subcategories)}
+                                        disabled={uploading}
+                                        className="bg-black text-white px-4 py-2.5 rounded-md font-bold text-sm hover:bg-gray-800 flex items-center gap-2"
+                                    >
+                                        {uploading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Update
+                                    </button>
+                                    <button 
+                                        onClick={cancelEditingSub}
+                                        className="bg-gray-200 text-gray-600 px-3 py-2.5 rounded-md font-bold text-sm hover:bg-gray-300 flex items-center gap-2"
+                                    >
+                                        <RotateCcw size={16} /> Cancel
+                                    </button>
+                                </>
+                            ) : (
+                                <button 
+                                    onClick={() => addSubcategory(cat.id, cat.subcategories)}
+                                    disabled={uploading}
+                                    className="bg-blue-600 text-white px-4 py-2.5 rounded-md font-bold text-sm hover:bg-blue-700 flex items-center gap-2"
+                                >
+                                    {uploading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Add
+                                </button>
+                            )}
                         </div>
                     </div>
                 )}
@@ -383,7 +474,7 @@ const ManageCategories = () => {
         ))}
       </div>
 
-      {/* --- EDIT MODAL --- */}
+      {/* --- EDIT MODAL (Category) --- */}
       {editingCategory && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
             <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">

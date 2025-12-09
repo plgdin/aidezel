@@ -1,7 +1,55 @@
+==== FILE: D:\Website\Aidezel\src\components\filters\FilterSection.tsx ====
+// src/components/filters/FilterSection.tsx
+import React, { useState, ReactNode } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+
+export interface FilterSectionProps {
+  title: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}
+
+const FilterSection: React.FC<FilterSectionProps> = ({
+  title,
+  children,
+  defaultOpen = true,
+}) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className="border-b border-gray-100 py-5">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center justify-between w-full mb-3 group"
+      >
+        <span className="font-bold text-sm text-gray-900 uppercase tracking-wide group-hover:text-blue-600 transition-colors">
+          {title}
+        </span>
+        {isOpen ? (
+          <ChevronUp size={16} className="text-gray-400" />
+        ) : (
+          <ChevronDown size={16} className="text-gray-400" />
+        )}
+      </button>
+
+      {isOpen && (
+        <div className="space-y-2 animate-in fade-in-0 slide-in-from-top-1 duration-200">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default FilterSection;
+
+
+
 ==== FILE: D:\Website\Aidezel\src\components\layout\AdminLayout.tsx ====
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Package, ShoppingCart, LogOut, Tags, ClipboardList } from 'lucide-react';
+import { Toaster } from '../ui/toaster'; // 👈 UPDATED (relative import)
 
 const AdminLayout = () => {
   const location = useLocation();
@@ -58,6 +106,9 @@ const AdminLayout = () => {
           <Outlet />
         </div>
       </main>
+
+      {/* 🔔 Toast root for admin side */}
+      <Toaster />
     </div>
   );
 };
@@ -71,6 +122,7 @@ import React from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import Navbar from '../shared/Navbar'; 
 import logo from '../../assets/logo.png'; // Ensure this matches your path
+import { Toaster } from '../ui/toaster'; // 👈 UPDATED (relative import)
 
 const ClientLayout = () => {
   return (
@@ -150,6 +202,8 @@ const ClientLayout = () => {
         </div>
       </footer>
 
+      {/* 🔔 Toast root for client side */}
+      <Toaster />
     </div>
   );
 };
@@ -307,11 +361,20 @@ export default Footer;
 ==== FILE: D:\Website\Aidezel\src\components\shared\Navbar.tsx ====
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, Heart, Menu, Home, ShoppingBag, ArrowRight, TrendingUp } from 'lucide-react';
+import {
+  Search,
+  ShoppingCart,
+  User,
+  Heart,
+  Home,
+  ShoppingBag,
+  ArrowRight,
+  TrendingUp,
+} from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { supabase } from '../../lib/supabase';
 
-import logo from '../../assets/logo.png'; 
+import logo from '../../assets/logo.png';
 
 const NAV_STYLE = {
   backgroundGradient:
@@ -320,19 +383,25 @@ const NAV_STYLE = {
   blurAmount: '24px',
   borderBottom: '1px solid rgba(255, 255, 255, 0.25)',
   boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.25)',
-  accentColor: '#60a5fa'
+  accentColor: '#60a5fa',
 };
 
-const TRENDING_SEARCHES = ['Wireless Headphones', 'Smart Watch', 'Gaming Laptop', 'Mechanical Keyboard'];
+const TRENDING_SEARCHES = [
+  'Wireless Headphones',
+  'Smart Watch',
+  'Gaming Laptop',
+  'Mechanical Keyboard',
+];
 
 const Navbar = () => {
   const { cartCount } = useCart();
   const location = useLocation();
   const navigate = useNavigate();
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
   // --- LIVE SEARCH LOGIC ---
@@ -349,9 +418,11 @@ const Navbar = () => {
         .limit(5);
 
       if (data) {
-        const rawSuggestions = data.map(item => {
-             if (item.category.toLowerCase().includes(searchQuery.toLowerCase())) return item.category;
-             return item.name;
+        const rawSuggestions = data.map((item) => {
+          if (item.category.toLowerCase().includes(searchQuery.toLowerCase())) {
+            return item.category;
+          }
+          return item.name;
         });
         const unique = Array.from(new Set(rawSuggestions)).slice(0, 6);
         setSuggestions(unique);
@@ -362,165 +433,215 @@ const Navbar = () => {
     return () => clearTimeout(timeoutId);
   }, [searchQuery]);
 
+  // Close dropdown when clicking outside search
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(event.target as Node)
+      ) {
         setShowDropdown(false);
+        setMobileSearchOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setShowDropdown(false);
+    setMobileSearchOpen(false);
     if (searchQuery.trim()) {
       navigate(`/shop?search=${encodeURIComponent(searchQuery)}`);
+    } else {
+      navigate('/shop');
     }
   };
 
   const handleSuggestionClick = (term: string) => {
     setSearchQuery(term);
     setShowDropdown(false);
+    setMobileSearchOpen(false);
     navigate(`/shop?search=${encodeURIComponent(term)}`);
   };
 
-  const isDropdownOpen = showDropdown && (suggestions.length > 0 || (!searchQuery && showDropdown));
+  const isDropdownOpen =
+    showDropdown && (suggestions.length > 0 || (!searchQuery && showDropdown));
+
+  // shared search form (desktop + mobile)
+  const renderSearchForm = () => (
+    <div
+      ref={searchContainerRef}
+      className="w-full max-w-3xl mx-auto relative"
+    >
+      <form
+        onSubmit={handleSearchSubmit}
+        className={`w-full relative flex items-center bg-white/90 backdrop-blur-md border border-white/40 transition-all duration-200
+          ${
+            isDropdownOpen
+              ? 'rounded-t-2xl border-b-0 z-50 shadow-xl'
+              : 'rounded-full shadow-lg'
+          }
+        `}
+      >
+        <div className="absolute left-4 flex items-center pointer-events-none text-slate-400">
+          <Search size={20} />
+        </div>
+
+        <input
+          type="text"
+          placeholder="Search premium electronics..."
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setShowDropdown(true);
+          }}
+          onFocus={() => setShowDropdown(true)}
+          className="w-full py-3 pl-12 pr-14 bg-transparent text-slate-900 focus:outline-none text-sm placeholder:text-slate-500 h-12 rounded-full"
+        />
+
+        <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
+          <button
+            type="submit"
+            className="h-9 w-9 rounded-full flex items-center justify-center text-white hover:scale-105 transition-transform shadow-sm"
+            style={{ backgroundColor: 'var(--nav-accent)' }}
+          >
+            <Search size={18} />
+          </button>
+        </div>
+      </form>
+
+      {/* DROPDOWN */}
+      {isDropdownOpen && (
+        <div className="absolute top-full left-0 right-0 bg-white border-x border-b border-gray-100 rounded-b-2xl shadow-2xl overflow-hidden z-40">
+          {searchQuery && suggestions.length > 0 && (
+            <div className="py-2">
+              <p className="px-5 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                Suggested Searches
+              </p>
+              <ul>
+                {suggestions.map((term, idx) => (
+                  <li key={idx}>
+                    <button
+                      onClick={() => handleSuggestionClick(term)}
+                      className="w-full text-left px-5 py-2.5 hover:bg-slate-50 flex items-center justify-between transition-colors group text-sm text-slate-700"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Search
+                          size={16}
+                          className="text-slate-400 group-hover:text-[var(--nav-accent)]"
+                        />
+                        <span className="font-medium group-hover:text-[var(--nav-accent)]">
+                          {term}
+                        </span>
+                      </div>
+                      <ArrowRight
+                        size={14}
+                        className="text-slate-300 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all"
+                      />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {(!searchQuery || suggestions.length === 0) && (
+            <div className="bg-slate-50 py-3">
+              <p className="px-5 pb-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                <TrendingUp size={12} /> Trending Now
+              </p>
+              <div className="flex flex-wrap gap-2 px-5">
+                {TRENDING_SEARCHES.map((term, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleSuggestionClick(term)}
+                    className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-600 hover:border-blue-400 hover:text-[var(--nav-accent)] hover:shadow-sm transition-all flex items-center gap-1.5"
+                  >
+                    {term}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <>
-      <nav 
+      {/* MAIN NAVBAR */}
+      <nav
         className="sticky top-0 z-50 py-3 transition-all duration-300"
         style={{
-            background: NAV_STYLE.backgroundGradient,
-            backdropFilter: `blur(${NAV_STYLE.blurAmount})`,
-            WebkitBackdropFilter: `blur(${NAV_STYLE.blurAmount})`,
-            borderBottom: NAV_STYLE.borderBottom,
-            boxShadow: NAV_STYLE.boxShadow,
-            '--nav-accent': NAV_STYLE.accentColor
+          background: NAV_STYLE.backgroundGradient,
+          backdropFilter: `blur(${NAV_STYLE.blurAmount})`,
+          WebkitBackdropFilter: `blur(${NAV_STYLE.blurAmount})`,
+          borderBottom: NAV_STYLE.borderBottom,
+          boxShadow: NAV_STYLE.boxShadow,
+          '--nav-accent': NAV_STYLE.accentColor,
         } as React.CSSProperties}
       >
-        <div className="container mx-auto px-4 flex items-center justify-between gap-8">
-          
+        <div className="container mx-auto flex items-center justify-between gap-4 lg:gap-8">
           {/* Logo */}
-          <div className="flex items-center gap-4">
-            <button className="p-2 hover:bg-white/10 rounded-lg lg:hidden text-slate-800">
-              <Menu className="w-6 h-6" />
-            </button>
-            
-            <Link to="/" className="shrink-0 relative z-50 group" aria-label="home">
-              <img 
-                src={logo} 
-                alt="Aidezel" 
+          <div className="flex items-center">
+            <Link
+              to="/"
+              className="shrink-0 relative z-50 group"
+              aria-label="home"
+            >
+              <img
+                src={logo}
+                alt="Aidezel"
                 className="h-[120px] w-auto object-contain -my-10 group-hover:scale-105 transition-transform"
                 style={{
                   padding: 6,
                   borderRadius: 8,
                   background: 'transparent',
                   filter: 'drop-shadow(0 6px 18px rgba(2,6,23,0.45))',
-                  WebkitFilter: 'drop-shadow(0 6px 18px rgba(2,6,23,0.45))'
+                  WebkitFilter: 'drop-shadow(0 6px 18px rgba(2,6,23,0.45))',
                 }}
               />
             </Link>
           </div>
 
-          {/* --- SEARCH CONTAINER --- */}
-          <div className="hidden lg:flex flex-1 max-w-3xl relative" ref={searchContainerRef}>
-            <form 
-                onSubmit={handleSearchSubmit} 
-                className={`w-full relative flex items-center bg-white/90 backdrop-blur-md border border-white/40 transition-all duration-200
-                  ${isDropdownOpen ? 'rounded-t-2xl border-b-0 z-50 shadow-xl' : 'rounded-full shadow-lg'}
-                `}
-            >
-                <div className="absolute left-4 flex items-center pointer-events-none text-slate-400">
-                  <Search size={20} />
-                </div>
-
-                <input 
-                  type="text" 
-                  placeholder="Search premium electronics..." 
-                  value={searchQuery}
-                  onChange={(e) => { setSearchQuery(e.target.value); setShowDropdown(true); }}
-                  onFocus={() => setShowDropdown(true)}
-                  className="w-full py-3 pl-12 pr-14 bg-transparent text-slate-900 focus:outline-none text-sm placeholder:text-slate-500 h-12 rounded-full"
-                />
-
-                <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
-                    <button 
-                      type="submit" 
-                      className="h-9 w-9 rounded-full flex items-center justify-center text-white hover:scale-105 transition-transform shadow-sm"
-                      style={{ backgroundColor: 'var(--nav-accent)' }}
-                    >
-                        <Search size={18} />
-                    </button>
-                </div>
-            </form>
-
-            {/* --- DROPDOWN --- */}
-            {isDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 bg-white border-x border-b border-gray-100 rounded-b-2xl shadow-2xl overflow-hidden z-40">
-                    {searchQuery && suggestions.length > 0 && (
-                        <div className="py-2">
-                            <p className="px-5 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                                Suggested Searches
-                            </p>
-                            <ul>
-                                {suggestions.map((term, idx) => (
-                                    <li key={idx}>
-                                        <button 
-                                            onClick={() => handleSuggestionClick(term)}
-                                            className="w-full text-left px-5 py-2.5 hover:bg-slate-50 flex items-center justify-between transition-colors group text-sm text-slate-700"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <Search size={16} className="text-slate-400 group-hover:text-[var(--nav-accent)]" />
-                                                <span className="font-medium group-hover:text-[var(--nav-accent)]">
-                                                    {term}
-                                                </span>
-                                            </div>
-                                            <ArrowRight size={14} className="text-slate-300 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
-                                        </button>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
-
-                    {(!searchQuery || suggestions.length === 0) && (
-                        <div className="bg-slate-50 py-3">
-                            <p className="px-5 pb-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                                <TrendingUp size={12} /> Trending Now
-                            </p>
-                            <div className="flex flex-wrap gap-2 px-5">
-                                {TRENDING_SEARCHES.map((term, idx) => (
-                                    <button 
-                                        key={idx}
-                                        onClick={() => handleSuggestionClick(term)}
-                                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-600 hover:border-blue-400 hover:text-[var(--nav-accent)] hover:shadow-sm transition-all flex items-center gap-1.5"
-                                    >
-                                        {term}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
+          {/* DESKTOP SEARCH – SAME LOOK, ADJUSTED POSITION */}
+          <div className="hidden lg:flex flex-1 px-2 lg:px-4">
+            <div className="w-full max-w-4xl">{renderSearchForm()}</div>
           </div>
 
           {/* ICONS - Desktop */}
           <div className="hidden lg:flex items-center gap-14 text-white">
-            <Link to="/wishlist" className="flex flex-col items-center gap-1.5 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:text-blue-100 group">
-              <Heart size={26} strokeWidth={1.5} className="group-hover:fill-white/20" />
-              <span className="text-xs font-bold tracking-wide text-blue-100 group-hover:text-white">Wishlist</span>
+            <Link
+              to="/wishlist"
+              className="flex flex-col items-center gap-1.5 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:text-blue-100 group"
+            >
+              <Heart
+                size={26}
+                strokeWidth={1.5}
+                className="group-hover:fill-white/20"
+              />
+              <span className="text-xs font-bold tracking-wide text-blue-100 group-hover:text-white">
+                Wishlist
+              </span>
             </Link>
-            
-            <Link to="/account" className="flex flex-col items-center gap-1.5 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:text-blue-100 group">
+
+            <Link
+              to="/account"
+              className="flex flex-col items-center gap-1.5 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:text-blue-100 group"
+            >
               <User size={26} strokeWidth={1.5} />
-              <span className="text-xs font-bold tracking-wide text-blue-100 group-hover:text-white">Account</span>
+              <span className="text-xs font-bold tracking-wide text-blue-100 group-hover:text-white">
+                Account
+              </span>
             </Link>
-            
-            <Link to="/cart" className="flex flex-col items-center gap-1.5 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:text-blue-100 group relative">
+
+            <Link
+              to="/cart"
+              className="flex flex-col items-center gap-1.5 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:text-blue-100 group relative"
+            >
               <div className="relative">
                 <ShoppingCart size={26} strokeWidth={1.5} />
                 {cartCount > 0 && (
@@ -529,43 +650,80 @@ const Navbar = () => {
                   </span>
                 )}
               </div>
-              <span className="text-xs font-bold tracking-wide text-blue-100 group-hover:text-white">Cart</span>
+              <span className="text-xs font-bold tracking-wide text-blue-100 group-hover:text-white">
+                Cart
+              </span>
             </Link>
           </div>
 
-          {/* Mobile Search Icon */}
+          {/* MOBILE SEARCH ICON (toggles mobile search bar) */}
           <div className="lg:hidden text-white">
+            <button
+              type="button"
+              onClick={() => {
+                setMobileSearchOpen((prev) => !prev);
+                setShowDropdown(true);
+              }}
+            >
               <Search className="w-7 h-7" />
+            </button>
           </div>
         </div>
+
+        {/* MOBILE SEARCH BAR UNDER NAV */}
+        {mobileSearchOpen && (
+          <div className="lg:hidden mt-2 px-4 pb-2">{renderSearchForm()}</div>
+        )}
       </nav>
 
-      {/* --- BOTTOM NAV - Mobile Only (UPDATED) --- */}
+      {/* BOTTOM NAV - Mobile Only */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50 lg:hidden pb-safe">
         <div className="flex justify-between items-center px-6 py-2">
-          
-          {/* 1. Shop changed to HOME */}
-          <Link to="/" className={`flex flex-col items-center gap-1 transition-colors ${location.pathname === '/' ? 'text-blue-600' : 'text-slate-400'}`}>
+          <Link
+            to="/"
+            className={`flex flex-col items-center gap-1 transition-colors ${
+              location.pathname === '/' ? 'text-blue-600' : 'text-slate-400'
+            }`}
+          >
             <Home size={24} strokeWidth={1.5} />
             <span className="text-[10px] font-bold">Home</span>
           </Link>
 
-          {/* 2. Filter changed to SHOP */}
-          <Link to="/shop" className={`flex flex-col items-center gap-1 transition-colors ${location.pathname === '/shop' ? 'text-blue-600' : 'text-slate-400'}`}>
+          <Link
+            to="/shop"
+            className={`flex flex-col items-center gap-1 transition-colors ${
+              location.pathname === '/shop' ? 'text-blue-600' : 'text-slate-400'
+            }`}
+          >
             <ShoppingBag size={24} strokeWidth={1.5} />
             <span className="text-[10px] font-bold">Shop</span>
           </Link>
 
-          <Link to="/wishlist" className={`flex flex-col items-center gap-1 transition-colors ${location.pathname === '/wishlist' ? 'text-blue-600' : 'text-slate-400'}`}>
+          <Link
+            to="/wishlist"
+            className={`flex flex-col items-center gap-1 transition-colors ${
+              location.pathname === '/wishlist'
+                ? 'text-blue-600'
+                : 'text-slate-400'
+            }`}
+          >
             <Heart size={24} strokeWidth={1.5} />
             <span className="text-[10px] font-bold">Wishlist</span>
           </Link>
 
-          <Link to="/cart" className={`flex flex-col items-center gap-1 relative transition-colors ${location.pathname === '/cart' ? 'text-blue-600' : 'text-slate-400'}`}>
+          <Link
+            to="/cart"
+            className={`flex flex-col items-center gap-1 relative transition-colors ${
+              location.pathname === '/cart' ? 'text-blue-600' : 'text-slate-400'
+            }`}
+          >
             <div className="relative">
               <ShoppingCart size={24} strokeWidth={1.5} />
               {cartCount > 0 && (
-                <div className="absolute -top-2 -right-2 w-4 h-4 text-white rounded-full text-[10px] font-bold flex items-center justify-center" style={{ backgroundColor: 'var(--nav-accent)' }}>
+                <div
+                  className="absolute -top-2 -right-2 w-4 h-4 text-white rounded-full text-[10px] font-bold flex items-center justify-center"
+                  style={{ backgroundColor: 'var(--nav-accent)' }}
+                >
                   {cartCount}
                 </div>
               )}
@@ -573,19 +731,27 @@ const Navbar = () => {
             <span className="text-[10px] font-bold">Cart</span>
           </Link>
 
-          <Link to="/account" className={`flex flex-col items-center gap-1 transition-colors ${location.pathname === '/account' ? 'text-blue-600' : 'text-slate-400'}`}>
+          <Link
+            to="/account"
+            className={`flex flex-col items-center gap-1 transition-colors ${
+              location.pathname === '/account'
+                ? 'text-blue-600'
+                : 'text-slate-400'
+            }`}
+          >
             <User size={24} strokeWidth={1.5} />
             <span className="text-[10px] font-bold">Account</span>
           </Link>
         </div>
       </div>
-      
-      <div className="h-20 lg:hidden"></div> 
+
+      {/* Spacer so page content doesn't hide behind bottom nav on mobile */}
+      <div className="h-20 lg:hidden" />
     </>
   );
 };
 
-export default Navbar; 
+export default Navbar;
 
 
 
@@ -835,6 +1001,31 @@ const StockLimitModal = ({ isOpen, stockLimit, productName, onClose }: StockLimi
 };
 
 export default StockLimitModal;
+
+
+
+==== FILE: D:\Website\Aidezel\src\components\ui\toaster.tsx ====
+// src/components/ui/toaster.tsx
+import React from "react";
+import { Toaster as SonnerToaster } from "sonner";
+
+export const Toaster: React.FC = () => {
+  return (
+    <SonnerToaster
+      position="top-center"
+      richColors
+      closeButton
+      toastOptions={{
+        style: {
+          borderRadius: "999px",
+          paddingInline: "16px",
+        },
+      }}
+    />
+  );
+};
+
+export default Toaster;
 
 
 
@@ -1527,23 +1718,43 @@ export default Inventory;
 ==== FILE: D:\Website\Aidezel\src\pages\admin\ManageCategories.tsx ====
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plus, Trash2, Loader2, Tag, ImageIcon, X, Edit, Save } from 'lucide-react';
+import { Plus, Trash2, Loader2, Tag, ImageIcon, X, Edit, Save, ChevronDown, ChevronUp, Zap } from 'lucide-react';
 import ConfirmModal from '../../components/shared/ConfirmModal';
 
+// Interface for stricter typing
+interface Subcategory {
+  name: string;
+  image_url?: string;
+}
+
+interface Category {
+  id: number;
+  name: string;
+  image_url?: string;
+  subcategories: Subcategory[];
+  is_illuminated?: boolean; // NEW: The toggle field
+}
+
 const ManageCategories = () => {
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   
   // Create State
   const [newCatName, setNewCatName] = useState('');
   const [newCatImage, setNewCatImage] = useState<File | null>(null);
-  const [newSubMap, setNewSubMap] = useState<Record<number, string>>({});
+  const [newIsIlluminated, setNewIsIlluminated] = useState(false); // NEW STATE
+  
+  // Subcategory Input State
+  const [activeCatId, setActiveCatId] = useState<number | null>(null);
+  const [newSubName, setNewSubName] = useState('');
+  const [newSubImage, setNewSubImage] = useState<File | null>(null);
 
   // Edit State
-  const [editingCategory, setEditingCategory] = useState<any>(null);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editName, setEditName] = useState('');
   const [editImage, setEditImage] = useState<File | null>(null);
+  const [editIsIlluminated, setEditIsIlluminated] = useState(false); // NEW STATE
 
   // Modal State
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -1551,7 +1762,16 @@ const ManageCategories = () => {
 
   const fetchCategories = async () => {
     const { data } = await supabase.from('categories').select('*').order('id');
-    if (data) setCategories(data);
+    if (data) {
+        const formatted = data.map((cat: any) => ({
+            ...cat,
+            subcategories: Array.isArray(cat.subcategories) 
+                ? cat.subcategories.map((sub: any) => typeof sub === 'string' ? { name: sub, image_url: '' } : sub)
+                : [],
+            is_illuminated: cat.is_illuminated || false // Load from DB
+        }));
+        setCategories(formatted);
+    }
     setLoading(false);
   };
 
@@ -1577,13 +1797,15 @@ const ManageCategories = () => {
         const { error: dbError } = await supabase.from('categories').insert({ 
             name: newCatName, 
             subcategories: [],
-            image_url: publicUrl 
+            image_url: publicUrl,
+            is_illuminated: newIsIlluminated // Save the toggle
         });
 
         if (dbError) throw dbError;
 
         setNewCatName('');
         setNewCatImage(null);
+        setNewIsIlluminated(false); // Reset toggle
         fetchCategories();
 
     } catch (error: any) {
@@ -1593,7 +1815,6 @@ const ManageCategories = () => {
     }
   };
 
-  // --- NEW DELETE LOGIC ---
   const confirmDelete = (id: number) => {
     setCategoryToDelete(id);
     setShowDeleteModal(true);
@@ -1607,26 +1828,67 @@ const ManageCategories = () => {
     setCategoryToDelete(null);
   };
 
-  const addSubcategory = async (catId: number, currentSubs: string[]) => {
-    const val = newSubMap[catId];
-    if (!val || !val.trim()) return;
-    const updatedSubs = [...currentSubs, val.trim()];
-    await supabase.from('categories').update({ subcategories: updatedSubs }).eq('id', catId);
-    setNewSubMap({ ...newSubMap, [catId]: '' });
-    fetchCategories();
+  // --- NEW FUNCTION: Toggle Hero Mode directly ---
+  const toggleHeroMode = async (cat: Category) => {
+      const newValue = !cat.is_illuminated;
+      
+      // Optimistic Update (Update UI instantly)
+      setCategories(prev => prev.map(c => c.id === cat.id ? { ...c, is_illuminated: newValue } : c));
+
+      // Update Database
+      const { error } = await supabase.from('categories').update({ is_illuminated: newValue }).eq('id', cat.id);
+      
+      if (error) {
+          console.error("Error updating hero mode:", error);
+          fetchCategories(); // Revert on error
+      }
   };
 
-  const removeSubcategory = async (catId: number, currentSubs: string[], subToRemove: string) => {
-    const updatedSubs = currentSubs.filter(s => s !== subToRemove);
+  // --- SUBCATEGORY LOGIC ---
+  
+  const addSubcategory = async (catId: number, currentSubs: Subcategory[]) => {
+    if (!newSubName.trim()) return alert("Subcategory name required");
+    setUploading(true);
+
+    try {
+        let subImageUrl = '';
+        if (newSubImage) {
+            const fileExt = newSubImage.name.split('.').pop();
+            const fileName = `sub_${Date.now()}.${fileExt}`;
+            const { error: uploadError } = await supabase.storage.from('category-images').upload(fileName, newSubImage);
+            if (uploadError) throw uploadError;
+            const { data } = supabase.storage.from('category-images').getPublicUrl(fileName);
+            subImageUrl = data.publicUrl;
+        }
+
+        const newSub: Subcategory = { name: newSubName.trim(), image_url: subImageUrl };
+        const updatedSubs = [...currentSubs, newSub];
+
+        const { error } = await supabase.from('categories').update({ subcategories: updatedSubs }).eq('id', catId);
+        if (error) throw error;
+
+        setNewSubName('');
+        setNewSubImage(null);
+        fetchCategories();
+    } catch (error: any) {
+        alert("Error adding subcategory: " + error.message);
+    } finally {
+        setUploading(false);
+    }
+  };
+
+  const removeSubcategory = async (catId: number, currentSubs: Subcategory[], subName: string) => {
+    const updatedSubs = currentSubs.filter(s => s.name !== subName);
     await supabase.from('categories').update({ subcategories: updatedSubs }).eq('id', catId);
     fetchCategories();
   };
 
   // --- EDIT LOGIC ---
-  const startEditing = (cat: any) => {
+  const startEditing = (cat: Category) => {
     setEditingCategory(cat);
     setEditName(cat.name);
-    setEditImage(null); 
+    setEditImage(null);
+    setEditIsIlluminated(cat.is_illuminated || false); // Load current setting
   };
 
   const saveCategoryChanges = async () => {
@@ -1636,20 +1898,21 @@ const ManageCategories = () => {
     try {
         let imageUrl = editingCategory.image_url;
 
-        // 1. Upload NEW image if selected
         if (editImage) {
             const fileExt = editImage.name.split('.').pop();
             const fileName = `updated_${Date.now()}.${fileExt}`;
             const { error: uploadError } = await supabase.storage.from('category-images').upload(fileName, editImage);
             if (uploadError) throw uploadError;
-            
             const { data } = supabase.storage.from('category-images').getPublicUrl(fileName);
             imageUrl = data.publicUrl;
         }
 
-        // 2. Update Database
         const { error } = await supabase.from('categories')
-            .update({ name: editName, image_url: imageUrl })
+            .update({ 
+                name: editName, 
+                image_url: imageUrl,
+                is_illuminated: editIsIlluminated // Update toggle
+            })
             .eq('id', editingCategory.id);
 
         if (error) throw error;
@@ -1673,99 +1936,167 @@ const ManageCategories = () => {
       </h1>
 
       {/* --- ADD NEW CATEGORY CARD --- */}
-      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-end">
-        <div className="flex-1 w-full">
-            <label className="block text-sm font-bold text-gray-700 mb-1">New Category Name</label>
-            <input 
-                className="w-full p-3 border border-gray-300 rounded-lg" 
-                placeholder="e.g. Gaming" 
-                value={newCatName}
-                onChange={e => setNewCatName(e.target.value)}
-            />
-        </div>
-        <div className="w-full md:w-auto">
-            <label className="block text-sm font-bold text-gray-700 mb-1">Icon/Image</label>
-            <div className="relative">
+      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
+        <div className="flex flex-col md:flex-row gap-4 items-start">
+            <div className="flex-1 w-full">
+                <label className="block text-sm font-bold text-gray-700 mb-1">New Category Name</label>
                 <input 
-                    type="file" 
-                    accept="image/*"
-                    className="hidden" 
-                    id="cat-img-upload"
-                    onChange={e => setNewCatImage(e.target.files ? e.target.files[0] : null)}
+                    className="w-full p-3 border border-gray-300 rounded-lg" 
+                    placeholder="e.g. Gaming" 
+                    value={newCatName}
+                    onChange={e => setNewCatName(e.target.value)}
                 />
-                <label 
-                    htmlFor="cat-img-upload" 
-                    className={`flex items-center gap-2 px-4 py-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 ${newCatImage ? 'text-green-600 border-green-500 bg-green-50' : 'text-gray-500'}`}
-                >
-                    <ImageIcon size={20} />
-                    <span className="text-sm font-medium max-w-[100px] truncate">
-                        {newCatImage ? newCatImage.name : "Upload Image"}
-                    </span>
-                </label>
+            </div>
+            <div className="w-full md:w-auto">
+                <label className="block text-sm font-bold text-gray-700 mb-1">Icon/Image</label>
+                <div className="relative">
+                    <input 
+                        type="file" 
+                        accept="image/*"
+                        className="hidden" 
+                        id="cat-img-upload"
+                        onChange={e => setNewCatImage(e.target.files ? e.target.files[0] : null)}
+                    />
+                    <label 
+                        htmlFor="cat-img-upload" 
+                        className={`flex items-center gap-2 px-4 py-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 ${newCatImage ? 'text-green-600 border-green-500 bg-green-50' : 'text-gray-500'}`}
+                    >
+                        <ImageIcon size={20} />
+                        <span className="text-sm font-medium max-w-[100px] truncate">
+                            {newCatImage ? newCatImage.name : "Upload Image"}
+                        </span>
+                    </label>
+                </div>
             </div>
         </div>
+
+        {/* HERO MODE TOGGLE (ADD) */}
+        <div className="flex items-center gap-3 pt-2">
+            <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" className="sr-only peer" checked={newIsIlluminated} onChange={e => setNewIsIlluminated(e.target.checked)} />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                <span className="ml-3 text-sm font-medium text-gray-900 flex items-center gap-2">
+                    Enable Hero Mode (Illuminated Cards) <Zap size={14} className={newIsIlluminated ? "text-yellow-500 fill-yellow-500" : "text-gray-400"} />
+                </span>
+            </label>
+        </div>
+
         <button 
             onClick={addCategory} 
             disabled={uploading}
-            className="bg-black text-white px-6 py-3 rounded-lg font-bold hover:bg-gray-800 flex items-center gap-2 h-[50px]"
+            className="w-full bg-black text-white px-6 py-3 rounded-lg font-bold hover:bg-gray-800 flex items-center justify-center gap-2"
         >
-            {uploading ? <Loader2 className="animate-spin" /> : <Plus size={18} />} Add
+            {uploading ? <Loader2 className="animate-spin" /> : <Plus size={18} />} Add Category
         </button>
       </div>
 
       {/* --- CATEGORIES LIST --- */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         {categories.map(cat => (
             <div key={cat.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm flex flex-col">
-                <div className="bg-gray-50 p-4 border-b border-gray-200 flex justify-between items-center">
+                <div className="bg-gray-50 p-4 border-b border-gray-200 flex justify-between items-center cursor-pointer" onClick={() => setActiveCatId(activeCatId === cat.id ? null : cat.id)}>
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-white rounded-full border border-gray-200 flex items-center justify-center overflow-hidden p-2">
+                        <div className="w-12 h-12 bg-white rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden p-1">
                             {cat.image_url ? (
                                 <img src={cat.image_url} alt={cat.name} className="w-full h-full object-contain" />
                             ) : (
-                                <Tag size={16} className="text-gray-400"/>
+                                <Tag size={20} className="text-gray-400"/>
                             )}
                         </div>
-                        <h3 className="font-bold text-lg">{cat.name}</h3>
+                        <div>
+                            <h3 className="font-bold text-lg flex items-center gap-2">
+                                {cat.name}
+                                {/* VISUAL BADGE */}
+                                {cat.is_illuminated && (
+                                    <span className="bg-yellow-100 text-yellow-800 text-[10px] px-2 py-0.5 rounded-full border border-yellow-200 flex items-center gap-1 font-bold">
+                                        <Zap size={10} fill="currentColor"/> HERO
+                                    </span>
+                                )}
+                            </h3>
+                            <p className="text-xs text-gray-500">{cat.subcategories.length} Subcategories</p>
+                        </div>
                     </div>
                     
-                    {/* ACTION BUTTONS */}
-                    <div className="flex gap-2">
-                        <button onClick={() => startEditing(cat)} className="text-blue-500 hover:text-blue-700 p-2 hover:bg-blue-50 rounded-full transition-colors">
+                    <div className="flex gap-4 items-center">
+                        {/* --- INDIVIDUAL TOGGLE BUTTON --- */}
+                        <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-2 mr-2">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Hero</span>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    className="sr-only peer" 
+                                    checked={cat.is_illuminated || false} 
+                                    onChange={() => toggleHeroMode(cat)} 
+                                />
+                                <div className="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </div>
+
+                        <button onClick={(e) => { e.stopPropagation(); startEditing(cat); }} className="text-blue-500 hover:text-blue-700 p-2 hover:bg-blue-50 rounded-full">
                             <Edit size={18} />
                         </button>
-                        <button onClick={() => confirmDelete(cat.id)} className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-full transition-colors">
+                        <button onClick={(e) => { e.stopPropagation(); confirmDelete(cat.id); }} className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-full">
                             <Trash2 size={18} />
                         </button>
+                        {activeCatId === cat.id ? <ChevronUp size={20} className="text-gray-400 ml-2"/> : <ChevronDown size={20} className="text-gray-400 ml-2"/>}
                     </div>
                 </div>
                 
-                <div className="p-4 space-y-4 flex-1 flex flex-col">
-                    <div className="flex flex-wrap gap-2 mb-auto">
-                        {cat.subcategories && cat.subcategories.length > 0 ? (
-                            cat.subcategories.map((sub: string, idx: number) => (
-                                <span key={idx} className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 group">
-                                    {sub}
-                                    <button onClick={() => removeSubcategory(cat.id, cat.subcategories, sub)} className="hover:text-blue-900 opacity-0 group-hover:opacity-100 transition-opacity"><X size={12}/></button>
-                                </span>
-                            ))
-                        ) : (
-                            <span className="text-xs text-gray-400 italic">No subcategories.</span>
-                        )}
-                    </div>
+                {/* SUBCATEGORY PANEL */}
+                {activeCatId === cat.id && (
+                    <div className="p-6 bg-white animate-in slide-in-from-top-2">
+                        <h4 className="text-xs font-bold text-gray-400 uppercase mb-4 tracking-wider">Manage Subcategories</h4>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                            {cat.subcategories.map((sub, idx) => (
+                                <div key={idx} className="flex items-center gap-3 p-2 border border-gray-100 rounded-lg bg-gray-50 group hover:border-blue-200 transition-colors">
+                                    <div className="w-10 h-10 bg-white rounded border border-gray-200 flex items-center justify-center overflow-hidden">
+                                        {sub.image_url ? <img src={sub.image_url} className="w-full h-full object-cover"/> : <Tag size={14} className="text-gray-300"/>}
+                                    </div>
+                                    <span className="font-medium text-sm flex-1">{sub.name}</span>
+                                    <button onClick={() => removeSubcategory(cat.id, cat.subcategories, sub.name)} className="text-gray-400 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <X size={16} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
 
-                    <div className="flex gap-2 pt-4">
-                        <input 
-                            className="flex-1 p-2 text-sm border border-gray-200 rounded-lg"
-                            placeholder="Add Subcategory..."
-                            value={newSubMap[cat.id] || ''}
-                            onChange={e => setNewSubMap({...newSubMap, [cat.id]: e.target.value})}
-                        />
-                        <button onClick={() => addSubcategory(cat.id, cat.subcategories || [])} className="bg-gray-100 text-gray-700 px-3 rounded-lg hover:bg-gray-200">
-                            <Plus size={16} />
-                        </button>
+                        {/* ADD SUBCATEGORY FORM */}
+                        <div className="flex gap-3 items-end bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                            <div className="flex-1">
+                                <label className="block text-xs font-bold text-gray-500 mb-1">Subcategory Name</label>
+                                <input 
+                                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                                    placeholder="e.g. Wireless Headsets"
+                                    value={newSubName}
+                                    onChange={e => setNewSubName(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-1">Image</label>
+                                <div className="relative">
+                                    <input 
+                                        type="file" 
+                                        accept="image/*"
+                                        className="hidden" 
+                                        id={`sub-img-${cat.id}`}
+                                        onChange={e => setNewSubImage(e.target.files ? e.target.files[0] : null)}
+                                    />
+                                    <label htmlFor={`sub-img-${cat.id}`} className="flex items-center justify-center w-10 h-10 bg-white border border-gray-300 rounded-md cursor-pointer hover:border-blue-500">
+                                        {newSubImage ? <span className="w-2 h-2 bg-green-500 rounded-full"></span> : <ImageIcon size={16} className="text-gray-400"/>}
+                                    </label>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => addSubcategory(cat.id, cat.subcategories)}
+                                disabled={uploading}
+                                className="bg-blue-600 text-white px-4 py-2.5 rounded-md font-bold text-sm hover:bg-blue-700 flex items-center gap-2"
+                            >
+                                {uploading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Add
+                            </button>
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
         ))}
       </div>
@@ -1807,6 +2138,17 @@ const ManageCategories = () => {
                             />
                         </div>
                     </div>
+
+                    {/* HERO MODE TOGGLE (EDIT) */}
+                    <div className="flex items-center gap-3 pt-2 border-t mt-4">
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" className="sr-only peer" checked={editIsIlluminated} onChange={e => setEditIsIlluminated(e.target.checked)} />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            <span className="ml-3 text-sm font-medium text-gray-900 flex items-center gap-2">
+                                Enable Hero Mode <Zap size={14} className={editIsIlluminated ? "text-yellow-500 fill-yellow-500" : "text-gray-400"} />
+                            </span>
+                        </label>
+                    </div>
                 </div>
 
                 <div className="p-4 bg-gray-50 border-t flex justify-end gap-2">
@@ -1827,7 +2169,7 @@ const ManageCategories = () => {
       <ConfirmModal
         isOpen={showDeleteModal}
         title="Delete Category?"
-        message="Are you sure? Removing a category might leave products without a category."
+        message="Are you sure? This will remove all subcategories inside it."
         confirmText="Yes, Delete"
         cancelText="Cancel"
         isDanger={true}
@@ -1847,13 +2189,17 @@ export default ManageCategories;
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Clock, CheckCircle, Truck, Search, Eye } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const ManageOrders = () => {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchOrders = async () => {
-    const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+    const { data } = await supabase
+      .from('orders')
+      .select('*')
+      .order('created_at', { ascending: false });
     if (data) setOrders(data);
     setLoading(false);
   };
@@ -1863,24 +2209,44 @@ const ManageOrders = () => {
   }, []);
 
   const updateStatus = async (id: number, currentStatus: string) => {
-    const nextStatus = currentStatus === 'Pending' ? 'Shipped' : currentStatus === 'Shipped' ? 'Delivered' : 'Pending';
-    
-    // Optimistic UI Update
-    setOrders(orders.map(o => o.id === id ? { ...o, status: nextStatus } : o));
+    const nextStatus =
+      currentStatus === 'Pending'
+        ? 'Shipped'
+        : currentStatus === 'Shipped'
+        ? 'Delivered'
+        : 'Pending';
 
-    const { error } = await supabase.from('orders').update({ status: nextStatus }).eq('id', id);
+    // Optimistic UI update
+    setOrders((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, status: nextStatus } : o)),
+    );
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: nextStatus })
+      .eq('id', id);
+
     if (error) {
-        alert("Failed to update status");
-        fetchOrders(); // Revert
+      alert('Failed to update status');
+      fetchOrders(); // revert
     }
   };
 
-  if (loading) return <div className="p-8">Loading...</div>;
+  if (loading) return <div className="p-8">Loading.</div>;
 
   return (
     <div>
       <h1 className="text-3xl font-bold text-gray-800 mb-8">Orders Management</h1>
+
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        {/* Optional search row (icon imported already) */}
+        <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 bg-gray-50">
+          <Search size={16} className="text-gray-400" />
+          <span className="text-xs text-gray-500">
+            Showing {orders.length} orders (simple list – filter can be added later)
+          </span>
+        </div>
+
         <table className="w-full text-left">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
             <tr>
@@ -1889,29 +2255,40 @@ const ManageOrders = () => {
               <th className="px-6 py-4 font-semibold">Date</th>
               <th className="px-6 py-4 font-semibold">Total</th>
               <th className="px-6 py-4 font-semibold">Status (Click to change)</th>
+              <th className="px-6 py-4 font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {orders.map((order) => (
               <tr key={order.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-6 py-4 font-bold text-gray-900">#{order.id}</td>
+
                 <td className="px-6 py-4">
                   <div className="flex flex-col">
-                    <span className="text-gray-900 font-medium">{order.customer_name}</span>
+                    <span className="text-gray-900 font-medium">
+                      {order.customer_name}
+                    </span>
                     <span className="text-xs text-gray-500">{order.email}</span>
                   </div>
                 </td>
+
                 <td className="px-6 py-4 text-gray-500 text-sm">
-                    {new Date(order.created_at).toLocaleDateString()}
+                  {new Date(order.created_at).toLocaleDateString()}
                 </td>
-                <td className="px-6 py-4 font-bold text-gray-900">£{order.total_amount.toLocaleString()}</td>
+
+                <td className="px-6 py-4 font-bold text-gray-900">
+                  £{Number(order.total_amount).toLocaleString()}
+                </td>
+
                 <td className="px-6 py-4">
-                  <button 
+                  <button
                     onClick={() => updateStatus(order.id, order.status)}
                     className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1 w-fit cursor-pointer select-none ${
-                        order.status === 'Delivered' ? 'bg-green-100 text-green-700 border-green-200' : 
-                        order.status === 'Shipped' ? 'bg-blue-100 text-blue-700 border-blue-200' : 
-                        'bg-yellow-100 text-yellow-700 border-yellow-200'
+                      order.status === 'Delivered'
+                        ? 'bg-green-100 text-green-700 border-green-200'
+                        : order.status === 'Shipped'
+                        ? 'bg-blue-100 text-blue-700 border-blue-200'
+                        : 'bg-yellow-100 text-yellow-700 border-yellow-200'
                     }`}
                   >
                     {order.status === 'Shipped' && <Truck size={12} />}
@@ -1919,6 +2296,15 @@ const ManageOrders = () => {
                     {order.status === 'Pending' && <Clock size={12} />}
                     {order.status}
                   </button>
+                </td>
+
+                <td className="px-6 py-4">
+                  <Link
+                    to={`/admin/orders/${order.id}`}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"
+                  >
+                    <Eye size={14} /> View
+                  </Link>
                 </td>
               </tr>
             ))}
@@ -2325,6 +2711,244 @@ export default ManageProducts;
 
 
 
+==== FILE: D:\Website\Aidezel\src\pages\admin\OrderInvoiceAdmin.tsx ====
+import React, { useEffect, useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { supabase } from '../../lib/supabase';
+import { ArrowLeft, Download, Printer } from 'lucide-react';
+
+const OrderInvoiceAdmin: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const [order, setOrder] = useState<any | null>(null);
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      if (!id) return;
+
+      try {
+        setLoading(true);
+
+        const { data: orderData } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('id', id)
+          .single();
+        setOrder(orderData || null);
+
+        const { data: itemsData } = await supabase
+          .from('order_items')
+          .select('*')
+          .eq('order_id', id);
+
+        setItems(itemsData || []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [id]);
+
+  if (loading) return <div className="p-8">Loading invoice…</div>;
+  if (!order)
+    return (
+      <div className="p-8 text-red-500">
+        Order not found.
+        <div className="mt-4">
+          <Link
+            to="/admin/orders"
+            className="text-blue-600 hover:underline text-sm"
+          >
+            &larr; Back to Orders
+          </Link>
+        </div>
+      </div>
+    );
+
+  const itemsTotal = items.reduce(
+    (sum, item) =>
+      sum + Number(item.price || 0) * Number(item.quantity || 0),
+    0,
+  );
+  const grandTotal = Number(order.total_amount || 0);
+  const tax = Math.max(0, grandTotal - itemsTotal);
+
+  const handlePrint = () => window.print();
+
+  return (
+    <div className="max-w-5xl mx-auto py-10 px-4">
+      <div className="flex items-center justify-between mb-6">
+        <Link
+          to="/admin/orders"
+          className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-blue-900 hover:bg-blue-50 px-3 py-2 rounded-lg"
+        >
+          <ArrowLeft size={16} /> Back to Orders
+        </Link>
+
+        <div className="flex gap-3">
+          <button
+            onClick={handlePrint}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-blue-900 text-blue-900 bg-white hover:bg-blue-50"
+          >
+            <Printer size={16} /> Print
+          </button>
+          <button
+            onClick={handlePrint}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-blue-900 text-white hover:bg-blue-800"
+          >
+            <Download size={16} /> Download
+          </button>
+        </div>
+      </div>
+
+      {/* Reuse same layout as client invoice */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between gap-6 pb-6 border-b border-gray-100">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+              Aidezel – Admin Copy
+            </h1>
+            <p className="text-gray-500 text-sm mt-1">
+              Internal invoice view for order management.
+            </p>
+          </div>
+          <div className="text-sm text-gray-600 space-y-1 md:text-right">
+            <p className="font-semibold text-gray-900">
+              Invoice #{order.id}
+            </p>
+            <p>Date: {new Date(order.created_at).toLocaleDateString()}</p>
+            <p>
+              Status:{' '}
+              <span className="font-semibold">{order.status}</span>
+            </p>
+          </div>
+        </div>
+
+        {/* Billing / Shipping */}
+        <div className="grid md:grid-cols-2 gap-6 py-6 border-b border-gray-100 text-sm">
+          <div>
+            <h2 className="font-semibold text-gray-900 mb-2">
+              Customer
+            </h2>
+            <p className="text-gray-800">{order.customer_name}</p>
+            <p className="text-gray-600">{order.address}</p>
+            <p className="text-gray-600">
+              {order.city} {order.postcode}
+            </p>
+            <p className="text-gray-600 mt-1">Email: {order.email}</p>
+          </div>
+          <div>
+            <h2 className="font-semibold text-gray-900 mb-2">
+              Order Details
+            </h2>
+            <p className="text-gray-600">Order ID: #{order.id}</p>
+            <p className="text-gray-600">
+              Payment: Card / Online (manual)
+            </p>
+            <p className="text-gray-600">Shipping: Free</p>
+            <p className="text-gray-600">Currency: GBP (£)</p>
+          </div>
+        </div>
+
+        {/* Items */}
+        <div className="py-6">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border border-gray-100">
+              <tr className="text-left text-gray-500 uppercase text-xs tracking-wider">
+                <th className="px-4 py-3 font-semibold">Item</th>
+                <th className="px-4 py-3 font-semibold text-right">
+                  Qty
+                </th>
+                <th className="px-4 py-3 font-semibold text-right">
+                  Price
+                </th>
+                <th className="px-4 py-3 font-semibold text-right">
+                  Total
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 border-x border-b border-gray-100">
+              {items.map((item) => {
+                const lineTotal =
+                  Number(item.price || 0) *
+                  Number(item.quantity || 0);
+                return (
+                  <tr key={item.id}>
+                    <td className="px-4 py-3 text-gray-800">
+                      <p className="font-medium">
+                        {item.product_name}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-700">
+                      {item.quantity}
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-700">
+                      £{Number(item.price || 0).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-900 font-medium">
+                      £{lineTotal.toFixed(2)}
+                    </td>
+                  </tr>
+                );
+              })}
+              {items.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="px-4 py-6 text-center text-gray-400 text-sm"
+                  >
+                    No items found for this order.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Totals */}
+        <div className="flex flex-col items-end gap-2 text-sm">
+          <div className="w-full md:w-72 space-y-1">
+            <div className="flex justify-between text-gray-600">
+              <span>Items Total</span>
+              <span>£{itemsTotal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-gray-600">
+              <span>Tax (est.)</span>
+              <span>£{tax.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-gray-600">
+              <span>Shipping</span>
+              <span className="text-green-600 font-medium">Free</span>
+            </div>
+            <div className="flex justify-between pt-2 border-t border-gray-200 mt-2">
+              <span className="font-semibold text-gray-900">
+                Grand Total
+              </span>
+              <span className="font-bold text-lg text-gray-900">
+                £{grandTotal.toFixed(2)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <p className="mt-8 text-[11px] text-gray-400 text-center">
+          Internal admin invoice for Aidezel. Use this for packing,
+          shipping and accounting workflows.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+export default OrderInvoiceAdmin;
+
+
+
 ==== FILE: D:\Website\Aidezel\src\pages\auth\Login.tsx ====
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -2670,6 +3294,216 @@ export default About;
 
 
 
+==== FILE: D:\Website\Aidezel\src\pages\client\BuyAgain.tsx ====
+import React, { useEffect, useState } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { supabase } from '../../lib/supabase';
+import { useCart } from '../../context/CartContext';
+import { ArrowLeft, ShoppingBag, AlertTriangle } from 'lucide-react';
+
+const BuyAgain: React.FC = () => {
+  const { orderId } = useParams<{ orderId: string }>();
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [order, setOrder] = useState<any | null>(null);
+  const navigate = useNavigate();
+  const { addToCart } = useCart();
+
+  useEffect(() => {
+    const load = async () => {
+      if (!orderId) return;
+
+      try {
+        setLoading(true);
+
+        const { data: orderData } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('id', orderId)
+          .single();
+        setOrder(orderData || null);
+
+        const { data: itemsData, error } = await supabase
+          .from('order_items')
+          .select(
+            `
+            id,
+            product_id,
+            product_name,
+            price,
+            quantity,
+            products (
+              id,
+              name,
+              price,
+              image_url,
+              stock_quantity,
+              status
+            )
+          `,
+          )
+          .eq('order_id', orderId);
+
+        if (error) throw error;
+        setItems(itemsData || []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [orderId]);
+
+  const handleAddAllToCart = () => {
+    items.forEach((item) => {
+      const product = item.products || {};
+      const finalPrice = Number(product.price ?? item.price ?? 0);
+      const isOutOfStock =
+        (product.stock_quantity ?? 0) <= 0 ||
+        product.status === 'Out of Stock';
+
+      if (finalPrice <= 0 || isOutOfStock) return;
+
+      addToCart({
+        id: product.id || item.product_id,
+        name: product.name || item.product_name,
+        price: finalPrice,
+        quantity: item.quantity || 1,
+        image: product.image_url,
+        stock_quantity: product.stock_quantity ?? 100,
+      });
+    });
+
+    navigate('/cart');
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse text-gray-400">
+          Loading previous order…
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-12">
+      <div className="flex items-center justify-between mb-6">
+        <Link
+          to="/orders"
+          className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-black"
+        >
+          <ArrowLeft size={16} /> Back to My Orders
+        </Link>
+      </div>
+
+      <h1 className="text-3xl font-bold mb-2">Buy Again</h1>
+      {order && (
+        <p className="text-gray-500 mb-6 text-sm">
+          Reordering items from{' '}
+          <span className="font-medium">Order #{order.id}</span> placed on{' '}
+          {new Date(order.created_at).toLocaleDateString()}
+        </p>
+      )}
+
+      {items.length === 0 ? (
+        <div className="border border-dashed border-gray-300 rounded-2xl p-10 text-center">
+          <p className="text-gray-500">No items found for this order.</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-4 mb-8">
+            {items.map((item) => {
+              const product = item.products || {};
+              const finalPrice = Number(product.price ?? item.price ?? 0);
+              const isOutOfStock =
+                (product.stock_quantity ?? 0) <= 0 ||
+                product.status === 'Out of Stock';
+
+              return (
+                <div
+                  key={item.id}
+                  className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center gap-4"
+                >
+                  <div className="w-20 h-20 rounded-xl bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center flex-shrink-0">
+                    {product.image_url ? (
+                      <img
+                        src={product.image_url}
+                        alt={product.name || item.product_name}
+                        className="w-full h-full object-cover mix-blend-multiply"
+                      />
+                    ) : (
+                      <span className="text-xs text-gray-400">
+                        No image
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-gray-900 line-clamp-2">
+                      {product.name || item.product_name}
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      Qty: {item.quantity}{' '}
+                      {isOutOfStock && (
+                        <span className="inline-flex items-center gap-1 text-red-500 text-xs ml-2">
+                          <AlertTriangle size={12} /> Currently unavailable
+                        </span>
+                      )}
+                    </p>
+                    <p className="mt-1 font-bold text-blue-600">
+                      £{finalPrice.toFixed(2)}{' '}
+                      <span className="text-xs text-gray-400">
+                        (latest price)
+                      </span>
+                    </p>
+                  </div>
+
+                  <button
+                    disabled={isOutOfStock}
+                    onClick={() => {
+                      if (isOutOfStock) return;
+                      addToCart({
+                        id: product.id || item.product_id,
+                        name: product.name || item.product_name,
+                        price: finalPrice,
+                        quantity: item.quantity || 1,
+                        image: product.image_url,
+                        stock_quantity: product.stock_quantity ?? 100,
+                      });
+                    }}
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold ${
+                      isOutOfStock
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-black text-white hover:bg-gray-800'
+                    }`}
+                  >
+                    <ShoppingBag size={16} /> Add
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={handleAddAllToCart}
+            className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-sm"
+          >
+            <ShoppingBag size={18} /> Add All Items To Cart
+          </button>
+        </>
+      )}
+    </div>
+  );
+};
+
+export default BuyAgain;
+
+
+
 ==== FILE: D:\Website\Aidezel\src\pages\client\Cart.tsx ====
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -2817,77 +3651,140 @@ import { useCart } from '../../context/CartContext';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Loader2 } from 'lucide-react';
+import { toast } from '../../components/ui/use-toast';
 
-const Checkout = () => {
+const Checkout: React.FC = () => {
   const navigate = useNavigate();
   const { cartTotal, cartItems, clearCart } = useCart();
   const [loading, setLoading] = useState(false);
-  
+
   const [formData, setFormData] = useState({
-    firstName: '', lastName: '', address: '', city: '', postcode: '', email: ''
+    firstName: '',
+    lastName: '',
+    address: '',
+    city: '',
+    postcode: '',
+    email: '',
   });
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (cartItems.length === 0) {
+      toast('Cart is empty', {
+        description: 'Please add some products before placing an order.',
+        className: 'bg-red-900 border border-red-700 text-white',
+      });
+      return;
+    }
+
     setLoading(true);
-    const totalAmount = cartTotal * 1.2; 
+    const totalAmount = cartTotal * 1.2; // 20% VAT
 
     try {
+      // 🔹 0. Get logged-in user (if any)
+      const { data: sessionData } = await supabase.auth.getSession();
+      const user = sessionData.session?.user || null;
+
+      // We always use the ACCOUNT email to link orders to "My Orders".
+      const accountEmail = user?.email || formData.email;
+
       // 1. Insert Order
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
-        .insert([{
+        .insert([
+          {
             customer_name: `${formData.firstName} ${formData.lastName}`,
-            email: formData.email,
+            email: accountEmail, // 🔥 key line: use auth email if logged in
             address: formData.address,
             city: formData.city,
             postcode: formData.postcode,
             total_amount: totalAmount,
-            status: 'Pending' 
-        }])
+            status: 'Pending',
+          },
+        ])
         .select()
         .single();
 
-      if (orderError) throw orderError;
+      if (orderError || !orderData) {
+        throw orderError || new Error('Failed to create order');
+      }
 
       // 2. Insert Order Items AND Reduce Stock
       for (const item of cartItems) {
         // A. Add item to order history
-        await supabase.from('order_items').insert({
-          order_id: orderData.id,
-          product_id: item.id,
-          product_name: item.name,
-          quantity: item.quantity,
-          // FIX: item.price is already a number now, so we pass it directly
-          price: item.price 
-        });
+        const { error: orderItemError } = await supabase
+          .from('order_items')
+          .insert({
+            order_id: orderData.id,
+            product_id: item.id,
+            product_name: item.name,
+            quantity: item.quantity,
+            price: item.price, // already number
+          });
+
+        if (orderItemError) {
+          console.error(orderItemError);
+          throw new Error('Failed to save order items');
+        }
 
         // B. Fetch current stock
-        const { data: product } = await supabase
-            .from('products')
-            .select('stock_quantity')
-            .eq('id', item.id)
-            .single();
+        const { data: product, error: productError } = await supabase
+          .from('products')
+          .select('stock_quantity')
+          .eq('id', item.id)
+          .single();
+
+        if (productError) {
+          console.error(productError);
+          throw new Error('Failed to fetch product stock');
+        }
 
         if (product) {
-            // C. Calculate new stock
-            const newStock = Math.max(0, product.stock_quantity - item.quantity);
-            const newStatus = newStock === 0 ? 'Out of Stock' : 'In Stock';
-            
-            // D. Update Database
-            await supabase
-                .from('products')
-                .update({ stock_quantity: newStock, status: newStatus })
-                .eq('id', item.id);
+          // C. Calculate new stock
+          const newStock = Math.max(0, product.stock_quantity - item.quantity);
+          const newStatus = newStock === 0 ? 'Out of Stock' : 'In Stock';
+
+          // D. Update Database
+          const { error: updateError } = await supabase
+            .from('products')
+            .update({ stock_quantity: newStock, status: newStatus })
+            .eq('id', item.id);
+
+          if (updateError) {
+            console.error(updateError);
+            throw new Error('Failed to update product stock');
+          }
         }
       }
 
+      // 3. Clear cart
       clearCart();
-      alert("Order Placed Successfully!");
-      navigate('/'); 
 
+      // 4. Success toast
+      toast('Order Confirmed ✔', {
+        description: (
+          <span className="text-slate-300">
+            Thank you for shopping with <b className="text-blue-400">Aidezel</b>.
+            You can view your invoice in the Orders page.
+          </span>
+        ),
+        className:
+          'bg-slate-950 border border-slate-800 text-white shadow-xl rounded-xl',
+        duration: 4000,
+      });
+
+      // 5. Redirect to My Orders (change to '/' if you prefer home)
+      setTimeout(() => {
+        navigate('/orders');
+      }, 1500);
     } catch (error: any) {
-      alert("Error placing order: " + error.message);
+      console.error(error);
+      toast('Order Failed ❌', {
+        description:
+          error?.message || 'There was an error placing your order. Please try again.',
+        className: 'bg-red-900 border border-red-700 text-white',
+      });
     } finally {
       setLoading(false);
     }
@@ -2896,27 +3793,85 @@ const Checkout = () => {
   return (
     <div className="container mx-auto px-4 py-12">
       <h1 className="text-3xl font-bold mb-8">Checkout</h1>
-      <form onSubmit={handlePlaceOrder} className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+
+      <form
+        onSubmit={handlePlaceOrder}
+        className="grid grid-cols-1 lg:grid-cols-3 gap-12"
+      >
         <div className="lg:col-span-2 space-y-8">
           <div className="p-6 rounded-2xl border border-gray-200 bg-white">
             <h2 className="text-xl font-bold mb-6">Shipping Details</h2>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <input required placeholder="First Name" className="p-3 border rounded-lg" onChange={e => setFormData({...formData, firstName: e.target.value})} />
-              <input required placeholder="Last Name" className="p-3 border rounded-lg" onChange={e => setFormData({...formData, lastName: e.target.value})} />
-              <input required type="email" placeholder="Email Address" className="md:col-span-2 p-3 border rounded-lg" onChange={e => setFormData({...formData, email: e.target.value})} />
-              <input required placeholder="Address" className="md:col-span-2 p-3 border rounded-lg" onChange={e => setFormData({...formData, address: e.target.value})} />
-              <input required placeholder="City" className="p-3 border rounded-lg" onChange={e => setFormData({...formData, city: e.target.value})} />
-              <input required placeholder="Post Code" className="p-3 border rounded-lg" onChange={e => setFormData({...formData, postcode: e.target.value})} />
+              <input
+                required
+                placeholder="First Name"
+                className="p-3 border rounded-lg"
+                onChange={(e) =>
+                  setFormData({ ...formData, firstName: e.target.value })
+                }
+              />
+              <input
+                required
+                placeholder="Last Name"
+                className="p-3 border rounded-lg"
+                onChange={(e) =>
+                  setFormData({ ...formData, lastName: e.target.value })
+                }
+              />
+              <input
+                required
+                type="email"
+                placeholder="Email Address"
+                className="md:col-span-2 p-3 border rounded-lg"
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
+              />
+              <input
+                required
+                placeholder="Address"
+                className="md:col-span-2 p-3 border rounded-lg"
+                onChange={(e) =>
+                  setFormData({ ...formData, address: e.target.value })
+                }
+              />
+              <input
+                required
+                placeholder="City"
+                className="p-3 border rounded-lg"
+                onChange={(e) =>
+                  setFormData({ ...formData, city: e.target.value })
+                }
+              />
+              <input
+                required
+                placeholder="Post Code"
+                className="p-3 border rounded-lg"
+                onChange={(e) =>
+                  setFormData({ ...formData, postcode: e.target.value })
+                }
+              />
             </div>
           </div>
-          <button disabled={loading} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition-colors flex justify-center items-center gap-2">
-            {loading ? <Loader2 className="animate-spin" /> : "Place Order"}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition-colors flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? <Loader2 className="animate-spin" /> : 'Place Order'}
           </button>
         </div>
+
         <div className="lg:col-span-1">
           <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100">
-             <h3 className="font-bold text-lg mb-4">Order Total: £{(cartTotal * 1.2).toLocaleString()}</h3>
-             <div className="flex items-center gap-2 text-green-600 text-xs font-bold"><ShieldCheck size={16} /> Secure SSL Encryption</div>
+            <h3 className="font-bold text-lg mb-4">
+              Order Total: £{(cartTotal * 1.2).toLocaleString()}
+            </h3>
+            <div className="flex items-center gap-2 text-green-600 text-xs font-bold">
+              <ShieldCheck size={16} /> Secure SSL Encryption
+            </div>
           </div>
         </div>
       </form>
@@ -3434,84 +4389,214 @@ export default HomePage;
 ==== FILE: D:\Website\Aidezel\src\pages\client\OrderHistory.tsx ====
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Package } from 'lucide-react';
+import { Package, FileText, RotateCw, ImageOff } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
-const OrderHistory = () => {
-  const [orders, setOrders] = useState<any[]>([]);
+interface OrderWithPreview {
+  id: number;
+  created_at: string;
+  total_amount: number;
+  status: string;
+  // preview data we compute
+  preview_product_name?: string | null;
+  preview_image_url?: string | null;
+}
+
+const OrderHistory: React.FC = () => {
+  const [orders, setOrders] = useState<OrderWithPreview[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchOrders = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
+      try {
+        setLoading(true);
+
+        // 1️⃣ Get current user (by email)
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          setOrders([]);
           setLoading(false);
           return;
+        }
+
+        // 2️⃣ Fetch all orders for this email
+        const { data: baseOrders, error } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('email', session.user.email)
+          .order('created_at', { ascending: false });
+
+        if (error || !baseOrders) {
+          console.error(error);
+          setOrders([]);
+          setLoading(false);
+          return;
+        }
+
+        // 3️⃣ For each order, fetch FIRST order item and its product image
+        const ordersWithPreview: OrderWithPreview[] = await Promise.all(
+          baseOrders.map(async (order: any) => {
+            let previewName: string | null = null;
+            let previewImage: string | null = null;
+
+            // 3A: get first order_item
+            const { data: firstItem } = await supabase
+              .from('order_items')
+              .select('product_id, product_name')
+              .eq('order_id', order.id)
+              .order('id', { ascending: true })
+              .limit(1)
+              .maybeSingle();
+
+            if (firstItem) {
+              previewName = firstItem.product_name;
+
+              // 3B: get product image
+              const { data: product } = await supabase
+                .from('products')
+                .select('image_url')
+                .eq('id', firstItem.product_id)
+                .maybeSingle();
+
+              if (product) {
+                previewImage = product.image_url;
+              }
+            }
+
+            return {
+              id: order.id,
+              created_at: order.created_at,
+              total_amount: order.total_amount,
+              status: order.status,
+              preview_product_name: previewName,
+              preview_image_url: previewImage,
+            };
+          })
+        );
+
+        setOrders(ordersWithPreview);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
       }
-
-      // Fetch orders matching the user's email
-      const { data } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('email', session.user.email) 
-        .order('created_at', { ascending: false });
-
-      if (data) setOrders(data);
-      setLoading(false);
     };
 
     fetchOrders();
   }, []);
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-gray-400 font-medium">Loading orders...</div>
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse text-gray-400 font-medium">
+          Loading orders…
+        </div>
+      </div>
+    );
+  }
 
-  return (
-    <div className="container mx-auto px-4 py-12 min-h-screen">
-      <h1 className="text-3xl font-bold mb-8">My Orders</h1>
-      
-      {orders.length === 0 ? (
+  if (orders.length === 0) {
+    return (
+      <div className="container mx-auto px-4 py-12 min-h-screen">
+        <h1 className="text-3xl font-bold mb-8">My Orders</h1>
         <div className="text-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
           <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
             <Package size={40} className="text-gray-400" />
           </div>
-          <h3 className="text-xl font-bold text-gray-800 mb-2">No orders yet</h3>
-          <p className="text-gray-500">Looks like you haven't placed any orders yet.</p>
+          <h3 className="text-xl font-bold text-gray-800 mb-2">
+            No orders yet
+          </h3>
+          <p className="text-gray-500">
+            Looks like you haven't placed any orders yet.
+          </p>
         </div>
-      ) : (
-        <div className="grid gap-6">
-          {orders.map(order => (
-            <div key={order.id} className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow duration-300">
-              <div className="flex flex-col md:flex-row justify-between md:items-center gap-6">
-                
-                {/* Left Side: ID and Status */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-3">
-                      <span className="font-bold text-lg text-gray-900">Order #{order.id}</span>
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                          order.status === 'Delivered' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                      }`}>
-                        {order.status}
-                      </span>
-                  </div>
-                  <p className="text-sm text-gray-500">Placed on {new Date(order.created_at).toLocaleDateString()}</p>
-                </div>
+      </div>
+    );
+  }
 
-                {/* Right Side: Total and Details */}
-                <div className="flex items-center gap-8 border-t md:border-t-0 border-gray-100 pt-4 md:pt-0">
-                   <div className="text-left md:text-right">
-                       <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">Total Amount</p>
-                       <p className="font-bold text-2xl text-gray-900">£{order.total_amount.toLocaleString()}</p>
-                   </div>
-                </div>
+  return (
+    <div className="container mx-auto px-4 py-12 min-h-screen">
+      <h1 className="text-3xl font-bold mb-8">My Orders</h1>
+
+      <div className="grid gap-6">
+        {orders.map((order) => (
+          <div
+            key={order.id}
+            className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow duration-300 flex flex-col md:flex-row md:items-center md:justify-between gap-6"
+          >
+            {/* LEFT: thumbnail + product name + meta */}
+            <div className="flex items-start gap-4">
+              {/* Thumbnail */}
+              <div className="w-16 h-16 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                {order.preview_image_url ? (
+                  <img
+                    src={order.preview_image_url}
+                    alt={order.preview_product_name || 'Product image'}
+                    className="w-full h-full object-cover mix-blend-multiply"
+                  />
+                ) : (
+                  <ImageOff size={20} className="text-gray-400" />
+                )}
+              </div>
+
+              <div className="space-y-1">
+                {/* Product name (instead of plain "Order #") */}
+                <p className="font-semibold text-gray-900 line-clamp-2">
+                  {order.preview_product_name || `Order #${order.id}`}
+                </p>
+
+                <p className="text-xs text-gray-500">
+                  Order #{order.id} • Placed on{' '}
+                  {new Date(order.created_at).toLocaleDateString()}
+                </p>
+
+                {/* status pill */}
+                <span
+                  className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mt-1 ${
+                    order.status === 'Delivered'
+                      ? 'bg-green-100 text-green-700'
+                      : order.status === 'Shipped'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-yellow-100 text-yellow-700'
+                  }`}
+                >
+                  {order.status}
+                </span>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+
+            {/* RIGHT: total + actions */}
+            <div className="flex flex-col items-end gap-3">
+              <div className="text-right">
+                <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">
+                  Total Amount
+                </p>
+                <p className="font-bold text-2xl text-gray-900">
+                  £{Number(order.total_amount).toLocaleString()}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-3">
+                <Link
+                  to={`/orders/${order.id}`}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50"
+                >
+                  <FileText size={14} /> View Invoice
+                </Link>
+                <Link
+                  to={`/buy-again/${order.id}`}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-black text-white hover:bg-gray-800"
+                >
+                  <RotateCw size={14} /> Buy Again
+                </Link>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
@@ -3520,9 +4605,272 @@ export default OrderHistory;
 
 
 
+==== FILE: D:\Website\Aidezel\src\pages\client\OrderInvoice.tsx ====
+import React, { useEffect, useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { supabase } from '../../lib/supabase';
+import { ArrowLeft, Download, Printer } from 'lucide-react';
+
+const OrderInvoice: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const [order, setOrder] = useState<any | null>(null);
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      if (!id) return;
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        // 1️⃣ Fetch the order itself
+        const { data: orderData, error: orderError } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (orderError || !orderData) {
+          throw orderError || new Error('Order not found');
+        }
+
+        // Optional: check user email matches
+        if (session && orderData.email !== session.user.email) {
+          throw new Error('You are not allowed to view this order.');
+        }
+
+        // 2️⃣ Fetch all items for this order
+        const { data: itemsData, error: itemsError } = await supabase
+          .from('order_items')
+          .select('*')
+          .eq('order_id', id)
+          .order('id', { ascending: true });
+
+        if (itemsError) throw itemsError;
+
+        setOrder(orderData);
+        setItems(itemsData || []);
+      } catch (err: any) {
+        console.error(err);
+        setError(err.message || 'Failed to load invoice');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [id]);
+
+  const handlePrint = () => window.print();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse text-gray-400">Loading invoice…</div>
+      </div>
+    );
+  }
+
+  if (error || !order) {
+    return (
+      <div className="container mx-auto px-4 py-12">
+        <p className="text-red-600 font-medium mb-4">
+          {error || 'Invoice not found.'}
+        </p>
+        <Link
+          to="/orders"
+          className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline"
+        >
+          <ArrowLeft size={16} /> Back to My Orders
+        </Link>
+      </div>
+    );
+  }
+
+  const itemsTotal = items.reduce(
+    (sum, item) =>
+      sum + Number(item.price || 0) * Number(item.quantity || 0),
+    0
+  );
+  const grandTotal = Number(order.total_amount || 0);
+  const tax = Math.max(0, grandTotal - itemsTotal);
+
+  return (
+    <div className="container mx-auto px-4 py-12 max-w-4xl">
+      {/* Top actions */}
+      <div className="flex items-center justify-between mb-8">
+        <Link
+          to="/orders"
+          className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-black"
+        >
+          <ArrowLeft size={16} /> Back to My Orders
+        </Link>
+
+        <div className="flex gap-3">
+          <button
+            onClick={handlePrint}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50"
+          >
+            <Printer size={16} /> Print
+          </button>
+          <button
+            onClick={handlePrint}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-black text-white hover:bg-gray-800"
+          >
+            <Download size={16} /> Download (Print to PDF)
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 print:shadow-none print:border-none">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between gap-6 pb-6 border-b border-gray-100">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+              Aidezel
+            </h1>
+            <p className="text-gray-500 text-sm mt-1">
+              Premium Electronics &amp; Lifestyle Store
+            </p>
+          </div>
+          <div className="text-sm text-gray-600 space-y-1 md:text-right">
+            <p className="font-semibold text-gray-900">
+              Invoice #{order.id}
+            </p>
+            <p>Date: {new Date(order.created_at).toLocaleDateString()}</p>
+            <p>
+              Status: <span className="font-semibold">{order.status}</span>
+            </p>
+          </div>
+        </div>
+
+        {/* Billing / Order Info */}
+        <div className="grid md:grid-cols-2 gap-6 py-6 border-b border-gray-100 text-sm">
+          <div>
+            <h2 className="font-semibold text-gray-900 mb-2">Billed To</h2>
+            <p className="text-gray-800">{order.customer_name}</p>
+            <p className="text-gray-600">{order.address}</p>
+            <p className="text-gray-600">
+              {order.city} {order.postcode}
+            </p>
+            <p className="text-gray-600 mt-1">Email: {order.email}</p>
+          </div>
+          <div>
+            <h2 className="font-semibold text-gray-900 mb-2">
+              Order Details
+            </h2>
+            <p className="text-gray-600">Order ID: #{order.id}</p>
+            <p className="text-gray-600">Payment: Card / Online</p>
+            <p className="text-gray-600">Shipping: Free</p>
+            <p className="text-gray-600">Currency: GBP (£)</p>
+          </div>
+        </div>
+
+        {/* Items table */}
+        <div className="py-6">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border border-gray-100">
+              <tr className="text-left text-gray-500 uppercase text-xs tracking-wider">
+                <th className="px-4 py-3 font-semibold">Item</th>
+                <th className="px-4 py-3 font-semibold text-right">
+                  Qty
+                </th>
+                <th className="px-4 py-3 font-semibold text-right">
+                  Price
+                </th>
+                <th className="px-4 py-3 font-semibold text-right">
+                  Total
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 border-x border-b border-gray-100">
+              {items.map((item) => {
+                const lineTotal =
+                  Number(item.price || 0) *
+                  Number(item.quantity || 0);
+                return (
+                  <tr key={item.id}>
+                    <td className="px-4 py-3 text-gray-800">
+                      <p className="font-medium">
+                        {item.product_name}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-700">
+                      {item.quantity}
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-700">
+                      £{Number(item.price || 0).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-900 font-medium">
+                      £{lineTotal.toFixed(2)}
+                    </td>
+                  </tr>
+                );
+              })}
+              {items.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="px-4 py-6 text-center text-gray-400 text-sm"
+                  >
+                    No items found for this order.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Totals */}
+        <div className="flex flex-col items-end gap-2 text-sm">
+          <div className="w-full md:w-72 space-y-1">
+            <div className="flex justify-between text-gray-600">
+              <span>Items Total</span>
+              <span>£{itemsTotal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-gray-600">
+              <span>Tax (est.)</span>
+              <span>£{tax.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-gray-600">
+              <span>Shipping</span>
+              <span className="text-green-600 font-medium">Free</span>
+            </div>
+            <div className="flex justify-between pt-2 border-t border-gray-200 mt-2">
+              <span className="font-semibold text-gray-900">
+                Grand Total
+              </span>
+              <span className="font-bold text-lg text-gray-900">
+                £{grandTotal.toFixed(2)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <p className="mt-8 text-[11px] text-gray-400 text-center">
+          Thank you for shopping with Aidezel. This is a
+          computer-generated invoice and does not require a physical
+          signature.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+export default OrderInvoice;
+
+
+
 ==== FILE: D:\Website\Aidezel\src\pages\client\ProductDetails.tsx ====
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Star, ShieldCheck, User, MapPin, Heart, Truck, RefreshCw, ChevronDown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useCart } from '../../context/CartContext';
@@ -3530,6 +4878,7 @@ import { Session } from '@supabase/supabase-js';
 
 const ProductDetails = () => {
   const { id } = useParams();
+  const navigate = useNavigate();                        // ✅ NEW
   const { addToCart } = useCart();
   
   const [product, setProduct] = useState<any>(null);
@@ -3755,25 +5104,40 @@ const ProductDetails = () => {
                     </div>
                 </div>
 
-                {/* --- SIMPLIFIED ADD TO CART LOGIC --- */}
+                {/* --- ADD TO CART / BUY NOW --- */}
                 <div className="space-y-3">
                     <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 pointer-events-none z-10">Quantity:</span>
-                        <select value={qty} onChange={(e) => setQty(Number(e.target.value))} disabled={isOutOfStock} className="w-full border border-gray-300 rounded-lg py-2.5 pl-20 pr-10 text-sm font-bold shadow-sm focus:border-blue-500 outline-none bg-white appearance-none cursor-pointer hover:border-gray-400 transition-colors text-gray-900">
+                        <select
+                          value={qty}
+                          onChange={(e) => setQty(Number(e.target.value))}
+                          disabled={isOutOfStock}
+                          className="w-full border border-gray-300 rounded-lg py-2.5 pl-20 pr-10 text-sm font-bold shadow-sm focus:border-blue-500 outline-none bg-white appearance-none cursor-pointer hover:border-gray-400 transition-colors text-gray-900"
+                        >
                             {qtyOptions.map(n => <option key={n} value={n}>{n}</option>)}
                         </select>
                         <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"><ChevronDown size={16} /></div>
                     </div>
 
                     <button 
-                        onClick={() => addToCart({...product, quantity: qty})} 
+                        onClick={() => addToCart({ ...product, quantity: qty })} 
                         disabled={isOutOfStock} 
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-full text-sm shadow-sm transition-colors disabled:opacity-50"
                     >
                         Add to Cart
                     </button>
                     
-                    <button disabled={isOutOfStock} className="w-full bg-black hover:bg-gray-900 text-white font-medium py-2.5 rounded-full text-sm shadow-sm transition-colors disabled:opacity-50">Buy Now</button>
+                    <button
+                      disabled={isOutOfStock}
+                      onClick={() => {
+                        if (isOutOfStock) return;
+                        addToCart({ ...product, quantity: qty });   // ✅ add to cart
+                        navigate('/checkout');                        // ✅ go to checkout
+                      }}
+                      className="w-full bg-black hover:bg-gray-900 text-white font-medium py-2.5 rounded-full text-sm shadow-sm transition-colors disabled:opacity-50"
+                    >
+                      Buy Now
+                    </button>
                 </div>
 
                 <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between text-[10px] text-gray-500 text-center">
@@ -3859,44 +5223,69 @@ export default ProductDetails;
 
 ==== FILE: D:\Website\Aidezel\src\pages\client\Shop.tsx ====
 import React, { useState, useEffect, useMemo } from 'react';
-import { Filter, ChevronDown, X, SlidersHorizontal, Search, ArrowRight, Check, ChevronLeft, ChevronUp, ChevronRight } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom'; 
+import {
+  Filter,
+  X,
+  SlidersHorizontal,
+  Search,
+  ArrowRight,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Zap,
+  Lightbulb,
+} from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import ProductCard, { Product } from '../../components/shared/ProductCard';
+import FilterSection from '../../components/filters/FilterSection'; // <-- correct path
 
-// --- (PRICE_RANGES Removed) ---
+// Define strict type for Category to include the toggle
+interface CategoryData {
+  id: number;
+  name: string;
+  is_illuminated: boolean; // The toggle from Admin
+  subcategories: any[];
+}
 
 const Shop = () => {
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [categories, setCategories] = useState<string[]>([]);
-  
+  const [categories, setCategories] = useState<CategoryData[]>([]); // Store full category data
+
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [suggestion, setSuggestion] = useState<string | null>(null);
-  
-  const [searchParams, setSearchParams] = useSearchParams(); 
-  
+
+  const [searchParams, setSearchParams] = useSearchParams();
+
   // --- FILTER STATE ---
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [selectedSubcats, setSelectedSubcats] = useState<string[]>([]); 
-  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);   
-  // (selectedPrice State Removed)
+  const [selectedSubcats, setSelectedSubcats] = useState<string[]>([]);
+  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // New state for dynamic specs filtering (if needed for drill down)
-  const [selectedSpecs, setSelectedSpecs] = useState<Record<string, string[]>>({});
+
+  const [selectedSpecs, setSelectedSpecs] = useState<Record<string, string[]>>(
+    {}
+  );
   const [fastDeliveryOnly, setFastDeliveryOnly] = useState(false);
 
   // --- 1. INITIAL FETCH ---
   useEffect(() => {
     const initData = async () => {
       setLoading(true);
-      
-      const { data: cats } = await supabase.from('categories').select('name').order('name');
-      if (cats) setCategories(cats.map(c => c.name));
 
-      const { data: prods } = await supabase.from('products').select('*').order('created_at', { ascending: false });
-      
+      // Fetch Categories with the new flag
+      const { data: cats } = await supabase
+        .from('categories')
+        .select('*')
+        .order('name');
+      if (cats) setCategories(cats as CategoryData[]);
+
+      const { data: prods } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false });
+
       if (prods) {
         const formatted = prods.map((item: any) => ({
           id: item.id,
@@ -3908,10 +5297,13 @@ const Shop = () => {
           subcategory: item.subcategory,
           brand: item.brand,
           specs: item.specs || {},
-          tag: item.status === 'Out of Stock' ? 'Sold Out' : (item.is_hero ? 'Featured' : 'New'),
-          
-          // --- FIX: RETAINED STOCK QUANTITY LOGIC ---
-          stock_quantity: item.stock_quantity
+          tag:
+            item.status === 'Out of Stock'
+              ? 'Sold Out'
+              : item.is_hero
+              ? 'Featured'
+              : 'New',
+          stock_quantity: item.stock_quantity,
         }));
         setAllProducts(formatted);
       }
@@ -3924,113 +5316,158 @@ const Shop = () => {
   useEffect(() => {
     const catUrl = searchParams.get('category');
     const searchUrl = searchParams.get('search');
-    
-    if (catUrl) {
-       setSelectedCategory(decodeURIComponent(catUrl));
-    } else {
-       setSelectedCategory('All');
-    }
+
+    if (catUrl) setSelectedCategory(decodeURIComponent(catUrl));
+    else setSelectedCategory('All');
 
     if (searchUrl) setSearchTerm(searchUrl);
     else setSearchTerm('');
-
   }, [searchParams]);
 
+  // --- CHECK IF CURRENT CATEGORY IS "HERO MODE" ---
+  const isHeroMode = useMemo(() => {
+    const currentCat = categories.find((c) => c.name === selectedCategory);
+    return currentCat?.is_illuminated || false;
+  }, [categories, selectedCategory]);
 
   // --- 3. DYNAMIC METADATA ---
   const { availableSubcats, availableBrands, availableSpecs } = useMemo(() => {
     let relevantProducts = allProducts;
-    
-    // If a category is selected, ONLY show metadata for that category
     if (selectedCategory !== 'All') {
-        relevantProducts = allProducts.filter(p => p.category === selectedCategory);
+      relevantProducts = allProducts.filter(
+        (p) => p.category === selectedCategory
+      );
     }
 
-    const subcats = Array.from(new Set(relevantProducts.map(p => p.subcategory).filter(Boolean)));
-    const brands = Array.from(new Set(relevantProducts.map(p => p.brand).filter(Boolean)));
-    
-    // Extract dynamic specs
+    const productSubcats = Array.from(
+      new Set(relevantProducts.map((p) => p.subcategory).filter(Boolean))
+    );
+    const catObj = categories.find((c) => c.name === selectedCategory);
+    const dbSubcats = Array.isArray(catObj?.subcategories)
+      ? catObj?.subcategories.map((s: any) =>
+          typeof s === 'string' ? s : s.name
+        )
+      : [];
+
+    const subcats = Array.from(new Set([...productSubcats, ...dbSubcats]));
+    const brands = Array.from(
+      new Set(relevantProducts.map((p) => p.brand).filter(Boolean))
+    );
+
     const specsMap: Record<string, Set<string>> = {};
     relevantProducts.forEach((p: any) => {
-        if (p.specs) {
-            Object.entries(p.specs).forEach(([key, val]) => {
-                if (!specsMap[key]) specsMap[key] = new Set();
-                specsMap[key].add(String(val));
-            });
-        }
+      if (p.specs) {
+        Object.entries(p.specs).forEach(([key, val]) => {
+          if (!specsMap[key]) specsMap[key] = new Set();
+          specsMap[key].add(String(val));
+        });
+      }
     });
 
-    const specsArray = Object.entries(specsMap).map(([key, values]) => ({
+    const specsArray = Object.entries(specsMap)
+      .map(([key, values]) => ({
         key,
-        values: Array.from(values).sort()
-    })).sort((a, b) => a.key.localeCompare(b.key));
+        values: Array.from(values).sort(),
+      }))
+      .sort((a, b) => a.key.localeCompare(b.key));
 
-    return { 
-        availableSubcats: subcats.sort(), 
-        availableBrands: brands.sort(),
-        availableSpecs: specsArray
+    return {
+      availableSubcats: subcats.sort(),
+      availableBrands: brands.sort(),
+      availableSpecs: specsArray,
     };
-  }, [selectedCategory, allProducts]);
-
+  }, [selectedCategory, allProducts, categories]);
 
   // --- 4. MASTER FILTER LOGIC ---
   const filteredProducts = useMemo(() => {
     return allProducts.filter((product: any) => {
-      const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
-      const matchesSubcat = selectedSubcats.length === 0 || (product.subcategory && selectedSubcats.includes(product.subcategory));
-      const matchesBrand = selectedBrands.length === 0 || (product.brand && selectedBrands.includes(product.brand));
-      
-      const matchesSpecs = Object.entries(selectedSpecs).every(([key, values]) => {
-          if (values.length === 0) return true;
-          return product.specs && product.specs[key] && values.includes(product.specs[key]);
-      });
+      const matchesCategory =
+        selectedCategory === 'All' || product.category === selectedCategory;
+      const matchesSubcat =
+        selectedSubcats.length === 0 ||
+        (product.subcategory && selectedSubcats.includes(product.subcategory));
+      const matchesBrand =
+        selectedBrands.length === 0 ||
+        (product.brand && selectedBrands.includes(product.brand));
 
-      // (matchesPrice logic Removed)
-        
-      const matchesDelivery = fastDeliveryOnly ? product.tag !== 'Sold Out' : true;
+      const matchesSpecs = Object.entries(selectedSpecs).every(
+        ([key, values]) => {
+          if (values.length === 0) return true;
+          return (
+            product.specs &&
+            product.specs[key] &&
+            values.includes(product.specs[key])
+          );
+        }
+      );
+
+      const matchesDelivery = fastDeliveryOnly
+        ? product.tag !== 'Sold Out'
+        : true;
 
       const searchLower = searchTerm.toLowerCase();
-      const matchesSearch = 
-        product.name.toLowerCase().includes(searchLower) || 
-        (product.category && product.category.toLowerCase().includes(searchLower)) ||
+      const matchesSearch =
+        product.name.toLowerCase().includes(searchLower) ||
+        (product.category &&
+          product.category.toLowerCase().includes(searchLower)) ||
         (product.brand && product.brand.toLowerCase().includes(searchLower));
 
-      return matchesCategory && matchesSubcat && matchesBrand && matchesSpecs && matchesDelivery && matchesSearch;
+      return (
+        matchesCategory &&
+        matchesSubcat &&
+        matchesBrand &&
+        matchesSpecs &&
+        matchesDelivery &&
+        matchesSearch
+      );
     });
-  }, [allProducts, selectedCategory, selectedSubcats, selectedBrands, selectedSpecs, fastDeliveryOnly, searchTerm]);
-
+  }, [
+    allProducts,
+    selectedCategory,
+    selectedSubcats,
+    selectedBrands,
+    selectedSpecs,
+    fastDeliveryOnly,
+    searchTerm,
+  ]);
 
   // --- HANDLERS ---
   const handleCategoryChange = (cat: string) => {
-      setSelectedCategory(cat);
-      setSelectedSubcats([]); 
-      setSelectedBrands([]);
-      setSelectedSpecs({});
-      
-      const newParams = new URLSearchParams(searchParams);
-      if (cat === 'All') newParams.delete('category');
-      else newParams.set('category', cat);
-      setSearchParams(newParams);
+    setSelectedCategory(cat);
+    setSelectedSubcats([]);
+    setSelectedBrands([]);
+    setSelectedSpecs({});
+
+    const newParams = new URLSearchParams(searchParams);
+    if (cat === 'All') newParams.delete('category');
+    else newParams.set('category', cat);
+    setSearchParams(newParams);
+  };
+
+  const toggleSubcat = (sub: string) => {
+    if (selectedSubcats.includes(sub))
+      setSelectedSubcats((prev) => prev.filter((s) => s !== sub));
+    else setSelectedSubcats((prev) => [...prev, sub]);
   };
 
   const toggleFilter = (item: string, list: string[], setList: Function) => {
-      if (list.includes(item)) setList(list.filter(i => i !== item));
-      else setList([...list, item]);
+    if (list.includes(item)) setList(list.filter((i: string) => i !== item));
+    else setList([...list, item]);
   };
 
   const toggleSpec = (key: string, value: string) => {
-      setSelectedSpecs(prev => {
-          const currentValues = prev[key] || [];
-          const newValues = currentValues.includes(value)
-             ? currentValues.filter(v => v !== value)
-             : [...currentValues, value];
-          
-          if (newValues.length === 0) {
-              const { [key]: _, ...rest } = prev;
-              return rest;
-          }
-          return { ...prev, [key]: newValues };
-      });
+    setSelectedSpecs((prev) => {
+      const currentValues = prev[key] || [];
+      const newValues = currentValues.includes(value)
+        ? currentValues.filter((v) => v !== value)
+        : [...currentValues, value];
+
+      if (newValues.length === 0) {
+        const { [key]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [key]: newValues };
+    });
   };
 
   const clearSearch = () => {
@@ -4042,7 +5479,6 @@ const Shop = () => {
 
   const resetAllFilters = () => {
     clearSearch();
-    // (setSelectedPrice(null) Removed)
     setSelectedSubcats([]);
     setSelectedBrands([]);
     setSelectedSpecs({});
@@ -4059,134 +5495,301 @@ const Shop = () => {
     }
   };
 
-  // --- HELPER COMPONENT ---
-  const FilterSection = ({ title, children, defaultOpen = true }: any) => {
-      const [isOpen, setIsOpen] = useState(defaultOpen);
-      return (
-          <div className="border-b border-gray-100 py-4">
-              <button onClick={() => setIsOpen(!isOpen)} className="flex items-center justify-between w-full mb-2 group">
-                  <span className="font-bold text-sm text-gray-900 uppercase tracking-wide group-hover:text-blue-600 transition-colors">{title}</span>
-                  {isOpen ? <ChevronUp size={16} className="text-gray-400"/> : <ChevronDown size={16} className="text-gray-400"/>}
+  // --- RENDER HELPERS (no hooks inside, just functions) ---
+
+  const renderSubcategoryScroller = () => {
+    if (
+      selectedCategory === 'All' ||
+      availableSubcats.length === 0 ||
+      !isHeroMode
+    )
+      return null;
+
+    const getSubImage = (subName: string) => {
+      const catObj = categories.find((c) => c.name === selectedCategory);
+      const subObj = Array.isArray(catObj?.subcategories)
+        ? catObj?.subcategories.find(
+            (s: any) => s.name === subName || s === subName
+          )
+        : null;
+
+      if (subObj && typeof subObj === 'object' && subObj.image_url)
+        return subObj.image_url;
+      return 'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=300&auto=format&fit=crop';
+    };
+
+    return (
+      <div className="mb-10 animate-in slide-in-from-top-4 duration-500">
+        <div className="flex items-center gap-2 mb-4">
+          <h3 className="font-bold text-lg text-gray-900">
+            Explore {selectedCategory}
+          </h3>
+          {selectedSubcats.length > 0 && (
+            <span
+              className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full cursor-pointer"
+              onClick={() => setSelectedSubcats([])}
+            >
+              Clear
+            </span>
+          )}
+        </div>
+
+        <div className="flex gap-4 overflow-x-auto pb-6 scrollbar-hide snap-x">
+          {availableSubcats.map((sub: any) => {
+            const isSelected = selectedSubcats.includes(sub);
+            return (
+              <button
+                key={sub}
+                onClick={() => toggleSubcat(sub)}
+                className={`relative min-w-[160px] h-[220px] rounded-3xl overflow-hidden group transition-all duration-300 snap-center ${
+                  isSelected
+                    ? 'ring-4 ring-offset-2 ring-[#fbbf24] ring-offset-black'
+                    : 'hover:-translate-y-2'
+                } hover:shadow-[0_0_25px_rgba(251,191,36,0.6)]`}
+              >
+                <img
+                  src={getSubImage(sub)}
+                  alt={sub}
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                />
+
+                <div
+                  className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent transition-opacity ${
+                    isSelected
+                      ? 'opacity-90'
+                      : 'opacity-70 group-hover:opacity-60'
+                  }`}
+                />
+
+                <div className="absolute inset-0 bg-gradient-to-t from-[#fbbf24]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none mix-blend-overlay" />
+
+                <div className="absolute bottom-0 left-0 right-0 p-5 text-left">
+                  <Lightbulb
+                    size={24}
+                    className={`mb-2 ${
+                      isSelected || 'group-hover:text-[#fbbf24]'
+                    } text-white/80 transition-colors`}
+                  />
+                  <span
+                    className={`block font-bold text-xl leading-tight ${
+                      isSelected || 'group-hover:text-[#fbbf24]'
+                        ? 'text-white'
+                        : 'text-white'
+                    }`}
+                  >
+                    {sub}
+                  </span>
+                  {isSelected && (
+                    <div className="mt-2 h-1 w-8 rounded-full bg-[#fbbf24]" />
+                  )}
+                </div>
               </button>
-              {isOpen && <div className="space-y-2 animate-in slide-in-from-top-1 duration-200">{children}</div>}
-          </div>
-      );
+            );
+          })}
+        </div>
+      </div>
+    );
   };
 
-  // --- RENDER SIDEBAR ---
-  const FilterContent = () => (
+  const renderFilterContent = () => (
     <div className="space-y-1 pr-2">
-      
-      {/* 1. DRILL-DOWN CATEGORY LOGIC */}
+      {/* 1. CATEGORY LIST */}
       <div className="pb-6 border-b border-gray-100 mb-4">
-        <h3 className="font-bold text-sm text-gray-900 mb-3 uppercase tracking-wider">Department</h3>
-        
+        <h3 className="font-bold text-sm text-gray-900 mb-3 uppercase tracking-wider">
+          Department
+        </h3>
+
         {selectedCategory === 'All' ? (
-            /* MODE A: Show All Categories */
-            <div className="space-y-1">
-                {categories.map(cat => (
-                    <button 
-                        key={cat} 
-                        onClick={() => handleCategoryChange(cat)}
-                        className="flex items-center justify-between w-full text-left py-1.5 text-sm text-gray-600 hover:text-blue-600 hover:bg-gray-50 px-2 rounded-lg transition-colors"
-                    >
-                        {cat} <ChevronRight size={14} className="text-gray-300"/>
-                    </button>
-                ))}
-            </div>
+          <div className="space-y-1">
+            {categories.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => handleCategoryChange(cat.name)}
+                className="flex items-center justify-between w-full text-left py-1.5 text-sm text-gray-600 hover:text-blue-600 hover:bg-gray-50 px-2 rounded-lg transition-colors"
+              >
+                {cat.name}
+                <ChevronRight size={14} className="text-gray-300" />
+              </button>
+            ))}
+          </div>
         ) : (
-            /* MODE B: Selected Category (Drill Down View) */
-            <div className="animate-in slide-in-from-left-2 duration-300">
-                <button 
-                    onClick={() => handleCategoryChange('All')}
-                    className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-900 mb-3 transition-colors font-medium"
-                >
-                    <ChevronLeft size={14} /> All Departments
-                </button>
-                
-                <div className="font-bold text-lg text-gray-900 px-3 border-l-4 border-blue-600 bg-blue-50/50 py-2 rounded-r-lg">
-                    {selectedCategory}
-                </div>
+          // no horizontal slide here to avoid flicker
+          <div>
+            <button
+              onClick={() => handleCategoryChange('All')}
+              className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-900 mb-3 transition-colors font-medium"
+            >
+              <ChevronLeft size={14} /> All Departments
+            </button>
+            <div className="font-bold text-lg text-gray-900 px-3 border-l-4 border-blue-600 bg-blue-50/50 py-2 rounded-r-lg">
+              {selectedCategory}
             </div>
+          </div>
         )}
       </div>
 
-      {/* 2. DYNAMIC FILTERS (Only visible when a category is selected) */}
+      {/* 2. DYNAMIC FILTERS */}
       {selectedCategory !== 'All' && (
-          <>
-            <div className="pb-4 border-b border-gray-100">
-                <label className="flex items-center gap-3 cursor-pointer group p-1.5 rounded hover:bg-gray-50">
-                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${fastDeliveryOnly ? 'bg-blue-600 border-blue-600' : 'border-gray-300 bg-white group-hover:border-blue-400'}`}>
-                        {fastDeliveryOnly && <Check size={12} className="text-white" />}
-                    </div>
-                    <input type="checkbox" className="hidden" checked={fastDeliveryOnly} onChange={() => setFastDeliveryOnly(!fastDeliveryOnly)} />
-                    <div className="text-sm text-gray-700">
-                        <span className="font-bold text-blue-600 italic">Fast</span> Delivery
-                    </div>
+        <>
+          <div className="pb-4 border-b border-gray-100">
+            <label className="flex items-center gap-3 cursor-pointer group p-2 rounded-lg hover:bg-blue-50/50 transition-colors">
+              <div
+                className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                  fastDeliveryOnly
+                    ? 'bg-blue-600 border-blue-600'
+                    : 'border-gray-300 bg-white group-hover:border-blue-400'
+                }`}
+              >
+                {fastDeliveryOnly && <Check size={12} className="text-white" />}
+              </div>
+              <input
+                type="checkbox"
+                className="hidden"
+                checked={fastDeliveryOnly}
+                onChange={() => setFastDeliveryOnly(!fastDeliveryOnly)}
+              />
+              <div className="text-sm text-gray-700">
+                <span className="font-bold text-blue-600 italic flex items-center gap-1">
+                  <Zap size={12} fill="currentColor" /> Fast
+                </span>{' '}
+                Delivery
+              </div>
+            </label>
+          </div>
+
+          {/* ONLY SHOW SIDEBAR SUBCATS IF *NOT* HERO MODE */}
+          {!isHeroMode && availableSubcats.length > 0 && (
+            <FilterSection title="Subcategory">
+              {availableSubcats.map((sub: any) => (
+                <label
+                  key={sub}
+                  className="flex items-center gap-3 cursor-pointer group hover:bg-gray-50 p-1.5 rounded-lg transition-colors"
+                >
+                  <div
+                    className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                      selectedSubcats.includes(sub)
+                        ? 'bg-blue-600 border-blue-600'
+                        : 'border-gray-300 bg-white group-hover:border-blue-400'
+                    }`}
+                  >
+                    {selectedSubcats.includes(sub) && (
+                      <Check size={10} className="text-white" />
+                    )}
+                  </div>
+                  <input
+                    type="checkbox"
+                    className="hidden"
+                    checked={selectedSubcats.includes(sub)}
+                    onChange={() => toggleSubcat(sub)}
+                  />
+                  <span
+                    className={`text-sm ${
+                      selectedSubcats.includes(sub)
+                        ? 'text-gray-900 font-medium'
+                        : 'text-gray-600'
+                    }`}
+                  >
+                    {sub}
+                  </span>
                 </label>
-            </div>
+              ))}
+            </FilterSection>
+          )}
 
-            {/* Subcategories */}
-            {availableSubcats.length > 0 && (
-                <FilterSection title="Subcategory">
-                    {availableSubcats.map((sub: any) => (
-                        <label key={sub} className="flex items-center gap-3 cursor-pointer group hover:bg-gray-50 p-1.5 rounded-lg transition-colors">
-                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedSubcats.includes(sub) ? 'bg-blue-600 border-blue-600' : 'border-gray-300 bg-white group-hover:border-blue-400'}`}>
-                                {selectedSubcats.includes(sub) && <Check size={10} className="text-white" />}
-                            </div>
-                            <input type="checkbox" className="hidden" checked={selectedSubcats.includes(sub)} onChange={() => toggleFilter(sub, selectedSubcats, setSelectedSubcats)} />
-                            <span className={`text-sm ${selectedSubcats.includes(sub) ? 'text-gray-900 font-medium' : 'text-gray-600'}`}>{sub}</span>
-                        </label>
-                    ))}
-                </FilterSection>
-            )}
+          {/* Brands */}
+          {availableBrands.length > 0 && (
+            <FilterSection title="Brands">
+              {availableBrands.map((brand: any) => (
+                <label
+                  key={brand}
+                  className="flex items-center gap-3 cursor-pointer group hover:bg-gray-50 p-1.5 rounded-lg transition-colors"
+                >
+                  <div
+                    className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                      selectedBrands.includes(brand)
+                        ? 'bg-gray-900 border-gray-900'
+                        : 'border-gray-300 bg-white group-hover:border-gray-500'
+                    }`}
+                  >
+                    {selectedBrands.includes(brand) && (
+                      <Check size={10} className="text-white" />
+                    )}
+                  </div>
+                  <input
+                    type="checkbox"
+                    className="hidden"
+                    checked={selectedBrands.includes(brand)}
+                    onChange={() =>
+                      toggleFilter(brand, selectedBrands, setSelectedBrands)
+                    }
+                  />
+                  <span
+                    className={`text-sm ${
+                      selectedBrands.includes(brand)
+                        ? 'text-gray-900 font-bold'
+                        : 'text-gray-600'
+                    }`}
+                  >
+                    {brand}
+                  </span>
+                </label>
+              ))}
+            </FilterSection>
+          )}
 
-            {/* Brands */}
-            {availableBrands.length > 0 && (
-                <FilterSection title="Brands">
-                    {availableBrands.map((brand: any) => (
-                        <label key={brand} className="flex items-center gap-3 cursor-pointer group hover:bg-gray-50 p-1.5 rounded-lg transition-colors">
-                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedBrands.includes(brand) ? 'bg-blue-600 border-blue-600' : 'border-gray-300 bg-white group-hover:border-blue-400'}`}>
-                                {selectedBrands.includes(brand) && <Check size={10} className="text-white" />}
-                            </div>
-                            <input type="checkbox" className="hidden" checked={selectedBrands.includes(brand)} onChange={() => toggleFilter(brand, selectedBrands, setSelectedBrands)} />
-                            <span className={`text-sm ${selectedBrands.includes(brand) ? 'text-gray-900 font-medium' : 'text-gray-600'}`}>{brand}</span>
-                        </label>
-                    ))}
-                </FilterSection>
-            )}
-
-            {/* Dynamic Specs */}
-            {availableSpecs.map((specGroup: any) => (
-                <FilterSection key={specGroup.key} title={specGroup.key} defaultOpen={false}>
-                    {specGroup.values.map((val: string) => {
-                        const isChecked = selectedSpecs[specGroup.key]?.includes(val);
-                        return (
-                            <label key={val} className="flex items-center gap-3 cursor-pointer group hover:bg-gray-50 p-1.5 rounded-lg transition-colors">
-                                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isChecked ? 'bg-blue-600 border-blue-600' : 'border-gray-300 bg-white group-hover:border-blue-400'}`}>
-                                    {isChecked && <Check size={10} className="text-white" />}
-                                </div>
-                                <input type="checkbox" className="hidden" checked={isChecked || false} onChange={() => toggleSpec(specGroup.key, val)} />
-                                <span className={`text-sm ${isChecked ? 'text-gray-900 font-medium' : 'text-gray-600'}`}>{val}</span>
-                            </label>
-                        );
-                    })}
-                </FilterSection>
-            ))}
-          </>
+          {/* Dynamic Specs */}
+          {availableSpecs.map((specGroup: any) => (
+            <FilterSection
+              key={specGroup.key}
+              title={specGroup.key}
+              defaultOpen={false}
+            >
+              {specGroup.values.map((val: string) => {
+                const isChecked = selectedSpecs[specGroup.key]?.includes(val);
+                return (
+                  <label
+                    key={val}
+                    className="flex items-center gap-3 cursor-pointer group hover:bg-gray-50 p-1.5 rounded-lg transition-colors"
+                  >
+                    <div
+                      className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                        isChecked
+                          ? 'bg-gray-900 border-gray-900'
+                          : 'border-gray-300 bg-white group-hover:border-gray-500'
+                      }`}
+                    >
+                      {isChecked && (
+                        <Check size={10} className="text-white" />
+                      )}
+                    </div>
+                    <input
+                      type="checkbox"
+                      className="hidden"
+                      checked={isChecked || false}
+                      onChange={() => toggleSpec(specGroup.key, val)}
+                    />
+                    <span
+                      className={`text-sm ${
+                        isChecked ? 'text-gray-900 font-medium' : 'text-gray-600'
+                      }`}
+                    >
+                      {val}
+                    </span>
+                  </label>
+                );
+              })}
+            </FilterSection>
+          ))}
+        </>
       )}
-      
-      {/* (PRICE FILTER SECTION REMOVED) */}
-
     </div>
   );
 
   return (
     <div className="container mx-auto px-4 pt-8 pb-24 min-h-screen">
-      
-      {/* MOBILE FILTER TOGGLE */}
+      {/* MOBILE TOGGLE */}
       <div className="lg:hidden mb-6 flex gap-3 sticky top-[72px] z-30 bg-white/80 backdrop-blur-md py-3 border-b border-gray-100">
-        <button 
+        <button
           onClick={() => setShowMobileFilters(true)}
           className="flex-1 bg-gray-900 text-white p-3 rounded-xl flex items-center justify-center gap-2 font-bold shadow-md active:scale-95 transition-transform"
         >
@@ -4195,62 +5798,84 @@ const Shop = () => {
       </div>
 
       <div className="flex flex-col lg:flex-row gap-12">
-        
         {/* SIDEBAR */}
-        <aside className="hidden lg:block w-64 space-y-8 h-fit sticky top-24 flex-shrink-0">
+        <aside className="hidden lg:block w-64 space-y-8 h-fit sticky top-24 flex-shrink-0 animate-in fade-in-0 slide-in-from-left-4 duration-500">
           <div className="flex items-center justify-between mb-2">
-             <h2 className="text-xl font-bold">Filters</h2>
-             {(selectedCategory !== 'All' || selectedSubcats.length > 0 || selectedBrands.length > 0 || Object.keys(selectedSpecs).length > 0 || fastDeliveryOnly) && (
-                 <button onClick={resetAllFilters} className="text-xs text-red-500 font-bold hover:underline">Clear All</button>
-             )}
+            <h2 className="text-xl font-bold">Filters</h2>
+            {(selectedCategory !== 'All' ||
+              selectedSubcats.length > 0 ||
+              selectedBrands.length > 0 ||
+              Object.keys(selectedSpecs).length > 0 ||
+              fastDeliveryOnly) && (
+              <button
+                onClick={resetAllFilters}
+                className="text-xs text-red-500 font-bold hover:underline"
+              >
+                Clear All
+              </button>
+            )}
           </div>
           <div className="h-px bg-gray-200 w-full mb-6" />
-          <FilterContent />
+          {renderFilterContent()}
         </aside>
 
         {/* MAIN CONTENT */}
         <div className="flex-1">
+          {/* SUBCATEGORY HORIZONTAL HERO */}
+          {renderSubcategoryScroller()}
+
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
             <div>
-                <h1 className="text-3xl font-bold flex items-center gap-2 mb-1">
-                    {selectedCategory === 'All' ? 'All Products' : selectedCategory}
-                </h1>
-                <p className="text-gray-500 text-sm">
-                    {filteredProducts.length} results found
-                </p>
+              <h1 className="text-3xl font-bold flex items-center gap-2 mb-1">
+                {selectedCategory === 'All' ? 'All Products' : selectedCategory}
+              </h1>
+              <p className="text-gray-500 text-sm">
+                {filteredProducts.length} results found
+              </p>
             </div>
-            
+
             {searchTerm && (
-                <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-medium border border-blue-100 self-start md:self-auto">
-                    <span>Search: "{searchTerm}"</span>
-                    <button onClick={clearSearch} className="hover:text-blue-900"><X size={14}/></button>
-                </div>
+              <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-medium border border-blue-100 self-start md:self-auto">
+                <span>Search: "{searchTerm}"</span>
+                <button onClick={clearSearch} className="hover:text-blue-900">
+                  <X size={14} />
+                </button>
+              </div>
             )}
           </div>
 
           {loading ? (
-             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-               {[1,2,3,4,5,6].map(i => <div key={i} className="h-80 bg-gray-100 rounded-2xl animate-pulse"></div>)}
-             </div>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div
+                  key={i}
+                  className="h-80 bg-gray-100 rounded-2xl animate-pulse"
+                ></div>
+              ))}
+            </div>
           ) : filteredProducts.length > 0 ? (
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-              {filteredProducts.map(product => (
+              {filteredProducts.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
             </div>
           ) : (
             <div className="bg-gray-50 p-12 rounded-xl text-center border border-dashed border-gray-300 mt-4">
               <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
-                  <Search size={32} />
+                <Search size={32} />
               </div>
-              <h3 className="text-xl font-bold text-gray-800">No products found</h3>
-              <p className="text-gray-500 mt-2">Try clearing filters or changing your search.</p>
-              
+              <h3 className="text-xl font-bold text-gray-800">
+                No products found
+              </h3>
+              <p className="text-gray-500 mt-2">
+                Try clearing filters or changing your search.
+              </p>
+
               {suggestion && (
                 <div className="mt-6 bg-gray-100 border border-gray-200 p-4 rounded-lg inline-block">
                   <p className="text-gray-600 text-sm mb-1">Did you mean?</p>
-                  <button 
-                    onClick={applySuggestion} 
+                  <button
+                    onClick={applySuggestion}
                     className="text-lg font-bold text-blue-600 flex items-center gap-2 mx-auto hover:underline"
                   >
                     {suggestion} <ArrowRight size={16} />
@@ -4259,7 +5884,12 @@ const Shop = () => {
               )}
 
               <div className="mt-8">
-                  <button onClick={resetAllFilters} className="text-blue-600 font-bold hover:underline">Clear all filters</button>
+                <button
+                  onClick={resetAllFilters}
+                  className="text-blue-600 font-bold hover:underline"
+                >
+                  Clear all filters
+                </button>
               </div>
             </div>
           )}
@@ -4269,29 +5899,40 @@ const Shop = () => {
       {/* MOBILE DRAWER */}
       {showMobileFilters && (
         <div className="fixed inset-0 z-[100] lg:hidden">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowMobileFilters(false)}></div>
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowMobileFilters(false)}
+          ></div>
           <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl p-6 pb-safe h-[85vh] overflow-y-auto animate-in slide-in-from-bottom-full duration-300 flex flex-col">
             <div className="flex justify-between items-center mb-6 sticky top-0 bg-white z-10 border-b pb-4">
               <h2 className="text-2xl font-bold">Filters</h2>
-              <button onClick={() => setShowMobileFilters(false)} className="p-2 bg-gray-100 rounded-full">
+              <button
+                onClick={() => setShowMobileFilters(false)}
+                className="p-2 bg-gray-100 rounded-full"
+              >
                 <X size={20} />
               </button>
             </div>
-            
-            <div className="flex-1 overflow-y-auto">
-                <FilterContent />
-            </div>
+
+            <div className="flex-1 overflow-y-auto">{renderFilterContent()}</div>
 
             <div className="sticky bottom-0 bg-white pt-4 mt-4 border-t border-gray-100 flex gap-3">
-              <button onClick={resetAllFilters} className="flex-1 py-4 font-bold text-gray-500 hover:bg-gray-50 rounded-xl">Reset</button>
-              <button onClick={() => setShowMobileFilters(false)} className="flex-[2] bg-gray-900 text-white py-4 rounded-xl font-bold text-lg shadow-lg">
+              <button
+                onClick={resetAllFilters}
+                className="flex-1 py-4 font-bold text-gray-500 hover:bg-gray-50 rounded-xl"
+              >
+                Reset
+              </button>
+              <button
+                onClick={() => setShowMobileFilters(false)}
+                className="flex-[2] bg-gray-900 text-white py-4 rounded-xl font-bold text-lg shadow-lg"
+              >
                 View {filteredProducts.length} Items
               </button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 };
@@ -4669,7 +6310,7 @@ import AdminLayout from './components/layout/AdminLayout';
 // --- Pages: AUTH ---
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
-import UpdatePassword from './pages/auth/UpdatePassword'; // <--- Newly Added Import
+import UpdatePassword from './pages/auth/UpdatePassword';
 
 // --- Pages: CLIENT ---
 import HomePage from './pages/client/Home';
@@ -4683,6 +6324,8 @@ import OrderHistory from './pages/client/OrderHistory';
 import About from './pages/client/About';
 import Contact from './pages/client/Contact';
 import Terms from './pages/client/Terms';
+import OrderInvoice from './pages/client/OrderInvoice';
+import BuyAgain from './pages/client/BuyAgain';
 
 // --- Pages: ADMIN ---
 import AdminDashboard from './pages/admin/Dashboard';
@@ -4690,32 +6333,35 @@ import ManageProducts from './pages/admin/ManageProducts';
 import ManageOrders from './pages/admin/ManageOrders';
 import ManageCategories from './pages/admin/ManageCategories';
 import Inventory from './pages/admin/Inventory';
+import OrderInvoiceAdmin from './pages/admin/OrderInvoiceAdmin';
 
 function App() {
   return (
     <Routes>
-      
       {/* =========================================
-          CLIENT ROUTES (Navbar + Footer) 
+          CLIENT ROUTES (Navbar + Footer)
           ========================================= */}
       <Route path="/" element={<ClientLayout />}>
+        {/* Main */}
         <Route index element={<HomePage />} />
         <Route path="shop" element={<ShopPage />} />
         <Route path="product/:id" element={<ProductDetails />} />
         <Route path="cart" element={<Cart />} />
         <Route path="checkout" element={<Checkout />} />
-        
+
         {/* User Account Section */}
         <Route path="account" element={<UserAccount />} />
-        <Route path="account/update-password" element={<UpdatePassword />} /> {/* <--- New Route Added Here */}
+        <Route path="account/update-password" element={<UpdatePassword />} />
         <Route path="orders" element={<OrderHistory />} />
+        <Route path="orders/:id" element={<OrderInvoice />} />
+        <Route path="buy-again/:orderId" element={<BuyAgain />} />
         <Route path="wishlist" element={<Wishlist />} />
-        
+
         {/* Info Pages */}
         <Route path="about" element={<About />} />
         <Route path="contact" element={<Contact />} />
         <Route path="terms" element={<Terms />} />
-        
+
         {/* Footer Links Placeholders */}
         <Route path="privacy" element={<Terms />} />
         <Route path="cookies" element={<Terms />} />
@@ -4724,31 +6370,30 @@ function App() {
       </Route>
 
       {/* =========================================
-          ADMIN ROUTES (Sidebar + Dashboard) 
+          ADMIN ROUTES (Sidebar + Dashboard)
           ========================================= */}
       <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<AdminDashboard />} />
-        
+
         {/* Product Management */}
         <Route path="products" element={<ManageProducts />} />
         <Route path="inventory" element={<Inventory />} />
         <Route path="categories" element={<ManageCategories />} />
-        
+
         {/* Order Management */}
         <Route path="orders" element={<ManageOrders />} />
-        
+        <Route path="orders/:id" element={<OrderInvoiceAdmin />} />
+
         {/* Placeholders */}
         <Route path="analytics" element={<AdminDashboard />} />
         <Route path="settings" element={<AdminDashboard />} />
       </Route>
 
       {/* =========================================
-          AUTH ROUTES (No Layout) 
+          AUTH ROUTES (No Layout)
           ========================================= */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-      
-      
     </Routes>
   );
 }

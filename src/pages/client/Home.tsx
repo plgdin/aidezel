@@ -1,11 +1,41 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronRight, ChevronLeft, Zap, User, ShoppingCart, Loader2 } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Zap, User, ShoppingCart, Loader2, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import ProductCard, { Product } from '../../components/shared/ProductCard';
 
-// --- HERO BANNER (FIXED WITH NAVIGATION) ---
+// --- HELPER: Extract Dominant Color from Image ---
+const getAverageColor = (imageUrl: string): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.src = imageUrl;
+    
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve('#ffffff'); // Fallback
+        return;
+      }
+      canvas.width = 1;
+      canvas.height = 1;
+      
+      // Draw image to 1x1 canvas to get average color
+      ctx.drawImage(img, 0, 0, 1, 1);
+      const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+      
+      resolve(`rgb(${r},${g},${b})`);
+    };
+
+    img.onerror = () => {
+      resolve('#ffffff'); // Fallback on error
+    };
+  });
+};
+
+// --- HERO BANNER ---
 interface HeroBannerProps {
   heroProduct: any;
   heroCount: number;
@@ -16,7 +46,47 @@ interface HeroBannerProps {
 const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [dominantColor, setDominantColor] = useState<string>('rgb(255,255,255)'); 
+
+  // --- SWIPE LOGIC STATE ---
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const minSwipeDistance = 50; // Threshold for a valid swipe
+
+  // 1. Detect Color when heroProduct changes
+  useEffect(() => {
+    if (heroProduct && heroProduct.image_url) {
+      getAverageColor(heroProduct.image_url).then((color) => {
+        setDominantColor(color);
+      });
+    }
+  }, [heroProduct]);
   
+  // 2. Swipe Handlers
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+    
+    if (isLeftSwipe) {
+      onNext();
+    }
+    if (isRightSwipe) {
+      onPrev();
+    }
+  };
+
+  // 3. Desktop Canvas Animation Logic
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -62,7 +132,6 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
         const dy = mouse.y - dot.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const hoverRadius = 150;
-
         if (dist < hoverRadius) {
           const force = (hoverRadius - dist) / hoverRadius;
           const lift = force * 20;
@@ -85,24 +154,20 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
 
     init();
     animate();
-
     const handleMouseMove = (e: MouseEvent) => {
       const rect = container.getBoundingClientRect();
       mouse.x = e.clientX - rect.left;
       mouse.y = e.clientY - rect.top;
     };
-
     const handleMouseLeave = () => {
       mouse.x = -1000;
       mouse.y = -1000;
     };
-
     const handleResize = () => init();
 
     container.addEventListener('mousemove', handleMouseMove);
     container.addEventListener('mouseleave', handleMouseLeave);
     window.addEventListener('resize', handleResize);
-
     return () => {
       container.removeEventListener('mousemove', handleMouseMove);
       container.removeEventListener('mouseleave', handleMouseLeave);
@@ -111,37 +176,110 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
   }, []);
 
   return (
-    <div className="w-full bg-transparent py-8 lg:py-12">
-      <div className="container mx-auto px-4">
-        
+    <div className="w-full bg-transparent py-4 lg:py-12">
+      {/* ================================================================
+        MOBILE HERO (Amazon Style - Taller Card with SWIPE) - md:hidden
+        ================================================================
+      */}
+      <div 
+        className="md:hidden px-4"
+        // Attach Swipe Handlers to the container
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        <div 
+          className="relative w-full rounded-2xl overflow-hidden shadow-md border border-white/20 min-h-[520px] flex flex-col"
+          style={{
+            // The gradient magic: Matches the Amazon feel of blending into the page
+            background: `linear-gradient(180deg, ${dominantColor} 0%, rgba(229, 237, 247, 0.9) 85%, #e5edf7 100%)`
+          }}
+        >
+          {/* Top Content: Text First (Like Amazon) */}
+          <div className="p-6 pb-2 z-10 flex flex-col items-start w-full">
+             <span className="bg-black/90 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-3 shadow-sm">
+                {heroProduct ? 'Deal of the Day' : 'Featured'}
+             </span>
+             
+             <motion.div
+               key={heroProduct ? `txt-${heroProduct.id}` : 'mob-txt'}
+               initial={{ opacity: 0, y: -5 }}
+               animate={{ opacity: 1, y: 0 }}
+               className="text-left"
+             >
+                <h2 className="text-3xl font-black text-slate-900 leading-[1.1] mb-2 drop-shadow-sm">
+                   {heroProduct ? heroProduct.name : 'Loading...'}
+                </h2>
+                <p className="text-sm text-slate-800 font-medium opacity-90 line-clamp-2">
+                   {heroProduct?.description}
+                </p>
+             </motion.div>
+          </div>
+
+          {/* Middle: Big Image - FIXED WITH ROUNDED CONTAINER */}
+          <div className="flex-1 relative flex items-center justify-center p-4">
+             {heroProduct ? (
+               <motion.div 
+                 className="relative rounded-[32px] overflow-hidden shadow-2xl border-4 border-white/20"
+                 initial={{ opacity: 0, scale: 0.9 }}
+                 animate={{ opacity: 1, scale: 1 }}
+                 transition={{ duration: 0.5 }}
+               >
+                 <img 
+                   src={heroProduct.image_url} 
+                   alt={heroProduct.name} 
+                   className="w-full h-auto max-h-[300px] object-cover"
+                   draggable={false} 
+                 />
+               </motion.div>
+             ) : (
+               <Loader2 className="animate-spin text-gray-400" />
+             )}
+          </div>
+
+          {/* Bottom: CTA */}
+          <div className="p-4 z-10">
+              <Link 
+                to={heroProduct ? `/product/${heroProduct.id}` : '#'} 
+                className="flex items-center justify-between w-full bg-slate-900 text-white px-6 py-4 rounded-xl font-bold text-sm shadow-xl active:scale-95 transition-transform"
+              >
+                <span>Check {heroProduct?.price} Deal</span>
+                <ArrowRight size={18} />
+              </Link>
+          </div>
+
+          {/* NO ARROWS HERE - Swipe Enabled */}
+        </div>
+      </div>
+
+      {/* ================================================================
+        DESKTOP HERO (Original Glassmorphism) - hidden md:flex
+        ================================================================
+      */}
+      <div className="hidden md:block container mx-auto px-4">
         <div ref={containerRef} className="relative w-full rounded-[2.5rem] overflow-hidden bg-gradient-to-br from-[#0f172a] via-[#1e3a8a] to-[#172554] min-h-[500px] flex items-center shadow-2xl group/hero">
           
           <canvas ref={canvasRef} className="absolute inset-0 z-0" />
 
-          {/* --- LEFT GLASS SLIDER (Vertical Rectangle) --- */}
           {heroCount > 1 && (
             <button 
               onClick={onPrev}
-              // FIX: Removed 'flex' here because 'hidden md:flex' handles it correctly below
-              className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-12 h-24 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl hidden md:flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-lg"
+              className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-12 h-24 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-lg"
             >
               <ChevronLeft size={28} />
             </button>
           )}
 
-          {/* --- RIGHT GLASS SLIDER (Vertical Rectangle) --- */}
           {heroCount > 1 && (
             <button 
               onClick={onNext}
-              // FIX: Removed 'flex' here because 'hidden md:flex' handles it correctly below
-              className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-12 h-24 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl hidden md:flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-lg"
+              className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-12 h-24 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-lg"
             >
               <ChevronRight size={28} />
             </button>
           )}
           
           <div className="relative z-10 w-full px-8 lg:px-24 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            
             <motion.div 
               key={heroProduct ? heroProduct.id : 'loading'} 
               initial={{ opacity: 0, x: -30 }} 
@@ -149,7 +287,7 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
               transition={{ duration: 0.6 }}
             >
               <div className="inline-block border border-[#38bdf8]/50 px-4 py-1.5 rounded-full mb-6 bg-[#38bdf8]/10 backdrop-blur-md">
-                <span className="text-[#38bdf8] text-[10px] font-bold tracking-[0.15em] uppercase">
+                 <span className="text-[#38bdf8] text-[10px] font-bold tracking-[0.15em] uppercase">
                     {heroProduct ? 'Featured Product' : 'Limited Time Only'}
                 </span>
               </div>
@@ -160,11 +298,11 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
                         {heroProduct.name.split(' ').slice(0, 2).join(' ')} <br/>
                         <span className="text-[#93c5fd]">Now {heroProduct.price}</span>
                     </>
-                ) : (
+                  ) : (
                     <>
                         Price Drop <br/>
                         <span className="text-[#93c5fd]">Alert</span>
-                    </>
+                   </>
                 )}
               </h1>
               
@@ -187,7 +325,7 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
               transition={{ duration: 0.8 }} 
               className="relative w-full aspect-[16/10] rounded-3xl flex items-center justify-center overflow-hidden shadow-2xl bg-white/5 backdrop-blur-sm border border-white/10"
             >
-               {heroProduct ? (
+              {heroProduct ? (
                  <img 
                    src={heroProduct.image_url} 
                    alt={heroProduct.name} 
@@ -199,7 +337,6 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
                  </div>
                )}
             </motion.div>
-
           </div>
         </div>
       </div>
@@ -214,9 +351,8 @@ const HomePage: React.FC = () => {
   
   const [categories, setCategories] = useState<any[]>([]);
   const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
-  const scrollRef = useRef<HTMLDivElement>(null); 
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Derived state to check if we have more than 5 items
   const showArrows = categories.length > 5;
 
   useEffect(() => {
@@ -245,8 +381,6 @@ const HomePage: React.FC = () => {
           tag: 'Featured', 
           description: item.description, 
           image_url: item.image_url,
-          
-          // --- FIX: ADDED STOCK QUANTITY HERE ---
           stock_quantity: item.stock_quantity
         })));
       } else {
@@ -266,8 +400,6 @@ const HomePage: React.FC = () => {
                 tag: 'New', 
                 description: item.description, 
                 image_url: item.image_url,
-                
-                // --- FIX: ADDED STOCK QUANTITY HERE ---
                 stock_quantity: item.stock_quantity
             })));
         }
@@ -292,8 +424,6 @@ const HomePage: React.FC = () => {
                 price: `£${item.price}`, 
                 image: item.image_url, 
                 tag: 'New',
-                
-                // --- FIX: ADDED STOCK QUANTITY HERE ---
                 stock_quantity: item.stock_quantity
             })));
         }
@@ -326,7 +456,7 @@ const HomePage: React.FC = () => {
       const firstCard = container.querySelector('.snap-start') as HTMLElement;
       
       if (firstCard) {
-        const itemSize = firstCard.offsetWidth + 16; 
+        const itemSize = firstCard.offsetWidth + 16;
         const scrollAmount = itemSize * 3; 
 
         container.scrollBy({
@@ -373,9 +503,9 @@ const HomePage: React.FC = () => {
 
                 {/* SCROLL AREA */}
                 <div 
-                    ref={scrollRef}
-                    className="flex gap-4 overflow-x-auto flex-1 snap-x snap-mandatory scrollbar-hide scroll-smooth py-4"
-                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                  ref={scrollRef}
+                  className="flex gap-4 overflow-x-auto flex-1 snap-x snap-mandatory scrollbar-hide scroll-smooth py-4"
+                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                 >
                     {categories.map((cat, idx) => (
                     <div 
@@ -384,7 +514,6 @@ const HomePage: React.FC = () => {
                     >
                         <Link to={`/shop?category=${cat.name}`}>
                             <div className="group/card relative w-full aspect-[3/4] rounded-[2rem] overflow-hidden cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-slate-200 bg-white transform-gpu [-webkit-mask-image:linear-gradient(white,white)]">
-                                
                                 {cat.image_url ? (
                                     <img 
                                         src={cat.image_url} 
@@ -408,7 +537,6 @@ const HomePage: React.FC = () => {
                                         </span>
                                     </div>
                                 </div>
-
                             </div>
                         </Link>
                     </div>
@@ -469,13 +597,13 @@ const HomePage: React.FC = () => {
            ].map((item, idx) => (
              <div key={idx} className="bg-white border border-slate-200 p-8 rounded-2xl flex items-center gap-6 hover:border-[#3b82f6] hover:-translate-y-1 transition-all duration-300 shadow-sm group">
                <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-[#2563eb] group-hover:scale-110 transition-transform">
-                 <item.icon size={24} />
+                  <item.icon size={24} />
                </div>
                <div>
                  <h4 className="font-bold text-lg text-slate-900">{item.title}</h4>
                  <p className="text-slate-500 text-xs">{item.desc}</p>
                </div>
-             </div>
+              </div>
            ))}
         </section>
 

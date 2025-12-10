@@ -10,11 +10,26 @@ import {
   ChevronRight,
   Zap,
   Lightbulb,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import ProductCard, { Product } from '../../components/shared/ProductCard';
-import FilterSection from '../../components/filters/FilterSection'; // <-- correct path
+// If you have FilterSection as a separate component, keep it. 
+// If it was inline in your previous code, I've kept the inline version below to be safe based on your snippet.
+
+// --- MOCK IMAGES FOR SUBCATEGORIES ---
+const SUBCAT_IMAGES: Record<string, string> = {
+  'Indoor Lights': 'https://images.unsplash.com/photo-1513506003013-194a5d68d878?q=80&w=300&auto=format&fit=crop',
+  'Smart Lights': 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=300&auto=format&fit=crop',
+  'Decoration Lights': 'https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=300&auto=format&fit=crop',
+  'Outdoor Lights': 'https://images.unsplash.com/photo-1517850541248-3482597402dc?q=80&w=300&auto=format&fit=crop',
+  'Ceiling Lights': 'https://images.unsplash.com/photo-1513506003013-194a5d68d878?q=80&w=300&auto=format&fit=crop',
+  'Rings': 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?q=80&w=300&auto=format&fit=crop',
+  'Necklaces': 'https://images.unsplash.com/photo-1599643478518-17488fbbcd75?q=80&w=300&auto=format&fit=crop',
+  'default': 'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=300&auto=format&fit=crop'
+};
 
 // Define strict type for Category to include the toggle
 interface CategoryData {
@@ -291,7 +306,9 @@ const Shop = () => {
 
       if (subObj && typeof subObj === 'object' && subObj.image_url)
         return subObj.image_url;
-      return 'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=300&auto=format&fit=crop';
+        
+      // Use SUBCAT_IMAGES constant we restored at the top
+      return SUBCAT_IMAGES[subName] || SUBCAT_IMAGES['default'];
     };
 
     return (
@@ -310,7 +327,8 @@ const Shop = () => {
           )}
         </div>
 
-        <div className="flex gap-4 overflow-x-auto pb-6 scrollbar-hide snap-x">
+        {/* FIX APPLIED HERE: Added 'pt-4' to allow hover scaling without cutoff */}
+        <div className="flex gap-4 overflow-x-auto pb-6 pt-4 scrollbar-hide snap-x">
           {availableSubcats.map((sub: any) => {
             const isSelected = selectedSubcats.includes(sub);
             return (
@@ -367,6 +385,20 @@ const Shop = () => {
     );
   };
 
+  // Inline FilterSection component (in case you don't have it imported)
+  const FilterSection = ({ title, children, defaultOpen = true }: any) => {
+    const [isOpen, setIsOpen] = useState(defaultOpen);
+    return (
+        <div className="border-b border-gray-100 py-5">
+            <button onClick={() => setIsOpen(!isOpen)} className="flex items-center justify-between w-full mb-3 group">
+                <span className="font-bold text-sm text-gray-900 uppercase tracking-wide group-hover:text-blue-600 transition-colors">{title}</span>
+                {isOpen ? <ChevronUp size={16} className="text-gray-400"/> : <ChevronDown size={16} className="text-gray-400"/>}
+            </button>
+            {isOpen && <div className="space-y-2 animate-in slide-in-from-top-1 duration-200">{children}</div>}
+        </div>
+    );
+};
+
   const renderFilterContent = () => (
     <div className="space-y-1 pr-2">
       {/* 1. CATEGORY LIST */}
@@ -383,13 +415,11 @@ const Shop = () => {
                 onClick={() => handleCategoryChange(cat.name)}
                 className="flex items-center justify-between w-full text-left py-1.5 text-sm text-gray-600 hover:text-blue-600 hover:bg-gray-50 px-2 rounded-lg transition-colors"
               >
-                {cat.name}
-                <ChevronRight size={14} className="text-gray-300" />
+                {cat.name} <ChevronRight size={14} className="text-gray-300" />
               </button>
             ))}
           </div>
         ) : (
-          // no horizontal slide here to avoid flicker
           <div>
             <button
               onClick={() => handleCategoryChange('All')}
@@ -534,9 +564,7 @@ const Shop = () => {
                           : 'border-gray-300 bg-white group-hover:border-gray-500'
                       }`}
                     >
-                      {isChecked && (
-                        <Check size={10} className="text-white" />
-                      )}
+                      {isChecked && <Check size={10} className="text-white" />}
                     </div>
                     <input
                       type="checkbox"

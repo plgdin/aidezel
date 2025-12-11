@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronRight, ChevronLeft, Zap, User, ShoppingCart, Loader2, ArrowRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom'; // Added useNavigate
 import { supabase } from '../../lib/supabase';
 import ProductCard, { Product } from '../../components/shared/ProductCard';
 
@@ -47,6 +47,7 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [dominantColor, setDominantColor] = useState<string>('rgb(255,255,255)'); 
+  const navigate = useNavigate(); // Hook for navigation
 
   // --- SWIPE LOGIC STATE ---
   const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -175,6 +176,13 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
     };
   }, []);
 
+  // Function to handle click on hero item
+  const handleHeroClick = () => {
+    if (heroProduct) {
+      navigate(`/product/${heroProduct.id}`);
+    }
+  };
+
   return (
     <div className="w-full bg-transparent py-4 lg:py-12">
       {/* ================================================================
@@ -220,10 +228,11 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
           <div className="flex-1 relative flex items-center justify-center p-4">
              {heroProduct ? (
                <motion.div 
-                 className="relative rounded-[32px] overflow-hidden shadow-2xl border-4 border-white/20"
+                 className="relative rounded-[32px] overflow-hidden shadow-2xl border-4 border-white/20 cursor-pointer" // Add cursor-pointer
                  initial={{ opacity: 0, scale: 0.9 }}
                  animate={{ opacity: 1, scale: 1 }}
                  transition={{ duration: 0.5 }}
+                 onClick={handleHeroClick} // Add onClick handler
                >
                  <img 
                    src={heroProduct.image_url} 
@@ -323,7 +332,8 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
               initial={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }} 
               transition={{ duration: 0.8 }} 
-              className="relative w-full aspect-[16/10] rounded-3xl flex items-center justify-center overflow-hidden shadow-2xl bg-white/5 backdrop-blur-sm border border-white/10"
+              className="relative w-full aspect-[16/10] rounded-3xl flex items-center justify-center overflow-hidden shadow-2xl bg-white/5 backdrop-blur-sm border border-white/10 cursor-pointer" // Add cursor-pointer
+              onClick={handleHeroClick} // Add onClick handler
             >
               {heroProduct ? (
                  <img 

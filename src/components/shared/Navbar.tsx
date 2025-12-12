@@ -116,11 +116,13 @@ const Navbar = () => {
     >
       <form
         onSubmit={handleSearchSubmit}
-        className={`w-full relative flex items-center bg-white/90 backdrop-blur-md border border-white/40 transition-all duration-200
+        // FIX APPLIED: Removed "transition-all duration-200"
+        // Now the background and borders change INSTANTLY when you click, matching the dropdown perfectly.
+        className={`w-full relative flex items-center
           ${
             isDropdownOpen
-              ? 'rounded-t-2xl border-b-0 z-50 shadow-xl'
-              : 'rounded-full shadow-lg'
+              ? 'bg-white rounded-t-2xl rounded-b-none border border-gray-100 border-b-0 z-50 shadow-none'
+              : 'bg-white/90 backdrop-blur-md border border-white/40 rounded-full shadow-lg'
           }
         `}
       >
@@ -153,7 +155,7 @@ const Navbar = () => {
 
       {/* DROPDOWN */}
       {isDropdownOpen && (
-        <div className="absolute top-full left-0 right-0 bg-white border-x border-b border-gray-100 rounded-b-2xl shadow-2xl overflow-hidden z-40">
+        <div className="absolute top-full left-0 right-0 bg-white border-x border-b border-gray-100 rounded-b-2xl shadow-xl overflow-hidden z-40 -mt-px">
           {searchQuery && suggestions.length > 0 && (
             <div className="py-2">
               <p className="px-5 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
@@ -260,6 +262,7 @@ const Navbar = () => {
               <Heart
                 size={26}
                 strokeWidth={1.5}
+                stroke="currentColor"
                 className="group-hover:fill-white/20"
               />
               <span className="text-xs font-bold tracking-wide text-blue-100 group-hover:text-white">

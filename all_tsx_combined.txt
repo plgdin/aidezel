@@ -1718,7 +1718,7 @@ export default Inventory;
 ==== FILE: D:\Website\Aidezel\src\pages\admin\ManageCategories.tsx ====
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plus, Trash2, Loader2, Tag, ImageIcon, X, Edit, Save, ChevronDown, ChevronUp, Zap } from 'lucide-react';
+import { Plus, Trash2, Loader2, Tag, ImageIcon, X, Edit, Save, ChevronDown, ChevronUp, Zap, RotateCcw } from 'lucide-react';
 import ConfirmModal from '../../components/shared/ConfirmModal';
 
 // Interface for stricter typing
@@ -1732,7 +1732,7 @@ interface Category {
   name: string;
   image_url?: string;
   subcategories: Subcategory[];
-  is_illuminated?: boolean; // NEW: The toggle field
+  is_illuminated?: boolean; 
 }
 
 const ManageCategories = () => {
@@ -1743,18 +1743,21 @@ const ManageCategories = () => {
   // Create State
   const [newCatName, setNewCatName] = useState('');
   const [newCatImage, setNewCatImage] = useState<File | null>(null);
-  const [newIsIlluminated, setNewIsIlluminated] = useState(false); // NEW STATE
+  const [newIsIlluminated, setNewIsIlluminated] = useState(false);
   
   // Subcategory Input State
   const [activeCatId, setActiveCatId] = useState<number | null>(null);
   const [newSubName, setNewSubName] = useState('');
   const [newSubImage, setNewSubImage] = useState<File | null>(null);
+  
+  // --- NEW: Subcategory Edit State ---
+  const [editingSubIndex, setEditingSubIndex] = useState<number | null>(null);
 
-  // Edit State
+  // Edit State (Category)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editName, setEditName] = useState('');
   const [editImage, setEditImage] = useState<File | null>(null);
-  const [editIsIlluminated, setEditIsIlluminated] = useState(false); // NEW STATE
+  const [editIsIlluminated, setEditIsIlluminated] = useState(false);
 
   // Modal State
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -1768,7 +1771,7 @@ const ManageCategories = () => {
             subcategories: Array.isArray(cat.subcategories) 
                 ? cat.subcategories.map((sub: any) => typeof sub === 'string' ? { name: sub, image_url: '' } : sub)
                 : [],
-            is_illuminated: cat.is_illuminated || false // Load from DB
+            is_illuminated: cat.is_illuminated || false 
         }));
         setCategories(formatted);
     }
@@ -1798,14 +1801,14 @@ const ManageCategories = () => {
             name: newCatName, 
             subcategories: [],
             image_url: publicUrl,
-            is_illuminated: newIsIlluminated // Save the toggle
+            is_illuminated: newIsIlluminated 
         });
 
         if (dbError) throw dbError;
 
         setNewCatName('');
         setNewCatImage(null);
-        setNewIsIlluminated(false); // Reset toggle
+        setNewIsIlluminated(false); 
         fetchCategories();
 
     } catch (error: any) {
@@ -1828,19 +1831,16 @@ const ManageCategories = () => {
     setCategoryToDelete(null);
   };
 
-  // --- NEW FUNCTION: Toggle Hero Mode directly ---
   const toggleHeroMode = async (cat: Category) => {
       const newValue = !cat.is_illuminated;
       
-      // Optimistic Update (Update UI instantly)
       setCategories(prev => prev.map(c => c.id === cat.id ? { ...c, is_illuminated: newValue } : c));
 
-      // Update Database
       const { error } = await supabase.from('categories').update({ is_illuminated: newValue }).eq('id', cat.id);
       
       if (error) {
           console.error("Error updating hero mode:", error);
-          fetchCategories(); // Revert on error
+          fetchCategories(); 
       }
   };
 
@@ -1877,18 +1877,76 @@ const ManageCategories = () => {
     }
   };
 
+  // --- NEW: Edit Subcategory Logic ---
+
+  const startEditingSub = (subIndex: number, sub: Subcategory) => {
+      setEditingSubIndex(subIndex);
+      setNewSubName(sub.name);
+      setNewSubImage(null); // Reset image input (user only sets this if they want to CHANGE it)
+  };
+
+  const cancelEditingSub = () => {
+      setEditingSubIndex(null);
+      setNewSubName('');
+      setNewSubImage(null);
+  };
+
+  const updateSubcategory = async (catId: number, currentSubs: Subcategory[]) => {
+      if (editingSubIndex === null) return;
+      if (!newSubName.trim()) return alert("Subcategory name required");
+      setUploading(true);
+
+      try {
+          const oldSub = currentSubs[editingSubIndex];
+          let finalImageUrl = oldSub.image_url; // Default to old image
+
+          // If user selected a new image, upload it
+          if (newSubImage) {
+              const fileExt = newSubImage.name.split('.').pop();
+              const fileName = `sub_upd_${Date.now()}.${fileExt}`;
+              const { error: uploadError } = await supabase.storage.from('category-images').upload(fileName, newSubImage);
+              if (uploadError) throw uploadError;
+              const { data } = supabase.storage.from('category-images').getPublicUrl(fileName);
+              finalImageUrl = data.publicUrl;
+          }
+
+          // Create new array with updated item
+          const updatedSubs = [...currentSubs];
+          updatedSubs[editingSubIndex] = {
+              name: newSubName.trim(),
+              image_url: finalImageUrl
+          };
+
+          const { error } = await supabase.from('categories').update({ subcategories: updatedSubs }).eq('id', catId);
+          if (error) throw error;
+
+          cancelEditingSub();
+          fetchCategories();
+
+      } catch (error: any) {
+          alert("Error updating subcategory: " + error.message);
+      } finally {
+          setUploading(false);
+      }
+  };
+
+  // ------------------------------------
+
   const removeSubcategory = async (catId: number, currentSubs: Subcategory[], subName: string) => {
+    // If we are currently editing the one being deleted, cancel edit
+    if (editingSubIndex !== null) cancelEditingSub();
+    
     const updatedSubs = currentSubs.filter(s => s.name !== subName);
     await supabase.from('categories').update({ subcategories: updatedSubs }).eq('id', catId);
     fetchCategories();
   };
 
-  // --- EDIT LOGIC ---
+  // --- EDIT LOGIC (Category) ---
   const startEditing = (cat: Category) => {
     setEditingCategory(cat);
     setEditName(cat.name);
     setEditImage(null);
-    setEditIsIlluminated(cat.is_illuminated || false); // Load current setting
+    setEditIsIlluminated(cat.is_illuminated || false); 
   };
 
   const saveCategoryChanges = async () => {
@@ -1911,7 +1969,7 @@ const ManageCategories = () => {
             .update({ 
                 name: editName, 
                 image_url: imageUrl,
-                is_illuminated: editIsIlluminated // Update toggle
+                is_illuminated: editIsIlluminated 
             })
             .eq('id', editingCategory.id);
 
@@ -1994,7 +2052,10 @@ const ManageCategories = () => {
       <div className="grid grid-cols-1 gap-6">
         {categories.map(cat => (
             <div key={cat.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm flex flex-col">
-                <div className="bg-gray-50 p-4 border-b border-gray-200 flex justify-between items-center cursor-pointer" onClick={() => setActiveCatId(activeCatId === cat.id ? null : cat.id)}>
+                <div className="bg-gray-50 p-4 border-b border-gray-200 flex justify-between items-center cursor-pointer" onClick={() => {
+                    setActiveCatId(activeCatId === cat.id ? null : cat.id);
+                    cancelEditingSub(); // Reset sub editing when switching categories
+                }}>
                     <div className="flex items-center gap-3">
                         <div className="w-12 h-12 bg-white rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden p-1">
                             {cat.image_url ? (
@@ -2049,22 +2110,31 @@ const ManageCategories = () => {
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                             {cat.subcategories.map((sub, idx) => (
-                                <div key={idx} className="flex items-center gap-3 p-2 border border-gray-100 rounded-lg bg-gray-50 group hover:border-blue-200 transition-colors">
+                                <div key={idx} className={`flex items-center gap-3 p-2 border rounded-lg bg-gray-50 group transition-colors ${editingSubIndex === idx ? 'border-blue-500 bg-blue-50' : 'border-gray-100 hover:border-blue-200'}`}>
                                     <div className="w-10 h-10 bg-white rounded border border-gray-200 flex items-center justify-center overflow-hidden">
                                         {sub.image_url ? <img src={sub.image_url} className="w-full h-full object-cover"/> : <Tag size={14} className="text-gray-300"/>}
                                     </div>
                                     <span className="font-medium text-sm flex-1">{sub.name}</span>
-                                    <button onClick={() => removeSubcategory(cat.id, cat.subcategories, sub.name)} className="text-gray-400 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <X size={16} />
-                                    </button>
+                                    
+                                    <div className="flex gap-1">
+                                        {/* NEW: Edit Subcategory Button */}
+                                        <button onClick={() => startEditingSub(idx, sub)} className="text-gray-400 hover:text-blue-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Edit size={16} />
+                                        </button>
+                                        <button onClick={() => removeSubcategory(cat.id, cat.subcategories, sub.name)} className="text-gray-400 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <X size={16} />
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
 
-                        {/* ADD SUBCATEGORY FORM */}
-                        <div className="flex gap-3 items-end bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                        {/* ADD/EDIT SUBCATEGORY FORM */}
+                        <div className={`flex gap-3 items-end p-4 rounded-xl border transition-colors ${editingSubIndex !== null ? 'bg-orange-50 border-orange-200' : 'bg-blue-50/50 border-blue-100'}`}>
                             <div className="flex-1">
-                                <label className="block text-xs font-bold text-gray-500 mb-1">Subcategory Name</label>
+                                <label className="block text-xs font-bold text-gray-500 mb-1">
+                                    {editingSubIndex !== null ? 'Edit Name' : 'Subcategory Name'}
+                                </label>
                                 <input 
                                     className="w-full p-2 border border-gray-300 rounded-md text-sm"
                                     placeholder="e.g. Wireless Headsets"
@@ -2073,7 +2143,9 @@ const ManageCategories = () => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1">Image</label>
+                                <label className="block text-xs font-bold text-gray-500 mb-1">
+                                    {editingSubIndex !== null ? 'Change Image (Optional)' : 'Image'}
+                                </label>
                                 <div className="relative">
                                     <input 
                                         type="file" 
@@ -2087,13 +2159,32 @@ const ManageCategories = () => {
                                     </label>
                                 </div>
                             </div>
-                            <button 
-                                onClick={() => addSubcategory(cat.id, cat.subcategories)}
-                                disabled={uploading}
-                                className="bg-blue-600 text-white px-4 py-2.5 rounded-md font-bold text-sm hover:bg-blue-700 flex items-center gap-2"
-                            >
-                                {uploading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Add
-                            </button>
+                            
+                            {editingSubIndex !== null ? (
+                                <>
+                                    <button 
+                                        onClick={() => updateSubcategory(cat.id, cat.subcategories)}
+                                        disabled={uploading}
+                                        className="bg-black text-white px-4 py-2.5 rounded-md font-bold text-sm hover:bg-gray-800 flex items-center gap-2"
+                                    >
+                                        {uploading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Update
+                                    </button>
+                                    <button 
+                                        onClick={cancelEditingSub}
+                                        className="bg-gray-200 text-gray-600 px-3 py-2.5 rounded-md font-bold text-sm hover:bg-gray-300 flex items-center gap-2"
+                                    >
+                                        <RotateCcw size={16} /> Cancel
+                                    </button>
+                                </>
+                            ) : (
+                                <button 
+                                    onClick={() => addSubcategory(cat.id, cat.subcategories)}
+                                    disabled={uploading}
+                                    className="bg-blue-600 text-white px-4 py-2.5 rounded-md font-bold text-sm hover:bg-blue-700 flex items-center gap-2"
+                                >
+                                    {uploading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Add
+                                </button>
+                            )}
                         </div>
                     </div>
                 )}
@@ -2101,7 +2192,7 @@ const ManageCategories = () => {
         ))}
       </div>
 
-      {/* --- EDIT MODAL --- */}
+      {/* --- EDIT MODAL (Category) --- */}
       {editingCategory && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
             <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -3898,12 +3989,42 @@ export default Contact;
 ==== FILE: D:\Website\Aidezel\src\pages\client\Home.tsx ====
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronRight, ChevronLeft, Zap, User, ShoppingCart, Loader2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ChevronRight, ChevronLeft, Zap, User, ShoppingCart, Loader2, ArrowRight } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom'; // Added useNavigate
 import { supabase } from '../../lib/supabase';
 import ProductCard, { Product } from '../../components/shared/ProductCard';
 
-// --- HERO BANNER (FIXED WITH NAVIGATION) ---
+// --- HELPER: Extract Dominant Color from Image ---
+const getAverageColor = (imageUrl: string): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.src = imageUrl;
+    
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve('#ffffff'); // Fallback
+        return;
+      }
+      canvas.width = 1;
+      canvas.height = 1;
+      
+      // Draw image to 1x1 canvas to get average color
+      ctx.drawImage(img, 0, 0, 1, 1);
+      const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+      
+      resolve(`rgb(${r},${g},${b})`);
+    };
+
+    img.onerror = () => {
+      resolve('#ffffff'); // Fallback on error
+    };
+  });
+};
+
+// --- HERO BANNER ---
 interface HeroBannerProps {
   heroProduct: any;
   heroCount: number;
@@ -3914,7 +4035,48 @@ interface HeroBannerProps {
 const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [dominantColor, setDominantColor] = useState<string>('rgb(255,255,255)'); 
+  const navigate = useNavigate(); // Hook for navigation
+
+  // --- SWIPE LOGIC STATE ---
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const minSwipeDistance = 50; // Threshold for a valid swipe
+
+  // 1. Detect Color when heroProduct changes
+  useEffect(() => {
+    if (heroProduct && heroProduct.image_url) {
+      getAverageColor(heroProduct.image_url).then((color) => {
+        setDominantColor(color);
+      });
+    }
+  }, [heroProduct]);
   
+  // 2. Swipe Handlers
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+    
+    if (isLeftSwipe) {
+      onNext();
+    }
+    if (isRightSwipe) {
+      onPrev();
+    }
+  };
+
+  // 3. Desktop Canvas Animation Logic
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -3960,7 +4122,6 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
         const dy = mouse.y - dot.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const hoverRadius = 150;
-
         if (dist < hoverRadius) {
           const force = (hoverRadius - dist) / hoverRadius;
           const lift = force * 20;
@@ -3983,24 +4144,20 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
 
     init();
     animate();
-
     const handleMouseMove = (e: MouseEvent) => {
       const rect = container.getBoundingClientRect();
       mouse.x = e.clientX - rect.left;
       mouse.y = e.clientY - rect.top;
     };
-
     const handleMouseLeave = () => {
       mouse.x = -1000;
       mouse.y = -1000;
     };
-
     const handleResize = () => init();
 
     container.addEventListener('mousemove', handleMouseMove);
     container.addEventListener('mouseleave', handleMouseLeave);
     window.addEventListener('resize', handleResize);
-
     return () => {
       container.removeEventListener('mousemove', handleMouseMove);
       container.removeEventListener('mouseleave', handleMouseLeave);
@@ -4008,38 +4165,119 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
     };
   }, []);
 
+  // Function to handle click on hero item
+  const handleHeroClick = () => {
+    if (heroProduct) {
+      navigate(`/product/${heroProduct.id}`);
+    }
+  };
+
   return (
-    <div className="w-full bg-transparent py-8 lg:py-12">
-      <div className="container mx-auto px-4">
-        
+    <div className="w-full bg-transparent py-4 lg:py-12">
+      {/* ================================================================
+        MOBILE HERO (Amazon Style - Taller Card with SWIPE) - md:hidden
+        ================================================================
+      */}
+      <div 
+        className="md:hidden px-4"
+        // Attach Swipe Handlers to the container
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        <div 
+          className="relative w-full rounded-2xl overflow-hidden shadow-md border border-white/20 min-h-[520px] flex flex-col"
+          style={{
+            // The gradient magic: Matches the Amazon feel of blending into the page
+            background: `linear-gradient(180deg, ${dominantColor} 0%, rgba(229, 237, 247, 0.9) 85%, #e5edf7 100%)`
+          }}
+        >
+          {/* Top Content: Text First (Like Amazon) */}
+          <div className="p-6 pb-2 z-10 flex flex-col items-start w-full">
+             <span className="bg-black/90 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-3 shadow-sm">
+                {heroProduct ? 'Deal of the Day' : 'Featured'}
+             </span>
+             
+             <motion.div
+               key={heroProduct ? `txt-${heroProduct.id}` : 'mob-txt'}
+               initial={{ opacity: 0, y: -5 }}
+               animate={{ opacity: 1, y: 0 }}
+               className="text-left"
+             >
+                <h2 className="text-3xl font-black text-slate-900 leading-[1.1] mb-2 drop-shadow-sm">
+                   {heroProduct ? heroProduct.name : 'Loading...'}
+                </h2>
+                <p className="text-sm text-slate-800 font-medium opacity-90 line-clamp-2">
+                   {heroProduct?.description}
+                </p>
+             </motion.div>
+          </div>
+
+          {/* Middle: Big Image - FIXED WITH ROUNDED CONTAINER */}
+          <div className="flex-1 relative flex items-center justify-center p-4">
+             {heroProduct ? (
+               <motion.div 
+                 className="relative rounded-[32px] overflow-hidden shadow-2xl border-4 border-white/20 cursor-pointer" // Add cursor-pointer
+                 initial={{ opacity: 0, scale: 0.9 }}
+                 animate={{ opacity: 1, scale: 1 }}
+                 transition={{ duration: 0.5 }}
+                 onClick={handleHeroClick} // Add onClick handler
+               >
+                 <img 
+                   src={heroProduct.image_url} 
+                   alt={heroProduct.name} 
+                   className="w-full h-auto max-h-[300px] object-cover"
+                   draggable={false} 
+                 />
+               </motion.div>
+             ) : (
+               <Loader2 className="animate-spin text-gray-400" />
+             )}
+          </div>
+
+          {/* Bottom: CTA */}
+          <div className="p-4 z-10">
+              <Link 
+                to={heroProduct ? `/product/${heroProduct.id}` : '#'} 
+                className="flex items-center justify-between w-full bg-slate-900 text-white px-6 py-4 rounded-xl font-bold text-sm shadow-xl active:scale-95 transition-transform"
+              >
+                <span>Check {heroProduct?.price} Deal</span>
+                <ArrowRight size={18} />
+              </Link>
+          </div>
+
+          {/* NO ARROWS HERE - Swipe Enabled */}
+        </div>
+      </div>
+
+      {/* ================================================================
+        DESKTOP HERO (Original Glassmorphism) - hidden md:flex
+        ================================================================
+      */}
+      <div className="hidden md:block container mx-auto px-4">
         <div ref={containerRef} className="relative w-full rounded-[2.5rem] overflow-hidden bg-gradient-to-br from-[#0f172a] via-[#1e3a8a] to-[#172554] min-h-[500px] flex items-center shadow-2xl group/hero">
           
           <canvas ref={canvasRef} className="absolute inset-0 z-0" />
 
-          {/* --- LEFT GLASS SLIDER (Vertical Rectangle) --- */}
           {heroCount > 1 && (
             <button 
               onClick={onPrev}
-              // FIX: Removed 'flex' here because 'hidden md:flex' handles it correctly below
-              className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-12 h-24 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl hidden md:flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-lg"
+              className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-12 h-24 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-lg"
             >
               <ChevronLeft size={28} />
             </button>
           )}
 
-          {/* --- RIGHT GLASS SLIDER (Vertical Rectangle) --- */}
           {heroCount > 1 && (
             <button 
               onClick={onNext}
-              // FIX: Removed 'flex' here because 'hidden md:flex' handles it correctly below
-              className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-12 h-24 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl hidden md:flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-lg"
+              className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-12 h-24 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-lg"
             >
               <ChevronRight size={28} />
             </button>
           )}
           
           <div className="relative z-10 w-full px-8 lg:px-24 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            
             <motion.div 
               key={heroProduct ? heroProduct.id : 'loading'} 
               initial={{ opacity: 0, x: -30 }} 
@@ -4047,7 +4285,7 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
               transition={{ duration: 0.6 }}
             >
               <div className="inline-block border border-[#38bdf8]/50 px-4 py-1.5 rounded-full mb-6 bg-[#38bdf8]/10 backdrop-blur-md">
-                <span className="text-[#38bdf8] text-[10px] font-bold tracking-[0.15em] uppercase">
+                 <span className="text-[#38bdf8] text-[10px] font-bold tracking-[0.15em] uppercase">
                     {heroProduct ? 'Featured Product' : 'Limited Time Only'}
                 </span>
               </div>
@@ -4058,11 +4296,11 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
                         {heroProduct.name.split(' ').slice(0, 2).join(' ')} <br/>
                         <span className="text-[#93c5fd]">Now {heroProduct.price}</span>
                     </>
-                ) : (
+                  ) : (
                     <>
                         Price Drop <br/>
                         <span className="text-[#93c5fd]">Alert</span>
-                    </>
+                   </>
                 )}
               </h1>
               
@@ -4083,9 +4321,10 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
               initial={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }} 
               transition={{ duration: 0.8 }} 
-              className="relative w-full aspect-[16/10] rounded-3xl flex items-center justify-center overflow-hidden shadow-2xl bg-white/5 backdrop-blur-sm border border-white/10"
+              className="relative w-full aspect-[16/10] rounded-3xl flex items-center justify-center overflow-hidden shadow-2xl bg-white/5 backdrop-blur-sm border border-white/10 cursor-pointer" // Add cursor-pointer
+              onClick={handleHeroClick} // Add onClick handler
             >
-               {heroProduct ? (
+              {heroProduct ? (
                  <img 
                    src={heroProduct.image_url} 
                    alt={heroProduct.name} 
@@ -4097,7 +4336,6 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
                  </div>
                )}
             </motion.div>
-
           </div>
         </div>
       </div>
@@ -4112,9 +4350,8 @@ const HomePage: React.FC = () => {
   
   const [categories, setCategories] = useState<any[]>([]);
   const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
-  const scrollRef = useRef<HTMLDivElement>(null); 
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Derived state to check if we have more than 5 items
   const showArrows = categories.length > 5;
 
   useEffect(() => {
@@ -4143,8 +4380,6 @@ const HomePage: React.FC = () => {
           tag: 'Featured', 
           description: item.description, 
           image_url: item.image_url,
-          
-          // --- FIX: ADDED STOCK QUANTITY HERE ---
           stock_quantity: item.stock_quantity
         })));
       } else {
@@ -4164,8 +4399,6 @@ const HomePage: React.FC = () => {
                 tag: 'New', 
                 description: item.description, 
                 image_url: item.image_url,
-                
-                // --- FIX: ADDED STOCK QUANTITY HERE ---
                 stock_quantity: item.stock_quantity
             })));
         }
@@ -4190,8 +4423,6 @@ const HomePage: React.FC = () => {
                 price: `£${item.price}`, 
                 image: item.image_url, 
                 tag: 'New',
-                
-                // --- FIX: ADDED STOCK QUANTITY HERE ---
                 stock_quantity: item.stock_quantity
             })));
         }
@@ -4224,7 +4455,7 @@ const HomePage: React.FC = () => {
       const firstCard = container.querySelector('.snap-start') as HTMLElement;
       
       if (firstCard) {
-        const itemSize = firstCard.offsetWidth + 16; 
+        const itemSize = firstCard.offsetWidth + 16;
         const scrollAmount = itemSize * 3; 
 
         container.scrollBy({
@@ -4271,9 +4502,9 @@ const HomePage: React.FC = () => {
 
                 {/* SCROLL AREA */}
                 <div 
-                    ref={scrollRef}
-                    className="flex gap-4 overflow-x-auto flex-1 snap-x snap-mandatory scrollbar-hide scroll-smooth py-4"
-                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                  ref={scrollRef}
+                  className="flex gap-4 overflow-x-auto flex-1 snap-x snap-mandatory scrollbar-hide scroll-smooth py-4"
+                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                 >
                     {categories.map((cat, idx) => (
                     <div 
@@ -4282,7 +4513,6 @@ const HomePage: React.FC = () => {
                     >
                         <Link to={`/shop?category=${cat.name}`}>
                             <div className="group/card relative w-full aspect-[3/4] rounded-[2rem] overflow-hidden cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-slate-200 bg-white transform-gpu [-webkit-mask-image:linear-gradient(white,white)]">
-                                
                                 {cat.image_url ? (
                                     <img 
                                         src={cat.image_url} 
@@ -4306,7 +4536,6 @@ const HomePage: React.FC = () => {
                                         </span>
                                     </div>
                                 </div>
-
                             </div>
                         </Link>
                     </div>
@@ -4367,13 +4596,13 @@ const HomePage: React.FC = () => {
            ].map((item, idx) => (
              <div key={idx} className="bg-white border border-slate-200 p-8 rounded-2xl flex items-center gap-6 hover:border-[#3b82f6] hover:-translate-y-1 transition-all duration-300 shadow-sm group">
                <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-[#2563eb] group-hover:scale-110 transition-transform">
-                 <item.icon size={24} />
+                  <item.icon size={24} />
                </div>
                <div>
                  <h4 className="font-bold text-lg text-slate-900">{item.title}</h4>
                  <p className="text-slate-500 text-xs">{item.desc}</p>
                </div>
-             </div>
+              </div>
            ))}
         </section>
 
@@ -5234,11 +5463,26 @@ import {
   ChevronRight,
   Zap,
   Lightbulb,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import ProductCard, { Product } from '../../components/shared/ProductCard';
-import FilterSection from '../../components/filters/FilterSection'; // <-- correct path
+// If you have FilterSection as a separate component, keep it. 
+// If it was inline in your previous code, I've kept the inline version below to be safe based on your snippet.
+
+// --- MOCK IMAGES FOR SUBCATEGORIES ---
+const SUBCAT_IMAGES: Record<string, string> = {
+  'Indoor Lights': 'https://images.unsplash.com/photo-1513506003013-194a5d68d878?q=80&w=300&auto=format&fit=crop',
+  'Smart Lights': 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=300&auto=format&fit=crop',
+  'Decoration Lights': 'https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=300&auto=format&fit=crop',
+  'Outdoor Lights': 'https://images.unsplash.com/photo-1517850541248-3482597402dc?q=80&w=300&auto=format&fit=crop',
+  'Ceiling Lights': 'https://images.unsplash.com/photo-1513506003013-194a5d68d878?q=80&w=300&auto=format&fit=crop',
+  'Rings': 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?q=80&w=300&auto=format&fit=crop',
+  'Necklaces': 'https://images.unsplash.com/photo-1599643478518-17488fbbcd75?q=80&w=300&auto=format&fit=crop',
+  'default': 'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=300&auto=format&fit=crop'
+};
 
 // Define strict type for Category to include the toggle
 interface CategoryData {
@@ -5515,7 +5759,9 @@ const Shop = () => {
 
       if (subObj && typeof subObj === 'object' && subObj.image_url)
         return subObj.image_url;
-      return 'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=300&auto=format&fit=crop';
+        
+      // Use SUBCAT_IMAGES constant we restored at the top
+      return SUBCAT_IMAGES[subName] || SUBCAT_IMAGES['default'];
     };
 
     return (
@@ -5534,7 +5780,8 @@ const Shop = () => {
           )}
         </div>
 
-        <div className="flex gap-4 overflow-x-auto pb-6 scrollbar-hide snap-x">
+        {/* FIX APPLIED HERE: Added 'pt-4' to allow hover scaling without cutoff */}
+        <div className="flex gap-4 overflow-x-auto pb-6 pt-4 scrollbar-hide snap-x">
           {availableSubcats.map((sub: any) => {
             const isSelected = selectedSubcats.includes(sub);
             return (
@@ -5591,6 +5838,20 @@ const Shop = () => {
     );
   };
 
+  // Inline FilterSection component (in case you don't have it imported)
+  const FilterSection = ({ title, children, defaultOpen = true }: any) => {
+    const [isOpen, setIsOpen] = useState(defaultOpen);
+    return (
+        <div className="border-b border-gray-100 py-5">
+            <button onClick={() => setIsOpen(!isOpen)} className="flex items-center justify-between w-full mb-3 group">
+                <span className="font-bold text-sm text-gray-900 uppercase tracking-wide group-hover:text-blue-600 transition-colors">{title}</span>
+                {isOpen ? <ChevronUp size={16} className="text-gray-400"/> : <ChevronDown size={16} className="text-gray-400"/>}
+            </button>
+            {isOpen && <div className="space-y-2 animate-in slide-in-from-top-1 duration-200">{children}</div>}
+        </div>
+    );
+};
+
   const renderFilterContent = () => (
     <div className="space-y-1 pr-2">
       {/* 1. CATEGORY LIST */}
@@ -5607,13 +5868,11 @@ const Shop = () => {
                 onClick={() => handleCategoryChange(cat.name)}
                 className="flex items-center justify-between w-full text-left py-1.5 text-sm text-gray-600 hover:text-blue-600 hover:bg-gray-50 px-2 rounded-lg transition-colors"
               >
-                {cat.name}
-                <ChevronRight size={14} className="text-gray-300" />
+                {cat.name} <ChevronRight size={14} className="text-gray-300" />
               </button>
             ))}
           </div>
         ) : (
-          // no horizontal slide here to avoid flicker
           <div>
             <button
               onClick={() => handleCategoryChange('All')}
@@ -5758,9 +6017,7 @@ const Shop = () => {
                           : 'border-gray-300 bg-white group-hover:border-gray-500'
                       }`}
                     >
-                      {isChecked && (
-                        <Check size={10} className="text-white" />
-                      )}
+                      {isChecked && <Check size={10} className="text-white" />}
                     </div>
                     <input
                       type="checkbox"

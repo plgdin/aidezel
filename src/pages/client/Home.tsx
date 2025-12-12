@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+// FIX: Imported AnimatePresence to allow exit animations (fading out)
+import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, ChevronLeft, Zap, User, ShoppingCart, Loader2, ArrowRight } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom'; // Added useNavigate
+import { Link, useNavigate } from 'react-router-dom'; 
 import { supabase } from '../../lib/supabase';
 import ProductCard, { Product } from '../../components/shared/ProductCard';
 
@@ -209,41 +210,51 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
                 {heroProduct ? 'Deal of the Day' : 'Featured'}
              </span>
              
-             <motion.div
-               key={heroProduct ? `txt-${heroProduct.id}` : 'mob-txt'}
-               initial={{ opacity: 0, y: -5 }}
-               animate={{ opacity: 1, y: 0 }}
-               className="text-left"
-             >
-                <h2 className="text-3xl font-black text-slate-900 leading-[1.1] mb-2 drop-shadow-sm">
-                   {heroProduct ? heroProduct.name : 'Loading...'}
-                </h2>
-                <p className="text-sm text-slate-800 font-medium opacity-90 line-clamp-2">
-                   {heroProduct?.description}
-                </p>
-             </motion.div>
+             {/* FIX: Wrapped text content in AnimatePresence with exit prop for fading out */}
+             <AnimatePresence mode="wait">
+               <motion.div
+                 key={heroProduct ? `txt-${heroProduct.id}` : 'mob-txt'}
+                 initial={{ opacity: 0, y: -5 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 exit={{ opacity: 0, y: -5 }}
+                 transition={{ duration: 0.3 }}
+                 className="text-left"
+               >
+                  <h2 className="text-3xl font-black text-slate-900 leading-[1.1] mb-2 drop-shadow-sm">
+                     {heroProduct ? heroProduct.name : 'Loading...'}
+                  </h2>
+                  <p className="text-sm text-slate-800 font-medium opacity-90 line-clamp-2">
+                     {heroProduct?.description}
+                  </p>
+               </motion.div>
+             </AnimatePresence>
           </div>
 
           {/* Middle: Big Image - FIXED WITH ROUNDED CONTAINER */}
           <div className="flex-1 relative flex items-center justify-center p-4">
-             {heroProduct ? (
-               <motion.div 
-                 className="relative rounded-[32px] overflow-hidden shadow-2xl border-4 border-white/20 cursor-pointer" // Add cursor-pointer
-                 initial={{ opacity: 0, scale: 0.9 }}
-                 animate={{ opacity: 1, scale: 1 }}
-                 transition={{ duration: 0.5 }}
-                 onClick={handleHeroClick} // Add onClick handler
-               >
-                 <img 
-                   src={heroProduct.image_url} 
-                   alt={heroProduct.name} 
-                   className="w-full h-auto max-h-[300px] object-cover"
-                   draggable={false} 
-                 />
-               </motion.div>
-             ) : (
-               <Loader2 className="animate-spin text-gray-400" />
-             )}
+             {/* FIX: Wrapped image in AnimatePresence with exit prop for fading out */}
+             <AnimatePresence mode="wait">
+               {heroProduct ? (
+                 <motion.div 
+                   key={heroProduct.id} // Important: key must change to trigger animation
+                   className="relative rounded-[32px] overflow-hidden shadow-2xl border-4 border-white/20 cursor-pointer" 
+                   initial={{ opacity: 0, scale: 0.9 }}
+                   animate={{ opacity: 1, scale: 1 }}
+                   exit={{ opacity: 0, scale: 0.9 }}
+                   transition={{ duration: 0.3 }}
+                   onClick={handleHeroClick} 
+                 >
+                   <img 
+                     src={heroProduct.image_url} 
+                     alt={heroProduct.name} 
+                     className="w-full h-auto max-h-[300px] object-cover"
+                     draggable={false} 
+                   />
+                 </motion.div>
+               ) : (
+                 <Loader2 className="animate-spin text-gray-400" />
+               )}
+             </AnimatePresence>
           </div>
 
           {/* Bottom: CTA */}
@@ -296,7 +307,7 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
               transition={{ duration: 0.6 }}
             >
               <div className="inline-block border border-[#38bdf8]/50 px-4 py-1.5 rounded-full mb-6 bg-[#38bdf8]/10 backdrop-blur-md">
-                 <span className="text-[#38bdf8] text-[10px] font-bold tracking-[0.15em] uppercase">
+                  <span className="text-[#38bdf8] text-[10px] font-bold tracking-[0.15em] uppercase">
                     {heroProduct ? 'Featured Product' : 'Limited Time Only'}
                 </span>
               </div>
@@ -613,7 +624,7 @@ const HomePage: React.FC = () => {
                  <h4 className="font-bold text-lg text-slate-900">{item.title}</h4>
                  <p className="text-slate-500 text-xs">{item.desc}</p>
                </div>
-              </div>
+             </div>
            ))}
         </section>
 

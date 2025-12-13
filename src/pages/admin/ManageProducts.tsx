@@ -181,7 +181,17 @@ const ManageProducts = () => {
     setIsUploading(false);
   };
 
-  const currentSubcategories = categories.find(c => c.name === newItem.category)?.subcategories || [];
+  // --- FIXED: Safe Subcategory Logic ---
+  const getSubcategories = () => {
+    const categoryObj = categories.find(c => c.name === newItem.category);
+    // Ensure it's an array before returning, otherwise return empty array
+    if (categoryObj && Array.isArray(categoryObj.subcategories)) {
+        return categoryObj.subcategories;
+    }
+    return [];
+  };
+
+  const currentSubcategories = getSubcategories();
 
   return (
     <div className="max-w-7xl mx-auto pb-24 px-4" ref={formRef}>
@@ -225,6 +235,7 @@ const ManageProducts = () => {
                 <label className="block text-sm font-bold text-gray-700 mb-1">Sub-Category</label>
                 <select className="w-full p-3 border border-gray-300 rounded-lg bg-white" value={newItem.subcategory} onChange={e => setNewItem({...newItem, subcategory: e.target.value})}>
                   <option value="">Select...</option>
+                  {/* Safely map subcategories */}
                   {currentSubcategories.map((sub: string) => <option key={sub} value={sub}>{sub}</option>)}
                 </select>
               </div>

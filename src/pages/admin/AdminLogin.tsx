@@ -2,13 +2,16 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { ShieldAlert, Loader2, Lock } from 'lucide-react';
+import { ShieldAlert, Loader2, Lock, User } from 'lucide-react';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  
+  // 1. VISUAL FIELDS (What you type)
+  const [usernameInput, setUsernameInput] = useState('admin'); 
+  const [passwordInput, setPasswordInput] = useState('');
+  
   const [error, setError] = useState<string | null>(null);
 
   const handleAdminLogin = async (e: React.FormEvent) => {
@@ -16,16 +19,23 @@ const AdminLogin = () => {
     setLoading(true);
     setError(null);
 
+    // 2. HARDCODED MAPPING (The trick)
+    // If you type "admin", we silently convert it to your real admin email.
+    let emailToUse = usernameInput;
+    if (usernameInput.toLowerCase() === 'admin') {
+        emailToUse = 'admin@aidezel.uk';
+    }
+
     try {
-      // 1. Attempt Login
+      // 3. Attempt Login with Supabase
       const { data: { user }, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+        email: emailToUse, 
+        password: passwordInput,
       });
 
       if (authError || !user) throw new Error('Invalid credentials');
 
-      // 2. Check Admin Status in Database
+      // 4. Verify Admin Privileges
       const { data: profile } = await supabase
         .from('profiles')
         .select('is_admin')
@@ -33,12 +43,11 @@ const AdminLogin = () => {
         .single();
 
       if (!profile || !profile.is_admin) {
-        // If not admin, log them out immediately
         await supabase.auth.signOut();
         throw new Error('Access Denied: You do not have admin privileges.');
       }
 
-      // 3. Success - Go to Dashboard
+      // 5. Success
       navigate('/admin');
     } catch (err: any) {
       setError(err.message);
@@ -68,27 +77,31 @@ const AdminLogin = () => {
 
         <form onSubmit={handleAdminLogin} className="space-y-4">
           <div>
-            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Email</label>
-            <input 
-              type="email" 
-              className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-lg mt-1 focus:border-red-500 focus:outline-none"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Username</label>
+            <div className="relative">
+                <input 
+                  type="text" 
+                  className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-lg mt-1 focus:border-red-500 focus:outline-none pl-10"
+                  value={usernameInput}
+                  onChange={(e) => setUsernameInput(e.target.value)}
+                  placeholder="admin"
+                  required
+                />
+                <User className="absolute left-3 top-4 text-gray-500" size={16} />
+            </div>
           </div>
           
           <div>
             <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Password</label>
             <div className="relative">
                 <input 
-                type="password" 
-                className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-lg mt-1 focus:border-red-500 focus:outline-none"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
+                  type="password" 
+                  className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-lg mt-1 focus:border-red-500 focus:outline-none pl-10"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  required
                 />
-                <Lock className="absolute right-3 top-4 text-gray-500" size={16} />
+                <Lock className="absolute left-3 top-4 text-gray-500" size={16} />
             </div>
           </div>
 

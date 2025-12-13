@@ -10,6 +10,9 @@ import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import UpdatePassword from './pages/auth/UpdatePassword';
 
+// --- Pages: ADMIN AUTH (New) ---
+import AdminLogin from './pages/admin/AdminLogin';
+
 // --- Pages: CLIENT ---
 import HomePage from './pages/client/Home';
 import ShopPage from './pages/client/Shop';
@@ -68,7 +71,13 @@ function App() {
       </Route>
 
       {/* =========================================
-          ADMIN ROUTES (Sidebar + Dashboard)
+          ADMIN AUTH ROUTE (Standalone)
+          ========================================= */}
+      {/* This must be outside AdminLayout to prevent redirect loops */}
+      <Route path="/admin/login" element={<AdminLogin />} />
+
+      {/* =========================================
+          ADMIN ROUTES (Protected by AdminLayout)
           ========================================= */}
       <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<AdminDashboard />} />

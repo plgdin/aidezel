@@ -110,7 +110,6 @@ const UserAccount = () => {
     } else {
         showPopup('Success', 'Address saved successfully.', 'success');
         fetchAddresses(session.user.id);
-        // --- TRIGGER NAVBAR UPDATE ---
         if (addressData.is_default || addresses.length === 0) {
             window.dispatchEvent(new Event('address-updated'));
         }
@@ -121,13 +120,11 @@ const UserAccount = () => {
   const handleSetDefault = async (addressId: string) => {
     if (!session) return;
 
-    // 1. Set all to false
     await supabase
         .from('user_addresses')
         .update({ is_default: false })
         .eq('user_id', session.user.id);
 
-    // 2. Set selected to true
     const { error } = await supabase
         .from('user_addresses')
         .update({ is_default: true })
@@ -138,7 +135,6 @@ const UserAccount = () => {
     } else {
         fetchAddresses(session.user.id); 
         showPopup('Success', 'Default address updated.', 'success');
-        // --- TRIGGER NAVBAR UPDATE ---
         window.dispatchEvent(new Event('address-updated'));
     }
   };
@@ -151,7 +147,6 @@ const UserAccount = () => {
           showPopup('Error', error.message, 'error');
       } else {
           fetchAddresses(session.user.id);
-          // If default was deleted, update navbar to fallback state
           if (isDefault) {
               window.dispatchEvent(new Event('address-updated'));
           }
@@ -213,7 +208,7 @@ const UserAccount = () => {
         <div className="container mx-auto px-4">
             <div className="flex items-center gap-4 mb-4">
                 <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-2xl font-bold">
-                     {profile.full_name ? profile.full_name[0].toUpperCase() : <User />}
+                      {profile.full_name ? profile.full_name[0].toUpperCase() : <User />}
                 </div>
                 <div>
                     <h1 className="text-2xl font-bold">Welcome, {profile.full_name || 'User'}</h1>
@@ -226,24 +221,31 @@ const UserAccount = () => {
       <div className="container mx-auto px-4 -mt-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            {/* LEFT COLUMN */}
+            {/* LEFT COLUMN - UPDATED */}
             <div className="space-y-6">
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-2 overflow-hidden">
-                    <Link to="/orders" className="flex items-center gap-4 p-4 hover:bg-transparent rounded-xl transition-colors group">
-                        <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 overflow-hidden">
+                    
+                    {/* My Orders: CHANGED rounded-lg TO rounded-2xl on the ICON BOX */}
+                    <Link to="/orders" className="flex items-center gap-4 p-4 hover:bg-gray-100 rounded-2xl transition-all group mb-1">
+                        <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
                             <Package size={20} />
                         </div>
                         <div><h3 className="font-bold text-gray-900">My Orders</h3><p className="text-xs text-gray-500">Track & return</p></div>
                     </Link>
-                    <Link to="/wishlist" className="flex items-center gap-4 p-4 hover:bg-transparent rounded-xl transition-colors group">
-                        <div className="w-10 h-10 bg-pink-50 text-pink-600 rounded-lg flex items-center justify-center group-hover:bg-pink-600 group-hover:text-white transition-colors">
+                    
+                    {/* Wishlist: CHANGED rounded-lg TO rounded-2xl on the ICON BOX */}
+                    <Link to="/wishlist" className="flex items-center gap-4 p-4 hover:bg-gray-100 rounded-2xl transition-all group mb-1">
+                        <div className="w-10 h-10 bg-pink-50 text-pink-600 rounded-2xl flex items-center justify-center group-hover:bg-pink-600 group-hover:text-white transition-colors">
                              <Heart size={20} />
                         </div>
                         <div><h3 className="font-bold text-gray-900">Wishlist</h3><p className="text-xs text-gray-500">Saved items</p></div>
                     </Link>
-                    <div className="h-px bg-gray-100 my-2"></div>
-                     <button onClick={handleLogout} className="w-full flex items-center gap-4 p-4 hover:bg-red-50 rounded-xl transition-colors group text-left">
-                        <div className="w-10 h-10 bg-transparent text-gray-500 rounded-lg flex items-center justify-center group-hover:bg-red-600 group-hover:text-white transition-colors">
+                    
+                    <div className="h-px bg-gray-100 my-2 mx-2"></div>
+                    
+                    {/* Sign Out: CHANGED rounded-lg TO rounded-2xl on the ICON BOX */}
+                     <button onClick={handleLogout} className="w-full flex items-center gap-4 p-4 hover:bg-red-50 rounded-2xl transition-all group text-left">
+                        <div className="w-10 h-10 bg-transparent text-gray-500 rounded-2xl flex items-center justify-center group-hover:bg-red-600 group-hover:text-white transition-colors">
                             <LogOut size={20} />
                          </div>
                         <div><h3 className="font-bold text-gray-900 group-hover:text-red-600">Sign Out</h3><p className="text-xs text-gray-500 group-hover:text-red-400">Securely logout</p></div>
@@ -291,7 +293,6 @@ const UserAccount = () => {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* ADD NEW BUTTON */}
                         <button 
                             onClick={() => { setEditingAddress(null); setIsAddressModalOpen(true); }}
                             className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl p-6 hover:border-blue-500 hover:bg-blue-50 transition-all group h-full min-h-[180px]"
@@ -302,7 +303,6 @@ const UserAccount = () => {
                             <span className="font-bold text-gray-500 group-hover:text-blue-700">Add New Address</span>
                         </button>
 
-                        {/* ADDRESS CARDS */}
                         {addresses.map((addr) => (
                             <div 
                                 key={addr.id} 
@@ -324,7 +324,6 @@ const UserAccount = () => {
                                 <p className="text-xs text-gray-500 mb-4">Phone: {addr.phone}</p>
                                 
                                 <div className="flex flex-col gap-2 mt-auto">
-                                    {/* Set as Default Button */}
                                     {!addr.is_default && (
                                         <button 
                                             onClick={() => handleSetDefault(addr.id)}

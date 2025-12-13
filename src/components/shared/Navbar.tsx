@@ -50,7 +50,7 @@ const Navbar = () => {
     full: 'Select your location',
   });
 
-  // --- UPDATED: Fetch Location Logic ---
+  // --- Fetch Location Logic ---
   const fetchUserLocation = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     
@@ -110,11 +110,10 @@ const Navbar = () => {
     }
   };
 
-  // --- UPDATED: useEffect with Event Listener ---
+  // --- useEffect with Event Listener ---
   useEffect(() => {
     fetchUserLocation(); // Initial fetch
 
-    // Listen for custom event 'address-updated' from UserAccount page
     const handleAddressUpdate = () => {
         fetchUserLocation();
     };
@@ -124,7 +123,7 @@ const Navbar = () => {
     return () => {
         window.removeEventListener('address-updated', handleAddressUpdate);
     };
-  }, []); // Run once on mount
+  }, []);
 
   const handleLocationClick = () => {
     if (isLoggedIn) {
@@ -310,29 +309,37 @@ const Navbar = () => {
       >
         <div className="container mx-auto flex items-center justify-between gap-4 lg:gap-8">
           
-          {/* 1. Logo */}
+          {/* 1. Logo (FIXED CLICK AREA) */}
           <div className="flex items-center shrink-0">
             <Link
               to="/"
-              className="shrink-0 relative z-50 group"
+              // The container (Link) defines the clickable area (approx navbar height)
+              className="shrink-0 relative z-50 group flex items-center justify-center w-28 h-10"
               aria-label="home"
             >
               <img
                 src={logo}
                 alt="Aidezel"
-                className="h-[120px] w-auto object-contain -my-10 group-hover:scale-105 transition-transform"
+                // 'pointer-events-none' ensures clicks on the overflowing parts are ignored
+                // 'transform-gpu' ensures smooth rendering without blur
+                className="pointer-events-none absolute h-[120px] w-auto max-w-none object-contain transition-transform duration-300 ease-out group-hover:scale-105 transform-gpu"
                 style={{
                   padding: 6,
                   borderRadius: 8,
                   background: 'transparent',
                   filter: 'drop-shadow(0 6px 18px rgba(2,6,23,0.45))',
                   WebkitFilter: 'drop-shadow(0 6px 18px rgba(2,6,23,0.45))',
+                  
+                  backfaceVisibility: 'hidden',
+                  WebkitBackfaceVisibility: 'hidden',
+                  willChange: 'transform',
+                  imageRendering: '-webkit-optimize-contrast',
                 }}
               />
             </Link>
           </div>
 
-          {/* --- MOBILE SEARCH BAR (Next to Logo) --- */}
+          {/* --- MOBILE SEARCH BAR --- */}
           <div className="flex-1 lg:hidden ml-2">
              {renderSearchForm()}
           </div>
@@ -403,7 +410,7 @@ const Navbar = () => {
         </div>
       </nav>
 
-      {/* --- MOBILE ADDRESS BAR (Dark Blue) --- */}
+      {/* --- MOBILE ADDRESS BAR --- */}
       <button 
           onClick={handleLocationClick}
           className="no-print w-full text-left lg:hidden bg-slate-900 text-white px-4 py-2.5 flex items-center gap-2 text-sm border-b border-slate-800 shadow-sm active:bg-slate-800 transition-colors"
@@ -483,7 +490,7 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Spacer so page content doesn't hide behind bottom nav on mobile */}
+      {/* Spacer */}
       <div className="no-print h-20 lg:hidden" />
     </>
   );

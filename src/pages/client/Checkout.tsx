@@ -83,13 +83,15 @@ const Checkout: React.FC = () => {
         .from('orders')
         .insert([
           {
+            user_id: user?.id || null, // Handle guest checkout if user is null
             customer_name: `${formData.firstName} ${formData.lastName}`,
-            email: accountEmail, // 🔥 key line: use auth email if logged in
+            email: accountEmail,
             address: formData.address,
             city: formData.city,
             postcode: formData.postcode,
             total_amount: totalAmount,
             status: 'Pending',
+            // contact_number: formData.phone // Add this if you have a phone field
           },
         ])
         .select()
@@ -107,14 +109,15 @@ const Checkout: React.FC = () => {
           .insert({
             order_id: orderData.id,
             product_id: item.id,
-            product_name: item.name,
+            // product_name: item.name, // Only include if your DB has this column
             quantity: item.quantity,
-            price: item.price, // already number
+            price_at_purchase: item.price, // ✅ FIXED: Matches DB column name
+            selected_variant: (item as any).selectedVariant || '' // ✅ ADDED: Saves color/size
           });
 
         if (orderItemError) {
-          console.error(orderItemError);
-          throw new Error('Failed to save order items');
+          console.error('Order Item Error:', orderItemError);
+          throw new Error('Failed to save order items: ' + orderItemError.message);
         }
 
         // B. Fetch current stock
@@ -126,7 +129,7 @@ const Checkout: React.FC = () => {
 
         if (productError) {
           console.error(productError);
-          throw new Error('Failed to fetch product stock');
+          // Don't throw here, just log it. We don't want to fail the order if stock update fails slightly.
         }
 
         if (product) {
@@ -142,7 +145,6 @@ const Checkout: React.FC = () => {
 
           if (updateError) {
             console.error(updateError);
-            throw new Error('Failed to update product stock');
           }
         }
       }
@@ -196,7 +198,7 @@ const Checkout: React.FC = () => {
                 required
                 placeholder="First Name"
                 className="p-3 border rounded-lg"
-                value={formData.firstName} // <-- Added Value Binding
+                value={formData.firstName} 
                 onChange={(e) =>
                   setFormData({ ...formData, firstName: e.target.value })
                 }
@@ -205,7 +207,7 @@ const Checkout: React.FC = () => {
                 required
                 placeholder="Last Name"
                 className="p-3 border rounded-lg"
-                value={formData.lastName} // <-- Added Value Binding
+                value={formData.lastName} 
                 onChange={(e) =>
                   setFormData({ ...formData, lastName: e.target.value })
                 }
@@ -215,7 +217,7 @@ const Checkout: React.FC = () => {
                 type="email"
                 placeholder="Email Address"
                 className="md:col-span-2 p-3 border rounded-lg"
-                value={formData.email} // <-- Added Value Binding
+                value={formData.email} 
                 onChange={(e) =>
                   setFormData({ ...formData, email: e.target.value })
                 }
@@ -224,7 +226,7 @@ const Checkout: React.FC = () => {
                 required
                 placeholder="Address"
                 className="md:col-span-2 p-3 border rounded-lg"
-                value={formData.address} // <-- Added Value Binding
+                value={formData.address} 
                 onChange={(e) =>
                   setFormData({ ...formData, address: e.target.value })
                 }
@@ -233,7 +235,7 @@ const Checkout: React.FC = () => {
                 required
                 placeholder="City"
                 className="p-3 border rounded-lg"
-                value={formData.city} // <-- Added Value Binding
+                value={formData.city} 
                 onChange={(e) =>
                   setFormData({ ...formData, city: e.target.value })
                 }
@@ -242,7 +244,7 @@ const Checkout: React.FC = () => {
                 required
                 placeholder="Post Code"
                 className="p-3 border rounded-lg"
-                value={formData.postcode} // <-- Added Value Binding
+                value={formData.postcode} 
                 onChange={(e) =>
                   setFormData({ ...formData, postcode: e.target.value })
                 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plus, Loader2, ImageIcon, Sparkles, Edit, Trash2, X, Save, ListPlus, TableProperties, MinusCircle, ImagePlus } from 'lucide-react';
+import { Plus, Loader2, ImageIcon, Sparkles, Edit, Trash2, X, Save, ListPlus, TableProperties, MinusCircle, ImagePlus, Settings } from 'lucide-react';
 import ConfirmModal from '../../components/shared/ConfirmModal';
 
 // Modified function to include features
@@ -46,6 +46,9 @@ const ManageProducts = () => {
   // Dynamic Lists State
   const [features, setFeatures] = useState<string[]>(['']);
   const [specs, setSpecs] = useState<{key: string, value: string}[]>([{key: '', value: ''}]);
+
+  // --- NEW: OPTIONS STATE (Color, Shape, etc.) ---
+  const [options, setOptions] = useState<{name: string, values: string[]}[]>([]);
 
   // 1. Fetch Categories & Products
   const fetchData = async () => {
@@ -94,6 +97,13 @@ const ManageProducts = () => {
     }
     setGalleryFiles([]); // Reset new files
 
+    // Load Options (NEW)
+    if (product.options && Array.isArray(product.options)) {
+        setOptions(product.options);
+    } else {
+        setOptions([]);
+    }
+
     formRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
@@ -105,6 +115,7 @@ const ManageProducts = () => {
     setSpecs([{key: '', value: ''}]);
     setGalleryFiles([]);
     setGalleryUrls([]);
+    setOptions([]); // Reset Options
   };
 
   // --- NEW DELETE HANDLERS ---
@@ -163,6 +174,29 @@ const ManageProducts = () => {
     setGalleryUrls(prev => prev.filter((_, i) => i !== index));
   };
 
+  // --- OPTIONS HANDLERS (NEW) ---
+  const addOptionGroup = () => setOptions([...options, { name: '', values: [] }]);
+  const removeOptionGroup = (idx: number) => setOptions(options.filter((_, i) => i !== idx));
+  
+  const updateOptionName = (idx: number, name: string) => {
+      const newOpts = [...options];
+      newOpts[idx].name = name;
+      setOptions(newOpts);
+  };
+
+  const addOptionValue = (groupIdx: number, val: string) => {
+      if (!val.trim()) return;
+      const newOpts = [...options];
+      newOpts[groupIdx].values.push(val);
+      setOptions(newOpts);
+  };
+
+  const removeOptionValue = (groupIdx: number, valIdx: number) => {
+      const newOpts = [...options];
+      newOpts[groupIdx].values = newOpts[groupIdx].values.filter((_, i) => i !== valIdx);
+      setOptions(newOpts);
+  };
+
 
   // 5. Handle Submit
   const handleSubmit = async (e: React.FormEvent) => {
@@ -206,6 +240,9 @@ const ManageProducts = () => {
       }, {} as any);
 
       const cleanFeatures = features.filter(f => f.trim() !== '');
+      
+      // Filter out empty options
+      const validOptions = options.filter(o => o.name.trim() !== '' && o.values.length > 0);
 
       const productData = {
         name: newItem.name,
@@ -217,6 +254,7 @@ const ManageProducts = () => {
         description: newItem.description,
         image_url: finalImageUrl,
         gallery: finalGallery, // Save array of images
+        options: validOptions, // NEW: Save options to DB
         status: parseInt(newItem.stock) > 0 ? 'In Stock' : 'Out of Stock',
         is_hero: newItem.is_hero,
         features: cleanFeatures, 
@@ -311,6 +349,49 @@ const ManageProducts = () => {
                 <label className="block text-sm font-bold text-gray-700 mb-1">Brand Name</label>
                 <input className="w-full p-3 border border-gray-300 rounded-lg" placeholder="Aidezel" value={newItem.brand} onChange={e => setNewItem({...newItem, brand: e.target.value})} />
               </div>
+            </div>
+
+            {/* --- NEW OPTIONS BUILDER UI --- */}
+            <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
+                <div className="flex justify-between items-center mb-3">
+                    <label className="flex items-center gap-2 text-sm font-bold text-gray-700"><Settings size={18}/> Product Options (Variants)</label>
+                    <button type="button" onClick={addOptionGroup} className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-bold hover:bg-blue-200">+ Add Option Group</button>
+                </div>
+                <div className="space-y-4">
+                    {options.map((grp, grpIdx) => (
+                        <div key={grpIdx} className="bg-white p-3 rounded-lg border border-gray-200">
+                            <div className="flex gap-2 mb-2">
+                                <input 
+                                    className="flex-1 p-2 border border-gray-300 rounded text-sm font-bold" 
+                                    placeholder="Option Name (e.g. Shape, Color)"
+                                    value={grp.name}
+                                    onChange={(e) => updateOptionName(grpIdx, e.target.value)}
+                                />
+                                <button type="button" onClick={() => removeOptionGroup(grpIdx)} className="text-red-500 hover:text-red-700"><Trash2 size={18}/></button>
+                            </div>
+                            <div className="flex flex-wrap gap-2 items-center">
+                                {grp.values.map((val, valIdx) => (
+                                    <span key={valIdx} className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs flex items-center gap-1">
+                                        {val}
+                                        <button type="button" onClick={() => removeOptionValue(grpIdx, valIdx)}><X size={12}/></button>
+                                    </span>
+                                ))}
+                                <input 
+                                    className="p-1 border border-gray-300 rounded text-xs min-w-[120px]" 
+                                    placeholder="+ Value (Enter) e.g. Star"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            addOptionValue(grpIdx, e.currentTarget.value);
+                                            e.currentTarget.value = '';
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    ))}
+                    {options.length === 0 && <p className="text-xs text-gray-400 italic">No options added (e.g. Shape: Star, Heart).</p>}
+                </div>
             </div>
 
             {/* FEATURES BUILDER */}

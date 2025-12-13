@@ -19,7 +19,10 @@ const ProductDetails = () => {
   const [newReview, setNewReview] = useState('');
   const [rating, setRating] = useState(5);
   const [session, setSession] = useState<Session | null>(null);
-  const [selectedColor, setSelectedColor] = useState(0);
+  
+  // --- NEW: SELECTED OPTIONS STATE ---
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
+  const [selectedColor, setSelectedColor] = useState(0); // Kept for legacy if needed, but new system uses selectedOptions
   
   // STATE: Wishlist & Toast
   const [isWishlisted, setIsWishlisted] = useState(false);
@@ -35,12 +38,22 @@ const ProductDetails = () => {
       if (prod) {
         setProduct(prod);
         
-        // --- FIXED: Use actual gallery if available, otherwise fallback to main image ---
+        // Gallery Logic
         if (prod.gallery && Array.isArray(prod.gallery) && prod.gallery.length > 0) {
-            setGalleryImages([prod.image_url, ...prod.gallery]); // Main + Gallery
+            setGalleryImages([prod.image_url, ...prod.gallery]); 
         } else {
-            // Fallback if no gallery (repeat main image for layout demo or just single)
             setGalleryImages([prod.image_url, prod.image_url, prod.image_url, prod.image_url]); 
+        }
+
+        // --- INIT OPTIONS DEFAULTS ---
+        if (prod.options && Array.isArray(prod.options)) {
+            const defaults: Record<string, string> = {};
+            prod.options.forEach((opt: any) => {
+                if (opt.values && opt.values.length > 0) {
+                    defaults[opt.name] = opt.values[0]; // Select first value by default
+                }
+            });
+            setSelectedOptions(defaults);
         }
 
         if (user) {
@@ -77,29 +90,22 @@ const ProductDetails = () => {
   const toggleWishlist = async () => {
     if (!session) return alert("Please log in to add items to your wishlist.");
 
-    // Optimistic UI Update (Toggle immediately)
     const previousState = isWishlisted;
     setIsWishlisted(!previousState);
 
     if (previousState) {
-        // Remove from Wishlist
         triggerToast("Removed from Wishlist");
         const { error } = await supabase
             .from('wishlist')
             .delete()
             .eq('user_id', session.user.id)
             .eq('product_id', id);
-        
-        // Revert if error
         if (error) setIsWishlisted(true);
     } else {
-        // Add to Wishlist
         triggerToast("Added to Wishlist");
         const { error } = await supabase
             .from('wishlist')
             .insert([{ user_id: session.user.id, product_id: id }]);
-
-        // Revert if error
         if (error) setIsWishlisted(false);
     }
   };
@@ -146,10 +152,22 @@ const ProductDetails = () => {
         ['Origin', 'United Kingdom']
       ];
 
-  // --- Calculate Average Rating ---
+  // Calculate Average Rating
   const averageRating = realReviews.length > 0 
     ? (realReviews.reduce((acc, r) => acc + r.rating, 0) / realReviews.length).toFixed(1)
     : 0;
+
+  // --- HANDLE ADD TO CART WITH OPTIONS ---
+  const handleAddToCart = () => {
+      // Create a string description of selected options (e.g., "Color: Red, Shape: Star")
+      const optionString = Object.entries(selectedOptions).map(([key, val]) => `${key}: ${val}`).join(', ');
+      
+      addToCart({ 
+          ...product, 
+          quantity: qty,
+          selectedVariant: optionString // Pass option string to cart context
+      });
+  };
 
   return (
     <div className="bg-white min-h-screen font-sans text-gray-900 pb-24 relative">
@@ -218,7 +236,31 @@ const ProductDetails = () => {
                 <div className="text-sm text-gray-900">Inclusive of all taxes</div>
             </div>
 
-            <div className="pt-2">
+            {/* --- NEW: DYNAMIC OPTIONS SELECTOR (RENDERED HERE) --- */}
+            {product.options && Array.isArray(product.options) && product.options.map((option: any, idx: number) => (
+                <div key={idx} className="pt-2">
+                    <span className="text-sm font-bold text-gray-700">{option.name}: </span>
+                    <span className="text-sm text-gray-600 font-medium">{selectedOptions[option.name]}</span>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                        {option.values.map((val: string, valIdx: number) => (
+                            <button 
+                                key={valIdx} 
+                                onClick={() => setSelectedOptions(prev => ({...prev, [option.name]: val}))} 
+                                className={`px-4 py-2 text-sm rounded-lg border-2 transition-all ${
+                                    selectedOptions[option.name] === val 
+                                    ? 'border-blue-600 bg-blue-50 text-blue-700 font-bold shadow-sm' 
+                                    : 'border-gray-200 bg-white hover:border-gray-400 text-gray-700'
+                                }`}
+                            >
+                                {val}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            ))}
+
+            {/* Kept old hardcoded Color Selector for backward compatibility if needed, otherwise optional */}
+            {/* <div className="pt-2">
                 <span className="text-sm font-bold text-gray-700">Color: </span>
                 <span className="text-sm text-gray-600">{['Black', 'White', 'Blue'][selectedColor]}</span>
                 <div className="flex gap-2 mt-2">
@@ -226,7 +268,8 @@ const ProductDetails = () => {
                         <button key={idx} onClick={() => setSelectedColor(idx)} className={`w-9 h-9 rounded-full ${color} border-2 ${selectedColor === idx ? 'border-blue-600 ring-2 ring-blue-100' : 'border-transparent hover:border-gray-300'}`}/>
                     ))}
                 </div>
-            </div>
+            </div> 
+            */}
 
             <div className="pt-4">
                 <h3 className="font-bold text-sm text-gray-900 mb-2">About this item</h3>
@@ -269,7 +312,7 @@ const ProductDetails = () => {
                     </div>
 
                     <button 
-                        onClick={() => addToCart({ ...product, quantity: qty })} 
+                        onClick={handleAddToCart} // Using new handler
                         disabled={isOutOfStock} 
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-full text-sm shadow-sm transition-colors disabled:opacity-50"
                     >
@@ -280,8 +323,8 @@ const ProductDetails = () => {
                       disabled={isOutOfStock}
                       onClick={() => {
                         if (isOutOfStock) return;
-                        addToCart({ ...product, quantity: qty });   // ✅ add to cart
-                        navigate('/checkout');                        // ✅ go to checkout
+                        handleAddToCart(); // Using new handler
+                        navigate('/checkout');                        
                       }}
                       className="w-full bg-black hover:bg-gray-900 text-white font-medium py-2.5 rounded-full text-sm shadow-sm transition-colors disabled:opacity-50"
                     >

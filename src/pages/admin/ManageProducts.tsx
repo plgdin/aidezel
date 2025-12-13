@@ -3,18 +3,49 @@ import { supabase } from '../../lib/supabase';
 import { Plus, Loader2, ImageIcon, Sparkles, Edit, Trash2, X, Save, ListPlus, TableProperties, MinusCircle, ImagePlus, Settings } from 'lucide-react';
 import ConfirmModal from '../../components/shared/ConfirmModal';
 
-// Modified function to include features
-const generateAIDescription = (name: string, category: string, subcategory: string, features: string[]) => {
-  // Filter out empty features
+// --- IMPROVED SMART GENERATOR ---
+const generateAIDescription = (
+    name: string, 
+    category: string, 
+    subcategory: string, 
+    brand: string, // Added Brand
+    features: string[], 
+    specs: {key: string, value: string}[]
+) => {
   const validFeatures = features.filter(f => f.trim() !== '');
-  
-  let description = `Upgrade your lifestyle with the premium ${name}. \n\nPerfect for ${category} enthusiasts looking for ${subcategory}, this product combines industrial-grade durability with a sleek, modern aesthetic.\n\n`;
+  const validSpecs = specs.filter(s => s.key.trim() !== '' && s.value.trim() !== '');
+  const safeBrand = brand || 'us'; // Fallback if brand is empty
 
-  if (validFeatures.length > 0) {
-    description += `Key Highlights:\n${validFeatures.map(f => `• ${f}`).join('\n')}\n\n`;
+  // 1. Dynamic Intro based on Category
+  let intro = '';
+  const lowerCat = category.toLowerCase();
+
+  // Enhanced Clothing Logic
+  if (lowerCat.includes('clothing') || lowerCat.includes('fashion') || lowerCat.includes('wear') || lowerCat.includes('shirt') || lowerCat.includes('pant') || lowerCat.includes('dress')) {
+      intro = `Elevate your wardrobe with the **${name}**. Designed for the modern individual, this piece combines premium fabric with a flattering fit, ensuring you look and feel your best whether you're at work or out on the town.`;
+  } else if (lowerCat.includes('furniture') || lowerCat.includes('chair') || lowerCat.includes('sofa')) {
+      intro = `Transform your living space with the **${name}**. Blending comfort with contemporary design, this piece is crafted to be the focal point of any room while providing unmatched durability.`;
+  } else if (lowerCat.includes('electronic') || lowerCat.includes('tech') || lowerCat.includes('gadget')) {
+      intro = `Experience cutting-edge technology with the **${name}**. Engineered for performance and precision, this device offers a seamless user experience that keeps you ahead of the curve.`;
+  } else {
+      // Default Generic Intro
+      intro = `Upgrade your lifestyle with the premium **${name}**. Perfect for ${category} enthusiasts looking for ${subcategory}, this product combines industrial-grade durability with a sleek, modern aesthetic.`;
   }
 
-  description += `Why Choose This Product:\nDesigned for longevity and ease of use, the ${name} is a testament to quality craftsmanship. Whether you're upgrading your space or looking for reliable performance, this product delivers on all fronts.\n\n• 1-Year Official Warranty\n• 100% Original Aidezel Product`;
+  let description = `${intro}\n\n`;
+
+  // 2. Features Section
+  if (validFeatures.length > 0) {
+    description += `**Key Features & Benefits:**\n${validFeatures.map(f => `• ${f}`).join('\n')}\n\n`;
+  }
+
+  // 3. Technical Specs Section
+  if (validSpecs.length > 0) {
+    description += `**Technical Specifications:**\n${validSpecs.map(s => `• ${s.key}: ${s.value}`).join('\n')}\n\n`;
+  }
+
+  // 4. Dynamic Outro using the Brand
+  description += `**Why Choose ${safeBrand}?**\nKnown for innovation and excellence, ${safeBrand} delivers products you can rely on. Whether for professional or personal use, the ${name} stands as a testament to superior craftsmanship.\n\n• Official ${safeBrand} Warranty\n• 100% Authentic Product\n• Quality Assured`;
 
   return description;
 };
@@ -47,7 +78,7 @@ const ManageProducts = () => {
   const [features, setFeatures] = useState<string[]>(['']);
   const [specs, setSpecs] = useState<{key: string, value: string}[]>([{key: '', value: ''}]);
 
-  // --- NEW: OPTIONS STATE (Color, Shape, etc.) ---
+  // --- OPTIONS STATE ---
   const [options, setOptions] = useState<{name: string, values: string[]}[]>([]);
 
   // 1. Fetch Categories & Products
@@ -66,11 +97,17 @@ const ManageProducts = () => {
   // 2. Handle Edit Click
   const handleEditClick = (product: any) => {
     setEditingId(product.id);
+    
+    // Fix for subcategory object
+    const safeSubcategory = typeof product.subcategory === 'object' && product.subcategory !== null 
+        ? product.subcategory.name 
+        : (product.subcategory || '');
+
     setNewItem({
         name: product.name,
         price: product.price.toString(),
         category: product.category,
-        subcategory: product.subcategory || '',
+        subcategory: safeSubcategory,
         stock: product.stock_quantity.toString(),
         brand: product.brand || 'Aidezel',
         description: product.description || '',
@@ -95,9 +132,9 @@ const ManageProducts = () => {
     } else {
         setGalleryUrls([]);
     }
-    setGalleryFiles([]); // Reset new files
+    setGalleryFiles([]); 
 
-    // Load Options (NEW)
+    // Load Options
     if (product.options && Array.isArray(product.options)) {
         setOptions(product.options);
     } else {
@@ -115,10 +152,10 @@ const ManageProducts = () => {
     setSpecs([{key: '', value: ''}]);
     setGalleryFiles([]);
     setGalleryUrls([]);
-    setOptions([]); // Reset Options
+    setOptions([]); 
   };
 
-  // --- NEW DELETE HANDLERS ---
+  // --- DELETE HANDLERS ---
   const confirmDelete = (id: number) => {
     setProductToDelete(id);
     setShowDeleteModal(true);
@@ -174,7 +211,7 @@ const ManageProducts = () => {
     setGalleryUrls(prev => prev.filter((_, i) => i !== index));
   };
 
-  // --- OPTIONS HANDLERS (NEW) ---
+  // --- OPTIONS HANDLERS ---
   const addOptionGroup = () => setOptions([...options, { name: '', values: [] }]);
   const removeOptionGroup = (idx: number) => setOptions(options.filter((_, i) => i !== idx));
   
@@ -206,7 +243,6 @@ const ManageProducts = () => {
     setIsUploading(true);
 
     try {
-      // 1. Upload Main Image
       let finalImageUrl = newItem.imageUrl;
       if (newItem.imageFile) {
         const fileExt = newItem.imageFile.name.split('.').pop();
@@ -217,7 +253,6 @@ const ManageProducts = () => {
         finalImageUrl = publicUrl;
       }
 
-      // 2. Upload Gallery Images
       let uploadedGalleryUrls: string[] = [];
       if (galleryFiles.length > 0) {
           const uploadPromises = galleryFiles.map(async (file) => {
@@ -231,7 +266,6 @@ const ManageProducts = () => {
           uploadedGalleryUrls = await Promise.all(uploadPromises);
       }
 
-      // Combine existing URLs with new uploaded ones
       const finalGallery = [...galleryUrls, ...uploadedGalleryUrls];
 
       const specsObject = specs.reduce((acc, curr) => {
@@ -240,8 +274,6 @@ const ManageProducts = () => {
       }, {} as any);
 
       const cleanFeatures = features.filter(f => f.trim() !== '');
-      
-      // Filter out empty options
       const validOptions = options.filter(o => o.name.trim() !== '' && o.values.length > 0);
 
       const productData = {
@@ -253,8 +285,8 @@ const ManageProducts = () => {
         brand: newItem.brand,
         description: newItem.description,
         image_url: finalImageUrl,
-        gallery: finalGallery, // Save array of images
-        options: validOptions, // NEW: Save options to DB
+        gallery: finalGallery,
+        options: validOptions,
         status: parseInt(newItem.stock) > 0 ? 'In Stock' : 'Out of Stock',
         is_hero: newItem.is_hero,
         features: cleanFeatures, 
@@ -280,10 +312,8 @@ const ManageProducts = () => {
     setIsUploading(false);
   };
 
-  // --- FIXED: Safe Subcategory Logic ---
   const getSubcategories = () => {
     const categoryObj = categories.find(c => c.name === newItem.category);
-    // Ensure it's an array before returning, otherwise return empty array
     if (categoryObj && Array.isArray(categoryObj.subcategories)) {
         return categoryObj.subcategories;
     }
@@ -309,10 +339,8 @@ const ManageProducts = () => {
       <div className={`p-6 lg:p-8 rounded-2xl shadow-sm border mb-12 transition-colors ${editingId ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200'}`}>
         <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           
-          {/* LEFT: MAIN INFO */}
           <div className="lg:col-span-8 space-y-6">
             
-            {/* Basic Info */}
             <div className="grid grid-cols-2 gap-5">
                 <div className="col-span-2">
                     <label className="block text-sm font-bold text-gray-700 mb-1">Product Name</label>
@@ -334,14 +362,9 @@ const ManageProducts = () => {
                 <label className="block text-sm font-bold text-gray-700 mb-1">Sub-Category</label>
                 <select className="w-full p-3 border border-gray-300 rounded-lg bg-white" value={newItem.subcategory} onChange={e => setNewItem({...newItem, subcategory: e.target.value})}>
                   <option value="">Select...</option>
-                  {/* Safely map subcategories to handle both strings and objects */}
                   {currentSubcategories.map((sub: any, index: number) => {
                       const subName = typeof sub === 'object' && sub !== null ? sub.name : sub;
-                      return (
-                          <option key={index} value={subName}>
-                              {subName}
-                          </option>
-                      );
+                      return <option key={index} value={subName}>{subName}</option>;
                   })}
                 </select>
               </div>
@@ -351,7 +374,7 @@ const ManageProducts = () => {
               </div>
             </div>
 
-            {/* --- NEW OPTIONS BUILDER UI --- */}
+            {/* OPTIONS BUILDER */}
             <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
                 <div className="flex justify-between items-center mb-3">
                     <label className="flex items-center gap-2 text-sm font-bold text-gray-700"><Settings size={18}/> Product Options (Variants)</label>
@@ -451,7 +474,8 @@ const ManageProducts = () => {
                     if (!newItem.name) return alert("Enter name first"); 
                     setNewItem({ 
                         ...newItem, 
-                        description: generateAIDescription(newItem.name, newItem.category, newItem.subcategory, features) 
+                        // --- UPDATED: Pass 'newItem.brand', 'features', and 'specs' ---
+                        description: generateAIDescription(newItem.name, newItem.category, newItem.subcategory, newItem.brand, features, specs) 
                     }) 
                 }} 
                 className="absolute top-8 right-2 text-xs bg-purple-100 text-purple-700 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-purple-200 font-bold"
@@ -493,8 +517,6 @@ const ManageProducts = () => {
             <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Gallery Images (Optional)</label>
                 <div className="border-2 border-dashed border-gray-300 rounded-2xl p-4 bg-gray-50">
-                    
-                    {/* File Input for Multiple Images */}
                     <div className="relative w-full h-12 bg-white border border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors mb-4">
                         <input 
                             type="file" 
@@ -508,10 +530,7 @@ const ManageProducts = () => {
                             <span>Add Images</span>
                         </div>
                     </div>
-
-                    {/* Preview Grid */}
                     <div className="grid grid-cols-3 gap-2">
-                        {/* Existing URLs from DB */}
                         {galleryUrls.map((url, idx) => (
                             <div key={`url-${idx}`} className="relative aspect-square rounded-lg overflow-hidden group">
                                 <img src={url} alt="gallery" className="w-full h-full object-cover" />
@@ -520,7 +539,6 @@ const ManageProducts = () => {
                                 </button>
                             </div>
                         ))}
-                        {/* New Files to Upload */}
                         {galleryFiles.map((file, idx) => (
                             <div key={`file-${idx}`} className="relative aspect-square rounded-lg overflow-hidden group bg-gray-200">
                                 <span className="absolute inset-0 flex items-center justify-center text-[10px] text-gray-500 break-all p-1 text-center">{file.name}</span>

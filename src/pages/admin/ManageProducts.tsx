@@ -3,8 +3,20 @@ import { supabase } from '../../lib/supabase';
 import { Plus, Loader2, ImageIcon, Sparkles, Edit, Trash2, X, Save, ListPlus, TableProperties, MinusCircle, ImagePlus } from 'lucide-react';
 import ConfirmModal from '../../components/shared/ConfirmModal';
 
-const generateAIDescription = (name: string, category: string, subcategory: string) => {
-  return `Upgrade your lifestyle with the premium ${name}. \n\nPerfect for ${category} enthusiasts looking for ${subcategory}, this product combines industrial-grade durability with a sleek, modern aesthetic.\n\nKey Features:\n• Premium Build Quality\n• Easy to Install & Use\n• Designed for longevity\n• 1-Year Official Warranty`;
+// Modified function to include features
+const generateAIDescription = (name: string, category: string, subcategory: string, features: string[]) => {
+  // Filter out empty features
+  const validFeatures = features.filter(f => f.trim() !== '');
+  
+  let description = `Upgrade your lifestyle with the premium ${name}. \n\nPerfect for ${category} enthusiasts looking for ${subcategory}, this product combines industrial-grade durability with a sleek, modern aesthetic.\n\n`;
+
+  if (validFeatures.length > 0) {
+    description += `Key Highlights:\n${validFeatures.map(f => `• ${f}`).join('\n')}\n\n`;
+  }
+
+  description += `Why Choose This Product:\nDesigned for longevity and ease of use, the ${name} is a testament to quality craftsmanship. Whether you're upgrading your space or looking for reliable performance, this product delivers on all fronts.\n\n• 1-Year Official Warranty\n• 100% Original Aidezel Product`;
+
+  return description;
 };
 
 const ManageProducts = () => {
@@ -230,9 +242,10 @@ const ManageProducts = () => {
     setIsUploading(false);
   };
 
-  // Safe Subcategory Logic
+  // --- FIXED: Safe Subcategory Logic ---
   const getSubcategories = () => {
     const categoryObj = categories.find(c => c.name === newItem.category);
+    // Ensure it's an array before returning, otherwise return empty array
     if (categoryObj && Array.isArray(categoryObj.subcategories)) {
         return categoryObj.subcategories;
     }
@@ -283,9 +296,14 @@ const ManageProducts = () => {
                 <label className="block text-sm font-bold text-gray-700 mb-1">Sub-Category</label>
                 <select className="w-full p-3 border border-gray-300 rounded-lg bg-white" value={newItem.subcategory} onChange={e => setNewItem({...newItem, subcategory: e.target.value})}>
                   <option value="">Select...</option>
+                  {/* Safely map subcategories to handle both strings and objects */}
                   {currentSubcategories.map((sub: any, index: number) => {
                       const subName = typeof sub === 'object' && sub !== null ? sub.name : sub;
-                      return <option key={index} value={subName}>{subName}</option>;
+                      return (
+                          <option key={index} value={subName}>
+                              {subName}
+                          </option>
+                      );
                   })}
                 </select>
               </div>
@@ -346,7 +364,19 @@ const ManageProducts = () => {
             <div className="relative">
               <label className="block text-sm font-bold text-gray-700 mb-1">Full Description</label>
               <textarea className="w-full p-3 border border-gray-300 rounded-lg h-32" placeholder="Write a detailed description..." value={newItem.description} onChange={e => setNewItem({...newItem, description: e.target.value})} />
-              <button type="button" onClick={() => { if (!newItem.name) return alert("Enter name first"); setNewItem({ ...newItem, description: generateAIDescription(newItem.name, newItem.category, newItem.subcategory) }) }} className="absolute top-8 right-2 text-xs bg-purple-100 text-purple-700 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-purple-200 font-bold"><Sparkles size={14} /> Auto-Gen</button>
+              <button 
+                type="button" 
+                onClick={() => { 
+                    if (!newItem.name) return alert("Enter name first"); 
+                    setNewItem({ 
+                        ...newItem, 
+                        description: generateAIDescription(newItem.name, newItem.category, newItem.subcategory, features) 
+                    }) 
+                }} 
+                className="absolute top-8 right-2 text-xs bg-purple-100 text-purple-700 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-purple-200 font-bold"
+              >
+                <Sparkles size={14} /> Auto-Gen
+              </button>
             </div>
           </div>
 

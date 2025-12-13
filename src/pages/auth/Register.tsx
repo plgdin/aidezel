@@ -11,27 +11,27 @@ const Register = () => {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
+
     try {
-      // 1. Sign up with Supabase Auth
+      // 1. Sign up with Supabase Auth AND pass metadata
+      // The database trigger will see this 'full_name' and create the profile for you.
       const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
+        options: {
+          data: {
+            full_name: formData.fullName,
+          },
+        },
       });
 
       if (error) throw error;
 
-      if (data.user) {
-        // 2. Create a profile entry in the database
-        const { error: profileError } = await supabase.from('profiles').insert([
-          { id: data.user.id, email: formData.email, full_name: formData.fullName }
-        ]);
-        
-        if (profileError) throw profileError;
+      // 2. No manual insert needed! The trigger handles it.
+      
+      alert('Registration successful! Please log in.');
+      navigate('/login');
 
-        alert('Registration successful! Please log in.');
-        navigate('/login');
-      }
     } catch (error: any) {
       alert(error.message);
     } finally {
@@ -46,17 +46,40 @@ const Register = () => {
         <form onSubmit={handleRegister} className="space-y-4">
           <div>
             <label className="block text-sm font-bold mb-1">Full Name</label>
-            <div className="relative"><User className="absolute left-3 top-3 text-gray-400" size={18} /><input className="w-full pl-10 p-3 border rounded-xl" required onChange={e => setFormData({...formData, fullName: e.target.value})} /></div>
+            <div className="relative">
+              <User className="absolute left-3 top-3 text-gray-400" size={18} />
+              <input 
+                className="w-full pl-10 p-3 border rounded-xl focus:outline-none focus:border-black" 
+                required 
+                onChange={e => setFormData({...formData, fullName: e.target.value})} 
+              />
+            </div>
           </div>
           <div>
             <label className="block text-sm font-bold mb-1">Email</label>
-            <div className="relative"><Mail className="absolute left-3 top-3 text-gray-400" size={18} /><input type="email" className="w-full pl-10 p-3 border rounded-xl" required onChange={e => setFormData({...formData, email: e.target.value})} /></div>
+            <div className="relative">
+              <Mail className="absolute left-3 top-3 text-gray-400" size={18} />
+              <input 
+                type="email" 
+                className="w-full pl-10 p-3 border rounded-xl focus:outline-none focus:border-black" 
+                required 
+                onChange={e => setFormData({...formData, email: e.target.value})} 
+              />
+            </div>
           </div>
           <div>
             <label className="block text-sm font-bold mb-1">Password</label>
-            <div className="relative"><Lock className="absolute left-3 top-3 text-gray-400" size={18} /><input type="password" className="w-full pl-10 p-3 border rounded-xl" required onChange={e => setFormData({...formData, password: e.target.value})} /></div>
+            <div className="relative">
+              <Lock className="absolute left-3 top-3 text-gray-400" size={18} />
+              <input 
+                type="password" 
+                className="w-full pl-10 p-3 border rounded-xl focus:outline-none focus:border-black" 
+                required 
+                onChange={e => setFormData({...formData, password: e.target.value})} 
+              />
+            </div>
           </div>
-          <button disabled={loading} className="w-full bg-black text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2">
+          <button disabled={loading} className="w-full bg-black text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-gray-800 transition-colors">
             {loading ? <Loader2 className="animate-spin" /> : <>Sign Up <ArrowRight size={18}/></>}
           </button>
         </form>

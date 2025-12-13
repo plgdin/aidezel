@@ -16,8 +16,6 @@ import {
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import ProductCard, { Product } from '../../components/shared/ProductCard';
-// If you have FilterSection as a separate component, keep it. 
-// If it was inline in your previous code, I've kept the inline version below to be safe based on your snippet.
 
 // --- MOCK IMAGES FOR SUBCATEGORIES ---
 const SUBCAT_IMAGES: Record<string, string> = {
@@ -31,18 +29,31 @@ const SUBCAT_IMAGES: Record<string, string> = {
   'default': 'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=300&auto=format&fit=crop'
 };
 
-// Define strict type for Category to include the toggle
 interface CategoryData {
   id: number;
   name: string;
-  is_illuminated: boolean; // The toggle from Admin
+  is_illuminated: boolean;
   subcategories: any[];
 }
+
+// ✅ FIX: Moved FilterSection OUTSIDE the Shop component
+const FilterSection = ({ title, children, defaultOpen = true }: any) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  return (
+      <div className="border-b border-gray-100 py-5">
+          <button onClick={() => setIsOpen(!isOpen)} className="flex items-center justify-between w-full mb-3 group">
+              <span className="font-bold text-sm text-gray-900 uppercase tracking-wide group-hover:text-blue-600 transition-colors">{title}</span>
+              {isOpen ? <ChevronUp size={16} className="text-gray-400"/> : <ChevronDown size={16} className="text-gray-400"/>}
+          </button>
+          {isOpen && <div className="space-y-2 animate-in slide-in-from-top-1 duration-200">{children}</div>}
+      </div>
+  );
+};
 
 const Shop = () => {
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [categories, setCategories] = useState<CategoryData[]>([]); // Store full category data
+  const [categories, setCategories] = useState<CategoryData[]>([]); 
 
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [suggestion, setSuggestion] = useState<string | null>(null);
@@ -55,9 +66,7 @@ const Shop = () => {
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const [selectedSpecs, setSelectedSpecs] = useState<Record<string, string[]>>(
-    {}
-  );
+  const [selectedSpecs, setSelectedSpecs] = useState<Record<string, string[]>>({});
   const [fastDeliveryOnly, setFastDeliveryOnly] = useState(false);
 
   // --- 1. INITIAL FETCH ---
@@ -65,7 +74,6 @@ const Shop = () => {
     const initData = async () => {
       setLoading(true);
 
-      // Fetch Categories with the new flag
       const { data: cats } = await supabase
         .from('categories')
         .select('*')
@@ -88,12 +96,7 @@ const Shop = () => {
           subcategory: item.subcategory,
           brand: item.brand,
           specs: item.specs || {},
-          tag:
-            item.status === 'Out of Stock'
-              ? 'Sold Out'
-              : item.is_hero
-              ? 'Featured'
-              : 'New',
+          tag: item.status === 'Out of Stock' ? 'Sold Out' : item.is_hero ? 'Featured' : 'New',
           stock_quantity: item.stock_quantity,
         }));
         setAllProducts(formatted);
@@ -286,7 +289,7 @@ const Shop = () => {
     }
   };
 
-  // --- RENDER HELPERS (no hooks inside, just functions) ---
+  // --- RENDER HELPERS ---
 
   const renderSubcategoryScroller = () => {
     if (
@@ -307,7 +310,6 @@ const Shop = () => {
       if (subObj && typeof subObj === 'object' && subObj.image_url)
         return subObj.image_url;
         
-      // Use SUBCAT_IMAGES constant we restored at the top
       return SUBCAT_IMAGES[subName] || SUBCAT_IMAGES['default'];
     };
 
@@ -327,7 +329,6 @@ const Shop = () => {
           )}
         </div>
 
-        {/* FIX APPLIED HERE: Added 'pt-4' to allow hover scaling without cutoff */}
         <div className="flex gap-4 overflow-x-auto pb-6 pt-4 scrollbar-hide snap-x">
           {availableSubcats.map((sub: any) => {
             const isSelected = selectedSubcats.includes(sub);
@@ -384,20 +385,6 @@ const Shop = () => {
       </div>
     );
   };
-
-  // Inline FilterSection component (in case you don't have it imported)
-  const FilterSection = ({ title, children, defaultOpen = true }: any) => {
-    const [isOpen, setIsOpen] = useState(defaultOpen);
-    return (
-        <div className="border-b border-gray-100 py-5">
-            <button onClick={() => setIsOpen(!isOpen)} className="flex items-center justify-between w-full mb-3 group">
-                <span className="font-bold text-sm text-gray-900 uppercase tracking-wide group-hover:text-blue-600 transition-colors">{title}</span>
-                {isOpen ? <ChevronUp size={16} className="text-gray-400"/> : <ChevronDown size={16} className="text-gray-400"/>}
-            </button>
-            {isOpen && <div className="space-y-2 animate-in slide-in-from-top-1 duration-200">{children}</div>}
-        </div>
-    );
-};
 
   const renderFilterContent = () => (
     <div className="space-y-1 pr-2">

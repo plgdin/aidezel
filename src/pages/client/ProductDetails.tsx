@@ -7,7 +7,7 @@ import { Session } from '@supabase/supabase-js';
 
 const ProductDetails = () => {
   const { id } = useParams();
-  const navigate = useNavigate();                        // ✅ NEW
+  const navigate = useNavigate();                      
   const { addToCart } = useCart();
   
   const [product, setProduct] = useState<any>(null);
@@ -34,7 +34,14 @@ const ProductDetails = () => {
 
       if (prod) {
         setProduct(prod);
-        setGalleryImages([prod.image_url, prod.image_url, prod.image_url, prod.image_url]);
+        
+        // --- FIXED: Use actual gallery if available, otherwise fallback to main image ---
+        if (prod.gallery && Array.isArray(prod.gallery) && prod.gallery.length > 0) {
+            setGalleryImages([prod.image_url, ...prod.gallery]); // Main + Gallery
+        } else {
+            // Fallback if no gallery (repeat main image for layout demo or just single)
+            setGalleryImages([prod.image_url, prod.image_url, prod.image_url, prod.image_url]); 
+        }
 
         if (user) {
             const { data: wishlistData } = await supabase
@@ -139,6 +146,11 @@ const ProductDetails = () => {
         ['Origin', 'United Kingdom']
       ];
 
+  // --- Calculate Average Rating ---
+  const averageRating = realReviews.length > 0 
+    ? (realReviews.reduce((acc, r) => acc + r.rating, 0) / realReviews.length).toFixed(1)
+    : 0;
+
   return (
     <div className="bg-white min-h-screen font-sans text-gray-900 pb-24 relative">
       
@@ -167,13 +179,16 @@ const ProductDetails = () => {
 
                     <img src={galleryImages[activeImage]} alt={product.name} className={`w-full h-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-105 ${isOutOfStock ? 'grayscale opacity-70' : ''}`}/>
                 </div>
-                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                    {galleryImages.map((img, idx) => (
-                        <button key={idx} onMouseEnter={() => setActiveImage(idx)} className={`w-16 h-16 flex-shrink-0 rounded-lg border-2 p-1 ${activeImage === idx ? 'border-blue-600 shadow-md' : 'border-gray-200 hover:border-gray-300'}`}>
-                            <img src={img} alt="thumb" className="w-full h-full object-contain mix-blend-multiply"/>
-                        </button>
-                    ))}
-                </div>
+                {/* Only show thumbnails if there are multiple images */}
+                {galleryImages.length > 1 && (
+                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                        {galleryImages.map((img, idx) => (
+                            <button key={idx} onMouseEnter={() => setActiveImage(idx)} className={`w-16 h-16 flex-shrink-0 rounded-lg border-2 p-1 ${activeImage === idx ? 'border-blue-600 shadow-md' : 'border-gray-200 hover:border-gray-300'}`}>
+                                <img src={img} alt="thumb" className="w-full h-full object-contain mix-blend-multiply"/>
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
           </div>
 
@@ -183,7 +198,12 @@ const ProductDetails = () => {
             <h1 className="text-2xl font-medium text-gray-900 leading-snug">{product.name}</h1>
             
             <div className="flex items-center gap-2 text-sm border-b border-gray-100 pb-4">
-                <div className="flex text-yellow-400">{[1,2,3,4,5].map(i => <Star key={i} size={16} fill="currentColor" />)}</div>
+                <div className="flex text-yellow-400">
+                    {/* Dynamic Stars based on average rating */}
+                    {[1,2,3,4,5].map(i => (
+                        <Star key={i} size={16} fill={i <= Number(averageRating) ? "currentColor" : "none"} className={i <= Number(averageRating) ? "text-yellow-400" : "text-gray-300"} />
+                    ))}
+                </div>
                 <span className="text-blue-600 hover:underline cursor-pointer">{realReviews.length} ratings</span>
                 <span className="text-gray-300">|</span>
                 <span className="text-gray-500">1K+ bought in past month</span>
@@ -296,13 +316,13 @@ const ProductDetails = () => {
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Customer Reviews</h2>
                 <div className="flex items-center gap-4 mb-8">
                     <div className="flex items-center gap-1 text-yellow-400">
-                        <Star size={24} fill="currentColor"/>
-                        <Star size={24} fill="currentColor"/>
-                        <Star size={24} fill="currentColor"/>
-                        <Star size={24} fill="currentColor"/>
-                        <Star size={24} fill="currentColor" className="text-gray-200"/>
+                        {/* Dynamic Stars in Reviews Header */}
+                        {[1,2,3,4,5].map(i => (
+                            <Star key={i} size={24} fill={i <= Number(averageRating) ? "currentColor" : "none"} className={i <= Number(averageRating) ? "text-yellow-400" : "text-gray-200"}/>
+                        ))}
                     </div>
-                    <span className="text-lg font-medium">4.2 out of 5</span>
+                    {/* FIXED: Check if number > 0 */}
+                    <span className="text-lg font-medium">{Number(averageRating) > 0 ? `${averageRating} out of 5` : 'No reviews yet'}</span>
                 </div>
                 {session ? (
                     <form onSubmit={submitReview} className="bg-gray-50 p-4 rounded-xl mb-8 border border-gray-200">

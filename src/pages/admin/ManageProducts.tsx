@@ -1,10 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plus, Loader2, ImageIcon, Sparkles, Edit, Trash2, X, Save, ListPlus, TableProperties, MinusCircle } from 'lucide-react';
+import { Plus, Loader2, ImageIcon, Sparkles, Edit, Trash2, X, Save, ListPlus, TableProperties, MinusCircle, ImagePlus } from 'lucide-react';
 import ConfirmModal from '../../components/shared/ConfirmModal';
 
-const generateAIDescription = (name: string, category: string, subcategory: string) => {
-  return `Upgrade your lifestyle with the premium ${name}. \n\nPerfect for ${category} enthusiasts looking for ${subcategory}, this product combines industrial-grade durability with a sleek, modern aesthetic.\n\nKey Features:\n• Premium Build Quality\n• Easy to Install & Use\n• Designed for longevity\n• 1-Year Official Warranty`;
+// Modified function to include features
+const generateAIDescription = (name: string, category: string, subcategory: string, features: string[]) => {
+  // Filter out empty features
+  const validFeatures = features.filter(f => f.trim() !== '');
+  
+  let description = `Upgrade your lifestyle with the premium ${name}. \n\nPerfect for ${category} enthusiasts looking for ${subcategory}, this product combines industrial-grade durability with a sleek, modern aesthetic.\n\n`;
+
+  if (validFeatures.length > 0) {
+    description += `Key Highlights:\n${validFeatures.map(f => `• ${f}`).join('\n')}\n\n`;
+  }
+
+  description += `Why Choose This Product:\nDesigned for longevity and ease of use, the ${name} is a testament to quality craftsmanship. Whether you're upgrading your space or looking for reliable performance, this product delivers on all fronts.\n\n• 1-Year Official Warranty\n• 100% Original Aidezel Product`;
+
+  return description;
 };
 
 const ManageProducts = () => {
@@ -26,6 +38,10 @@ const ManageProducts = () => {
     imageUrl: '', 
     is_hero: false
   });
+
+  // --- GALLERY STATE ---
+  const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
+  const [galleryUrls, setGalleryUrls] = useState<string[]>([]);
 
   // Dynamic Lists State
   const [features, setFeatures] = useState<string[]>(['']);
@@ -62,12 +78,21 @@ const ManageProducts = () => {
 
     setFeatures(product.features && product.features.length > 0 ? product.features : ['']);
     
+    // Load Specs
     if (product.specs && Object.keys(product.specs).length > 0) {
         const specArray = Object.entries(product.specs).map(([key, value]) => ({ key, value: String(value) }));
         setSpecs(specArray);
     } else {
         setSpecs([{key: '', value: ''}]);
     }
+
+    // Load Gallery
+    if (product.gallery && Array.isArray(product.gallery)) {
+        setGalleryUrls(product.gallery);
+    } else {
+        setGalleryUrls([]);
+    }
+    setGalleryFiles([]); // Reset new files
 
     formRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -78,6 +103,8 @@ const ManageProducts = () => {
     setNewItem({ name: '', price: '', category: categories[0]?.name || '', subcategory: '', stock: '10', brand: 'Aidezel', description: '', imageFile: null, imageUrl: '', is_hero: false });
     setFeatures(['']);
     setSpecs([{key: '', value: ''}]);
+    setGalleryFiles([]);
+    setGalleryUrls([]);
   };
 
   // --- NEW DELETE HANDLERS ---
@@ -120,6 +147,22 @@ const ManageProducts = () => {
   const addSpec = () => setSpecs([...specs, {key: '', value: ''}]);
   const removeSpec = (idx: number) => setSpecs(specs.filter((_, i) => i !== idx));
 
+  // --- GALLERY HANDLERS ---
+  const handleGallerySelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+        const newFiles = Array.from(e.target.files);
+        setGalleryFiles(prev => [...prev, ...newFiles]);
+    }
+  };
+
+  const removeGalleryFile = (index: number) => {
+    setGalleryFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const removeGalleryUrl = (index: number) => {
+    setGalleryUrls(prev => prev.filter((_, i) => i !== index));
+  };
+
 
   // 5. Handle Submit
   const handleSubmit = async (e: React.FormEvent) => {
@@ -129,16 +172,33 @@ const ManageProducts = () => {
     setIsUploading(true);
 
     try {
+      // 1. Upload Main Image
       let finalImageUrl = newItem.imageUrl;
-
       if (newItem.imageFile) {
         const fileExt = newItem.imageFile.name.split('.').pop();
-        const fileName = `${Date.now()}.${fileExt}`;
+        const fileName = `main_${Date.now()}.${fileExt}`;
         const { error: uploadError } = await supabase.storage.from('product-images').upload(fileName, newItem.imageFile);
         if (uploadError) throw uploadError;
         const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(fileName);
         finalImageUrl = publicUrl;
       }
+
+      // 2. Upload Gallery Images
+      let uploadedGalleryUrls: string[] = [];
+      if (galleryFiles.length > 0) {
+          const uploadPromises = galleryFiles.map(async (file) => {
+              const fileExt = file.name.split('.').pop();
+              const fileName = `gallery_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+              const { error } = await supabase.storage.from('product-images').upload(fileName, file);
+              if (error) throw error;
+              const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(fileName);
+              return publicUrl;
+          });
+          uploadedGalleryUrls = await Promise.all(uploadPromises);
+      }
+
+      // Combine existing URLs with new uploaded ones
+      const finalGallery = [...galleryUrls, ...uploadedGalleryUrls];
 
       const specsObject = specs.reduce((acc, curr) => {
         if (curr.key.trim() && curr.value.trim()) acc[curr.key] = curr.value;
@@ -156,6 +216,7 @@ const ManageProducts = () => {
         brand: newItem.brand,
         description: newItem.description,
         image_url: finalImageUrl,
+        gallery: finalGallery, // Save array of images
         status: parseInt(newItem.stock) > 0 ? 'In Stock' : 'Out of Stock',
         is_hero: newItem.is_hero,
         features: cleanFeatures, 
@@ -303,14 +364,28 @@ const ManageProducts = () => {
             <div className="relative">
               <label className="block text-sm font-bold text-gray-700 mb-1">Full Description</label>
               <textarea className="w-full p-3 border border-gray-300 rounded-lg h-32" placeholder="Write a detailed description..." value={newItem.description} onChange={e => setNewItem({...newItem, description: e.target.value})} />
-              <button type="button" onClick={() => { if (!newItem.name) return alert("Enter name first"); setNewItem({ ...newItem, description: generateAIDescription(newItem.name, newItem.category, newItem.subcategory) }) }} className="absolute top-8 right-2 text-xs bg-purple-100 text-purple-700 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-purple-200 font-bold"><Sparkles size={14} /> Auto-Gen</button>
+              <button 
+                type="button" 
+                onClick={() => { 
+                    if (!newItem.name) return alert("Enter name first"); 
+                    setNewItem({ 
+                        ...newItem, 
+                        description: generateAIDescription(newItem.name, newItem.category, newItem.subcategory, features) 
+                    }) 
+                }} 
+                className="absolute top-8 right-2 text-xs bg-purple-100 text-purple-700 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-purple-200 font-bold"
+              >
+                <Sparkles size={14} /> Auto-Gen
+              </button>
             </div>
           </div>
 
-          {/* RIGHT: IMAGE & SUBMIT */}
+          {/* RIGHT: IMAGE & GALLERY & SUBMIT */}
           <div className="lg:col-span-4 flex flex-col gap-6">
+            
+            {/* Main Image */}
             <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Product Image</label>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Main Product Image</label>
                 <div className="aspect-square border-2 border-dashed border-gray-300 rounded-2xl flex flex-col items-center justify-center p-6 bg-gray-50 relative hover:bg-gray-100 transition-colors overflow-hidden">
                 <input type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onChange={e => setNewItem({...newItem, imageFile: e.target.files ? e.target.files[0] : null})} />
                 
@@ -327,9 +402,53 @@ const ManageProducts = () => {
                 ) : (
                     <div className="text-center text-gray-400 relative z-0">
                         <ImageIcon size={48} className="mx-auto mb-3 text-gray-300" />
-                        <p className="font-bold text-gray-500">Click to Upload</p>
+                        <p className="font-bold text-gray-500">Click to Upload Main</p>
                     </div>
                 )}
+                </div>
+            </div>
+
+            {/* Gallery Images Section */}
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Gallery Images (Optional)</label>
+                <div className="border-2 border-dashed border-gray-300 rounded-2xl p-4 bg-gray-50">
+                    
+                    {/* File Input for Multiple Images */}
+                    <div className="relative w-full h-12 bg-white border border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors mb-4">
+                        <input 
+                            type="file" 
+                            accept="image/*" 
+                            multiple 
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                            onChange={handleGallerySelect}
+                        />
+                        <div className="flex items-center gap-2 text-gray-500 text-sm font-bold">
+                            <ImagePlus size={18} />
+                            <span>Add Images</span>
+                        </div>
+                    </div>
+
+                    {/* Preview Grid */}
+                    <div className="grid grid-cols-3 gap-2">
+                        {/* Existing URLs from DB */}
+                        {galleryUrls.map((url, idx) => (
+                            <div key={`url-${idx}`} className="relative aspect-square rounded-lg overflow-hidden group">
+                                <img src={url} alt="gallery" className="w-full h-full object-cover" />
+                                <button type="button" onClick={() => removeGalleryUrl(idx)} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <X size={12} />
+                                </button>
+                            </div>
+                        ))}
+                        {/* New Files to Upload */}
+                        {galleryFiles.map((file, idx) => (
+                            <div key={`file-${idx}`} className="relative aspect-square rounded-lg overflow-hidden group bg-gray-200">
+                                <span className="absolute inset-0 flex items-center justify-center text-[10px] text-gray-500 break-all p-1 text-center">{file.name}</span>
+                                <button type="button" onClick={() => removeGalleryFile(idx)} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 z-20">
+                                    <X size={12} />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
 

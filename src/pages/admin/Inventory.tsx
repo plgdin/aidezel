@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { RefreshCcw, Search, Edit, Trash2, Star, Save, X, Sparkles } from 'lucide-react';
+import { RefreshCcw, Search, Edit, Trash2, Star, Save, X, Sparkles, Settings } from 'lucide-react';
 import ConfirmModal from '../../components/shared/ConfirmModal';
 
 // --- AI Generator Helper ---
 const generateAIDescription = (name: string, category: string, subcategory: string) => {
-  return `Upgrade your lifestyle with the premium ${name}.
-\n\nPerfect for ${category} enthusiasts looking for ${subcategory}, this product combines industrial-grade durability with a sleek, modern aesthetic.\n\nKey Features:\n• Premium Build Quality\n• Easy to Install & Use\n• Designed for longevity\n• 1-Year Official Warranty`;
+  return `Upgrade your lifestyle with the premium ${name}.\n\nPerfect for ${category} enthusiasts looking for ${subcategory}, this product combines industrial-grade durability with a sleek, modern aesthetic.\n\nKey Features:\n• Premium Build Quality\n• Easy to Install & Use\n• Designed for longevity\n• 1-Year Official Warranty`;
 };
 
 const Inventory = () => {
@@ -14,8 +13,13 @@ const Inventory = () => {
   const [categories, setCategories] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  
+  // Editing State
   const [editingProduct, setEditingProduct] = useState<any>(null);
   
+  // Options State for Modal
+  const [editOptions, setEditOptions] = useState<{name: string, values: string[]}[]>([]);
+
   // Modal State
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [productToDelete, setProductToDelete] = useState<number | null>(null);
@@ -72,15 +76,54 @@ const Inventory = () => {
     setProductToDelete(null);
   };
 
+  // --- EDIT HANDLERS ---
+  const openEditModal = (product: any) => {
+      setEditingProduct(product);
+      // Load existing options or initialize empty
+      if (product.options && Array.isArray(product.options)) {
+          setEditOptions(product.options);
+      } else {
+          setEditOptions([]);
+      }
+  };
+
+  // --- OPTION HELPERS ---
+  const addOptionGroup = () => setEditOptions([...editOptions, { name: '', values: [] }]);
+  const removeOptionGroup = (idx: number) => setEditOptions(editOptions.filter((_, i) => i !== idx));
+  
+  const updateOptionName = (idx: number, name: string) => {
+      const newOpts = [...editOptions];
+      newOpts[idx].name = name;
+      setEditOptions(newOpts);
+  };
+
+  const addOptionValue = (groupIdx: number, val: string) => {
+      if (!val.trim()) return;
+      const newOpts = [...editOptions];
+      newOpts[groupIdx].values.push(val);
+      setEditOptions(newOpts);
+  };
+
+  const removeOptionValue = (groupIdx: number, valIdx: number) => {
+      const newOpts = [...editOptions];
+      newOpts[groupIdx].values = newOpts[groupIdx].values.filter((_, i) => i !== valIdx);
+      setEditOptions(newOpts);
+  };
+
   const handleSaveChanges = async () => {
      if (!editingProduct) return;
+     
+     // Filter out incomplete options
+     const validOptions = editOptions.filter(o => o.name.trim() !== '' && o.values.length > 0);
+
      const { error } = await supabase.from('products').update({
        name: editingProduct.name,
        price: parseFloat(editingProduct.price),
        stock_quantity: parseInt(editingProduct.stock_quantity),
        description: editingProduct.description,
        category: editingProduct.category,
-       subcategory: editingProduct.subcategory
+       subcategory: editingProduct.subcategory,
+       options: validOptions // Save updated options
      }).eq('id', editingProduct.id);
 
      if (!error) {
@@ -155,12 +198,12 @@ const Inventory = () => {
                        <button onClick={() => updateStock(p.id, p.stock_quantity, -1)} className="w-6 h-6 bg-white rounded shadow-sm flex items-center justify-center hover:text-red-600 font-bold">-</button>
                        <span className={`font-mono font-bold w-8 text-center ${p.stock_quantity === 0 ? 'text-red-600' : 'text-gray-800'}`}>{p.stock_quantity}</span>
                        <button onClick={() => updateStock(p.id, p.stock_quantity, 1)} className="w-6 h-6 bg-white rounded shadow-sm flex items-center justify-center hover:text-green-600 font-bold">+</button>
-                     </div>
+                      </div>
                    </td>
                    <td className="px-6 py-4 font-bold text-gray-900">£{p.price}</td>
                    <td className="px-6 py-4 text-right">
                      <div className="flex items-center justify-end gap-2">
-                       <button onClick={() => setEditingProduct(p)} className="text-blue-500 p-2 hover:bg-blue-50 rounded-lg"><Edit size={18}/></button>
+                       <button onClick={() => openEditModal(p)} className="text-blue-500 p-2 hover:bg-blue-50 rounded-lg"><Edit size={18}/></button>
                        <button onClick={() => confirmDelete(p.id)} className="text-red-500 p-2 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
                      </div>
                    </td>
@@ -174,14 +217,14 @@ const Inventory = () => {
        {/* --- EDIT MODAL --- */}
        {editingProduct && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]">
             
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
               <h3 className="font-bold text-lg">Edit Product</h3>
               <button onClick={() => setEditingProduct(null)} className="hover:bg-gray-200 p-1 rounded-full"><X size={20}/></button>
             </div>
             
-            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+            <div className="p-6 space-y-4 overflow-y-auto">
                <div>
                  <label className="text-xs font-bold uppercase text-gray-500">Name</label>
                  <input className="w-full p-2 border rounded-lg" value={editingProduct.name} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})}/>
@@ -219,7 +262,6 @@ const Inventory = () => {
                        onChange={e => setEditingProduct({...editingProduct, subcategory: e.target.value})}
                      >
                         <option value="">Select...</option>
-                        {/* ✅ FIX APPLIED HERE: Handle objects correctly */}
                         {currentSubcategories.map((sub: any, idx: number) => {
                             const subName = typeof sub === 'string' ? sub : sub.name;
                             return (
@@ -230,10 +272,53 @@ const Inventory = () => {
                    </div>
                </div>
 
+               {/* --- OPTIONS EDITOR IN MODAL --- */}
+               <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                   <div className="flex justify-between items-center mb-2">
+                       <label className="text-xs font-bold uppercase text-gray-500 flex items-center gap-1"><Settings size={14}/> Variants / Options</label>
+                       <button onClick={addOptionGroup} className="text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-bold hover:bg-blue-200">+ Add Group</button>
+                   </div>
+                   <div className="space-y-3">
+                       {editOptions.map((grp, grpIdx) => (
+                           <div key={grpIdx} className="bg-white p-2 rounded border border-gray-200">
+                               <div className="flex gap-2 mb-2">
+                                   <input 
+                                       className="flex-1 p-1 border rounded text-xs font-bold" 
+                                       placeholder="Name (e.g. Color)" 
+                                       value={grp.name}
+                                       onChange={(e) => updateOptionName(grpIdx, e.target.value)}
+                                   />
+                                   <button onClick={() => removeOptionGroup(grpIdx)} className="text-red-500"><Trash2 size={14}/></button>
+                               </div>
+                               <div className="flex flex-wrap gap-1">
+                                   {grp.values.map((val, valIdx) => (
+                                       <span key={valIdx} className="bg-gray-100 px-2 py-0.5 rounded text-[10px] flex items-center gap-1 border border-gray-200">
+                                           {val}
+                                           <button onClick={() => removeOptionValue(grpIdx, valIdx)}><X size={10}/></button>
+                                       </span>
+                                   ))}
+                                   <input 
+                                       className="p-0.5 border rounded text-[10px] w-16" 
+                                       placeholder="+ Value"
+                                       onKeyDown={(e) => {
+                                           if (e.key === 'Enter') {
+                                               e.preventDefault();
+                                               addOptionValue(grpIdx, e.currentTarget.value);
+                                               e.currentTarget.value = '';
+                                           }
+                                       }}
+                                   />
+                               </div>
+                           </div>
+                       ))}
+                       {editOptions.length === 0 && <p className="text-xs text-gray-400 italic text-center py-2">No variants (e.g. Color, Size) added.</p>}
+                   </div>
+               </div>
+
                <div className="relative">
                  <label className="text-xs font-bold uppercase text-gray-500">Description</label>
                  <textarea 
-                   className="w-full p-2 border rounded-lg h-32 text-sm" 
+                   className="w-full p-2 border rounded-lg h-24 text-sm" 
                    value={editingProduct.description} 
                    onChange={e => setEditingProduct({...editingProduct, description: e.target.value})}
                  />
@@ -251,7 +336,7 @@ const Inventory = () => {
                </div>
             </div>
             
-            <div className="p-4 bg-gray-50 border-t flex justify-end gap-2">
+            <div className="p-4 bg-gray-50 border-t flex justify-end gap-2 shrink-0">
                 <button onClick={() => setEditingProduct(null)} className="px-4 py-2 text-gray-600 font-medium">Cancel</button>
                 <button onClick={handleSaveChanges} className="px-4 py-2 bg-black text-white rounded-lg font-bold hover:bg-gray-800 flex items-center gap-2">
                     <Save size={16} /> Save Changes

@@ -235,8 +235,15 @@ const ManageProducts = () => {
                 <label className="block text-sm font-bold text-gray-700 mb-1">Sub-Category</label>
                 <select className="w-full p-3 border border-gray-300 rounded-lg bg-white" value={newItem.subcategory} onChange={e => setNewItem({...newItem, subcategory: e.target.value})}>
                   <option value="">Select...</option>
-                  {/* Safely map subcategories */}
-                  {currentSubcategories.map((sub: string) => <option key={sub} value={sub}>{sub}</option>)}
+                  {/* Safely map subcategories to handle both strings and objects */}
+                  {currentSubcategories.map((sub: any, index: number) => {
+                      const subName = typeof sub === 'object' && sub !== null ? sub.name : sub;
+                      return (
+                          <option key={index} value={subName}>
+                              {subName}
+                          </option>
+                      );
+                  })}
                 </select>
               </div>
               <div>

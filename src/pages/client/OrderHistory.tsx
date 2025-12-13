@@ -11,6 +11,7 @@ interface OrderWithPreview {
   // preview data we compute
   preview_product_name?: string | null;
   preview_image_url?: string | null;
+  preview_quantity?: number | null; // <--- Added Quantity Field
 }
 
 const OrderHistory: React.FC = () => {
@@ -52,11 +53,12 @@ const OrderHistory: React.FC = () => {
           baseOrders.map(async (order: any) => {
             let previewName: string | null = null;
             let previewImage: string | null = null;
+            let previewQty: number | null = null; // <--- Init Qty
 
             // 3A: get first order_item
             const { data: firstItem } = await supabase
               .from('order_items')
-              .select('product_id, product_name')
+              .select('product_id, product_name, quantity') // <--- Select quantity
               .eq('order_id', order.id)
               .order('id', { ascending: true })
               .limit(1)
@@ -64,6 +66,7 @@ const OrderHistory: React.FC = () => {
 
             if (firstItem) {
               previewName = firstItem.product_name;
+              previewQty = firstItem.quantity; // <--- Capture quantity
 
               // 3B: get product image
               const { data: product } = await supabase
@@ -84,6 +87,7 @@ const OrderHistory: React.FC = () => {
               status: order.status,
               preview_product_name: previewName,
               preview_image_url: previewImage,
+              preview_quantity: previewQty, // <--- Return it
             };
           })
         );
@@ -154,9 +158,16 @@ const OrderHistory: React.FC = () => {
               </div>
 
               <div className="space-y-1">
-                {/* Product name (instead of plain "Order #") */}
+                {/* Product name & Quantity */}
                 <p className="font-semibold text-gray-900 line-clamp-2">
                   {order.preview_product_name || `Order #${order.id}`}
+                  
+                  {/* --- QUANTITY BADGE --- */}
+                  {order.preview_quantity && order.preview_quantity > 1 && (
+                    <span className="ml-2 text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                        x{order.preview_quantity}
+                    </span>
+                  )}
                 </p>
 
                 <p className="text-xs text-gray-500">

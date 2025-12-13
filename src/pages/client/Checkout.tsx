@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCart } from '../../context/CartContext';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
@@ -18,6 +18,43 @@ const Checkout: React.FC = () => {
     postcode: '',
     email: '',
   });
+
+  // --- NEW: Pre-fill data from Profile ---
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      // 1. Get Session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        // 2. Get Profile Data
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile) {
+          // 3. Split Full Name into First/Last
+          const names = (profile.full_name || '').split(' ');
+          const firstName = names[0] || '';
+          const lastName = names.slice(1).join(' ') || '';
+
+          // 4. Pre-fill Form
+          setFormData({
+            firstName: firstName,
+            lastName: lastName,
+            email: session.user.email || '',
+            address: profile.address || '',
+            city: profile.city || '',
+            postcode: profile.postcode || '',
+          });
+        }
+      }
+    };
+
+    fetchUserProfile();
+  }, []);
+  // -------------------------------------
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -159,6 +196,7 @@ const Checkout: React.FC = () => {
                 required
                 placeholder="First Name"
                 className="p-3 border rounded-lg"
+                value={formData.firstName} // <-- Added Value Binding
                 onChange={(e) =>
                   setFormData({ ...formData, firstName: e.target.value })
                 }
@@ -167,6 +205,7 @@ const Checkout: React.FC = () => {
                 required
                 placeholder="Last Name"
                 className="p-3 border rounded-lg"
+                value={formData.lastName} // <-- Added Value Binding
                 onChange={(e) =>
                   setFormData({ ...formData, lastName: e.target.value })
                 }
@@ -176,6 +215,7 @@ const Checkout: React.FC = () => {
                 type="email"
                 placeholder="Email Address"
                 className="md:col-span-2 p-3 border rounded-lg"
+                value={formData.email} // <-- Added Value Binding
                 onChange={(e) =>
                   setFormData({ ...formData, email: e.target.value })
                 }
@@ -184,6 +224,7 @@ const Checkout: React.FC = () => {
                 required
                 placeholder="Address"
                 className="md:col-span-2 p-3 border rounded-lg"
+                value={formData.address} // <-- Added Value Binding
                 onChange={(e) =>
                   setFormData({ ...formData, address: e.target.value })
                 }
@@ -192,6 +233,7 @@ const Checkout: React.FC = () => {
                 required
                 placeholder="City"
                 className="p-3 border rounded-lg"
+                value={formData.city} // <-- Added Value Binding
                 onChange={(e) =>
                   setFormData({ ...formData, city: e.target.value })
                 }
@@ -200,6 +242,7 @@ const Checkout: React.FC = () => {
                 required
                 placeholder="Post Code"
                 className="p-3 border rounded-lg"
+                value={formData.postcode} // <-- Added Value Binding
                 onChange={(e) =>
                   setFormData({ ...formData, postcode: e.target.value })
                 }

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Link, useNavigate } from 'react-router-dom';
-import { Lock, Mail, ArrowRight, Loader2, AlertCircle, ArrowLeft, CheckCircle } from 'lucide-react';
+// Added Eye and EyeOff imports
+import { Lock, Mail, ArrowRight, Loader2, AlertCircle, ArrowLeft, CheckCircle, Eye, EyeOff } from 'lucide-react';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -12,8 +13,11 @@ const Login = () => {
   const [password, setPassword] = useState('');
   
   // UI State
-  const [isResetMode, setIsResetMode] = useState(false); // Toggles between Login and Reset
+  const [isResetMode, setIsResetMode] = useState(false);
   const [message, setMessage] = useState<{ type: 'error' | 'success', text: string } | null>(null);
+  
+  // --- NEW: Password Visibility State ---
+  const [showPassword, setShowPassword] = useState(false);
 
   // --- LOGIN HANDLER ---
   const handleLogin = async (e: React.FormEvent) => {
@@ -50,8 +54,6 @@ const Login = () => {
     setMessage(null);
 
     try {
-      // This sends a password reset email to the user
-      // Note: You must configure the "Site URL" in Supabase Auth settings for the redirect to work perfectly
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/account/update-password`,
       });
@@ -113,13 +115,24 @@ const Login = () => {
             <div className="relative animate-in fade-in slide-in-from-top-2">
               <Lock className="absolute left-3 top-3.5 text-gray-400" size={18} />
               <input 
-                type="password" 
+                type={showPassword ? "text" : "password"} // CONDITIONAL TYPE
                 value={password} 
                 onChange={e => setPassword(e.target.value)} 
-                className="w-full pl-10 p-3 border rounded-xl focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-all" 
+                // Added pr-10 to prevent text overlapping the eye icon
+                className="w-full pl-10 pr-10 p-3 border rounded-xl focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-all" 
                 placeholder="Password" 
                 required 
               />
+              
+              {/* SHOW/HIDE BUTTON */}
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+
               {/* FORGOT PASSWORD LINK */}
               <div className="text-right mt-2">
                 <button 

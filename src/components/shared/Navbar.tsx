@@ -9,6 +9,7 @@ import {
   ShoppingBag,
   ArrowRight,
   TrendingUp,
+  MapPin,
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { supabase } from '../../lib/supabase';
@@ -40,8 +41,98 @@ const Navbar = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [deliveryLocation, setDeliveryLocation] = useState({
+    line1: 'Select your',
+    line2: 'Location',
+    full: 'Select your location',
+  });
+
+  // --- UPDATED: Fetch Location Logic ---
+  const fetchUserLocation = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    setIsLoggedIn(!!session);
+
+    if (session) {
+      // 1. Try to fetch the DEFAULT address
+      let { data: address } = await supabase
+        .from('user_addresses')
+        .select('full_name, city, postcode')
+        .eq('user_id', session.user.id)
+        .eq('is_default', true)
+        .single();
+
+      // 2. If no default exists, fetch ANY address
+      if (!address) {
+         const { data: anyAddress } = await supabase
+          .from('user_addresses')
+          .select('full_name, city, postcode')
+          .eq('user_id', session.user.id)
+          .limit(1)
+          .maybeSingle();
+          
+          address = anyAddress;
+      }
+
+      if (address) {
+        const firstName = address.full_name ? address.full_name.split(' ')[0] : 'User';
+        const loc = `${address.city} ${address.postcode}`;
+        
+        setDeliveryLocation({
+          line1: `Deliver to ${firstName}`,
+          line2: loc,
+          full: `Deliver to ${firstName} - ${loc}`,
+        });
+      } else {
+         // Fallback to profile name if no addresses found
+         const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', session.user.id)
+          .single();
+          
+          const name = profile?.full_name ? profile.full_name.split(' ')[0] : 'User';
+          setDeliveryLocation({
+              line1: `Deliver to ${name}`,
+              line2: 'Add an address',
+              full: `Deliver to ${name} - Add an address`,
+          });
+      }
+    } else {
+      setDeliveryLocation({
+          line1: 'Select your',
+          line2: 'Location',
+          full: 'Select your location',
+      });
+    }
+  };
+
+  // --- UPDATED: useEffect with Event Listener ---
+  useEffect(() => {
+    fetchUserLocation(); // Initial fetch
+
+    // Listen for custom event 'address-updated' from UserAccount page
+    const handleAddressUpdate = () => {
+        fetchUserLocation();
+    };
+
+    window.addEventListener('address-updated', handleAddressUpdate);
+
+    return () => {
+        window.removeEventListener('address-updated', handleAddressUpdate);
+    };
+  }, []); // Run once on mount
+
+  const handleLocationClick = () => {
+    if (isLoggedIn) {
+      navigate('/account');
+    } else {
+      navigate('/login');
+    }
+  };
 
   // --- LIVE SEARCH LOGIC ---
   useEffect(() => {
@@ -72,7 +163,6 @@ const Navbar = () => {
     return () => clearTimeout(timeoutId);
   }, [searchQuery]);
 
-  // Close dropdown when clicking outside search
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -80,7 +170,6 @@ const Navbar = () => {
         !searchContainerRef.current.contains(event.target as Node)
       ) {
         setShowDropdown(false);
-        setMobileSearchOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -90,7 +179,6 @@ const Navbar = () => {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setShowDropdown(false);
-    setMobileSearchOpen(false);
     if (searchQuery.trim()) {
       navigate(`/shop?search=${encodeURIComponent(searchQuery)}`);
     } else {
@@ -101,14 +189,12 @@ const Navbar = () => {
   const handleSuggestionClick = (term: string) => {
     setSearchQuery(term);
     setShowDropdown(false);
-    setMobileSearchOpen(false);
     navigate(`/shop?search=${encodeURIComponent(term)}`);
   };
 
   const isDropdownOpen =
     showDropdown && (suggestions.length > 0 || (!searchQuery && showDropdown));
 
-  // shared search form (desktop + mobile)
   const renderSearchForm = () => (
     <div
       ref={searchContainerRef}
@@ -116,8 +202,6 @@ const Navbar = () => {
     >
       <form
         onSubmit={handleSearchSubmit}
-        // FIX APPLIED: Removed "transition-all duration-200"
-        // Now the background and borders change INSTANTLY when you click, matching the dropdown perfectly.
         className={`w-full relative flex items-center
           ${
             isDropdownOpen
@@ -153,7 +237,6 @@ const Navbar = () => {
         </div>
       </form>
 
-      {/* DROPDOWN */}
       {isDropdownOpen && (
         <div className="absolute top-full left-0 right-0 bg-white border-x border-b border-gray-100 rounded-b-2xl shadow-xl overflow-hidden z-40 -mt-px">
           {searchQuery && suggestions.length > 0 && (
@@ -215,7 +298,7 @@ const Navbar = () => {
     <>
       {/* MAIN NAVBAR */}
       <nav
-        className="sticky top-0 z-50 py-3 transition-all duration-300"
+        className="no-print sticky top-0 z-50 py-3 transition-all duration-300"
         style={{
           background: NAV_STYLE.backgroundGradient,
           backdropFilter: `blur(${NAV_STYLE.blurAmount})`,
@@ -226,8 +309,9 @@ const Navbar = () => {
         } as React.CSSProperties}
       >
         <div className="container mx-auto flex items-center justify-between gap-4 lg:gap-8">
-          {/* Logo */}
-          <div className="flex items-center">
+          
+          {/* 1. Logo */}
+          <div className="flex items-center shrink-0">
             <Link
               to="/"
               className="shrink-0 relative z-50 group"
@@ -248,12 +332,31 @@ const Navbar = () => {
             </Link>
           </div>
 
-          {/* DESKTOP SEARCH – SAME LOOK, ADJUSTED POSITION */}
+          {/* --- MOBILE SEARCH BAR (Next to Logo) --- */}
+          <div className="flex-1 lg:hidden ml-2">
+             {renderSearchForm()}
+          </div>
+
+          {/* 2. DESKTOP ADDRESS WIDGET */}
+          <button 
+             onClick={handleLocationClick}
+             className="hidden lg:flex items-center gap-2 cursor-pointer hover:opacity-80 active:scale-95 transition-all duration-200 p-2 min-w-[140px] text-left"
+          >
+             <div className="text-slate-900 mt-1"> 
+                <MapPin size={20} />
+             </div>
+             <div className="flex flex-col leading-none">
+                <span className="text-[12px] text-slate-600 font-medium leading-tight">{deliveryLocation.line1}</span>
+                <span className="text-[14px] font-bold text-slate-900 leading-tight">{deliveryLocation.line2}</span>
+             </div>
+          </button>
+
+          {/* 3. DESKTOP SEARCH */}
           <div className="hidden lg:flex flex-1 px-2 lg:px-4">
             <div className="w-full max-w-4xl">{renderSearchForm()}</div>
           </div>
 
-          {/* ICONS - Desktop */}
+          {/* 4. ICONS - Desktop */}
           <div className="hidden lg:flex items-center gap-14 text-white">
             <Link
               to="/wishlist"
@@ -297,29 +400,22 @@ const Navbar = () => {
               </span>
             </Link>
           </div>
-
-          {/* MOBILE SEARCH ICON (toggles mobile search bar) */}
-          <div className="lg:hidden text-white">
-            <button
-              type="button"
-              onClick={() => {
-                setMobileSearchOpen((prev) => !prev);
-                setShowDropdown(true);
-              }}
-            >
-              <Search className="w-7 h-7" />
-            </button>
-          </div>
         </div>
-
-        {/* MOBILE SEARCH BAR UNDER NAV */}
-        {mobileSearchOpen && (
-          <div className="lg:hidden mt-2 px-4 pb-2">{renderSearchForm()}</div>
-        )}
       </nav>
 
+      {/* --- MOBILE ADDRESS BAR (Dark Blue) --- */}
+      <button 
+          onClick={handleLocationClick}
+          className="no-print w-full text-left lg:hidden bg-slate-900 text-white px-4 py-2.5 flex items-center gap-2 text-sm border-b border-slate-800 shadow-sm active:bg-slate-800 transition-colors"
+      >
+          <MapPin size={18} className="flex-shrink-0 text-blue-400" />
+          <span className="truncate font-medium flex-1">
+            {deliveryLocation.full}
+          </span>
+      </button>
+
       {/* BOTTOM NAV - Mobile Only */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50 lg:hidden pb-safe">
+      <div className="no-print fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50 lg:hidden pb-safe">
         <div className="flex justify-between items-center px-6 py-2">
           <Link
             to="/"
@@ -388,7 +484,7 @@ const Navbar = () => {
       </div>
 
       {/* Spacer so page content doesn't hide behind bottom nav on mobile */}
-      <div className="h-20 lg:hidden" />
+      <div className="no-print h-20 lg:hidden" />
     </>
   );
 };

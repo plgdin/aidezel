@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, Download, Printer } from 'lucide-react';
+import { ArrowLeft, Download, Printer, ShieldAlert } from 'lucide-react'; // Added ShieldAlert for admin icon
+import logo from '../../assets/logo.png';
 
 const OrderInvoiceAdmin: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -39,193 +40,199 @@ const OrderInvoiceAdmin: React.FC = () => {
     load();
   }, [id]);
 
-  if (loading) return <div className="p-8">Loading invoice…</div>;
+  const handlePrint = () => window.print();
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-500">Loading invoice...</div>;
   if (!order)
     return (
-      <div className="p-8 text-red-500">
-        Order not found.
-        <div className="mt-4">
-          <Link
-            to="/admin/orders"
-            className="text-blue-600 hover:underline text-sm"
-          >
-            &larr; Back to Orders
-          </Link>
-        </div>
+      <div className="min-h-screen flex flex-col items-center justify-center text-red-500">
+        <p>Order not found.</p>
+        <Link
+          to="/admin/orders"
+          className="mt-4 text-blue-600 hover:underline text-sm font-bold"
+        >
+          &larr; Back to Admin Orders
+        </Link>
       </div>
     );
 
-  const itemsTotal = items.reduce(
-    (sum, item) =>
-      sum + Number(item.price || 0) * Number(item.quantity || 0),
-    0,
-  );
-  const grandTotal = Number(order.total_amount || 0);
-  const tax = Math.max(0, grandTotal - itemsTotal);
-
-  const handlePrint = () => window.print();
-
   return (
-    <div className="max-w-5xl mx-auto py-10 px-4">
-      <div className="flex items-center justify-between mb-6">
-        <Link
-          to="/admin/orders"
-          className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-blue-900 hover:bg-blue-50 px-3 py-2 rounded-lg"
-        >
-          <ArrowLeft size={16} /> Back to Orders
-        </Link>
-
-        <div className="flex gap-3">
-          <button
-            onClick={handlePrint}
-            className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-blue-900 text-blue-900 bg-white hover:bg-blue-50"
-          >
-            <Printer size={16} /> Print
-          </button>
-          <button
-            onClick={handlePrint}
-            className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-blue-900 text-white hover:bg-blue-800"
-          >
-            <Download size={16} /> Download
-          </button>
+    // FIX: Added 'print:absolute print:inset-0 print:z-[9999]' to force this view to cover the sidebar when printing
+    <div className="bg-gray-100 min-h-screen pb-12 print:bg-white print:pb-0 print:absolute print:top-0 print:left-0 print:w-full print:h-full print:z-[9999]">
+      
+      {/* --- TOOLBAR (Hidden when printing) --- */}
+      <div className="no-print bg-white border-b border-gray-200 py-4 mb-8 shadow-sm">
+        <div className="container mx-auto px-4 flex justify-between items-center">
+          <Link to="/admin/orders" className="flex items-center gap-2 text-sm font-bold text-gray-600 hover:text-black transition-colors">
+            <ArrowLeft size={16} /> Back to Orders
+          </Link>
+          <div className="flex gap-3">
+            <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-bold hover:bg-gray-50 transition-colors">
+              <Printer size={16} /> Print
+            </button>
+            <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors">
+              <Download size={16} /> Download PDF
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Reuse same layout as client invoice */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between gap-6 pb-6 border-b border-gray-100">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-              Aidezel – Admin Copy
-            </h1>
-            <p className="text-gray-500 text-sm mt-1">
-              Internal invoice view for order management.
-            </p>
+      {/* --- INVOICE DOCUMENT (A4 Scaled) --- */}
+      <div className="max-w-[210mm] mx-auto bg-white p-12 md:p-16 shadow-lg print:shadow-none print:p-0 print:max-w-none">
+        
+        {/* HEADER */}
+        <div className="flex justify-between items-start border-b border-black/80 pb-8 mb-10">
+          <div className="flex flex-col justify-start">
+            {/* Logo */}
+            <img src={logo} alt="Aidezel" className="h-24 w-auto object-contain mb-2 -ml-2" /> 
           </div>
-          <div className="text-sm text-gray-600 space-y-1 md:text-right">
-            <p className="font-semibold text-gray-900">
-              Invoice #{order.id}
-            </p>
-            <p>Date: {new Date(order.created_at).toLocaleDateString()}</p>
-            <p>
-              Status:{' '}
-              <span className="font-semibold">{order.status}</span>
-            </p>
+          <div className="text-right">
+            <h1 className="text-xl font-bold text-black uppercase tracking-wide">Tax Invoice</h1>
+            {/* ADMIN COPY LABEL */}
+            <div className="flex items-center justify-end gap-1 text-red-600 mt-1">
+                <ShieldAlert size={14} />
+                <p className="text-xs font-bold uppercase tracking-wider">Admin Copy</p>
+            </div>
           </div>
         </div>
 
-        {/* Billing / Shipping */}
-        <div className="grid md:grid-cols-2 gap-6 py-6 border-b border-gray-100 text-sm">
+        {/* ADDRESS GRID */}
+        <div className="grid grid-cols-2 gap-16 mb-12 text-sm text-gray-800">
+          {/* Sold By */}
           <div>
-            <h2 className="font-semibold text-gray-900 mb-2">
-              Customer
-            </h2>
-            <p className="text-gray-800">{order.customer_name}</p>
-            <p className="text-gray-600">{order.address}</p>
-            <p className="text-gray-600">
-              {order.city} {order.postcode}
+            <h3 className="font-bold text-black mb-2">Sold By:</h3>
+            <p className="font-semibold">Aidezel Ltd.</p>
+            <p className="text-gray-600 leading-relaxed">
+              Unit 42, Innovation Tech Park<br/>
+              123 Commerce Way, London<br/>
+              United Kingdom, EC1A 1BB
             </p>
-            <p className="text-gray-600 mt-1">Email: {order.email}</p>
+            <div className="mt-4 text-xs text-gray-500 space-y-1">
+              <p><strong>VAT Reg No:</strong> GB 987 654 321</p>
+              <p><strong>PAN No:</strong> ABCDE1234F</p>
+            </div>
           </div>
-          <div>
-            <h2 className="font-semibold text-gray-900 mb-2">
-              Order Details
-            </h2>
-            <p className="text-gray-600">Order ID: #{order.id}</p>
-            <p className="text-gray-600">
-              Payment: Card / Online (manual)
-            </p>
-            <p className="text-gray-600">Shipping: Free</p>
-            <p className="text-gray-600">Currency: GBP (£)</p>
+
+          {/* Right Column: Billing & Shipping Address */}
+          <div className="text-right space-y-8">
+            
+            {/* Billing Address */}
+            <div>
+              <h3 className="font-bold text-black mb-1">Billing Address:</h3>
+              <p className="font-semibold uppercase">{order.customer_name}</p>
+              <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
+                {order.address}<br/>
+                {order.city}<br/>
+                {order.postcode}
+              </p>
+            </div>
+
+            {/* Shipping Address */}
+            <div>
+              <h3 className="font-bold text-black mb-1">Shipping Address:</h3>
+              <p className="font-semibold uppercase">{order.customer_name}</p>
+              <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
+                {order.address}<br/>
+                {order.city}<br/>
+                {order.postcode}
+              </p>
+            </div>
+
           </div>
         </div>
 
-        {/* Items */}
-        <div className="py-6">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border border-gray-100">
-              <tr className="text-left text-gray-500 uppercase text-xs tracking-wider">
-                <th className="px-4 py-3 font-semibold">Item</th>
-                <th className="px-4 py-3 font-semibold text-right">
-                  Qty
-                </th>
-                <th className="px-4 py-3 font-semibold text-right">
-                  Price
-                </th>
-                <th className="px-4 py-3 font-semibold text-right">
-                  Total
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 border-x border-b border-gray-100">
-              {items.map((item) => {
-                const lineTotal =
-                  Number(item.price || 0) *
-                  Number(item.quantity || 0);
-                return (
-                  <tr key={item.id}>
-                    <td className="px-4 py-3 text-gray-800">
-                      <p className="font-medium">
-                        {item.product_name}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-700">
-                      {item.quantity}
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-700">
-                      £{Number(item.price || 0).toFixed(2)}
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-900 font-medium">
-                      £{lineTotal.toFixed(2)}
-                    </td>
-                  </tr>
-                );
-              })}
-              {items.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="px-4 py-6 text-center text-gray-400 text-sm"
-                  >
-                    No items found for this order.
+        {/* ORDER DETAILS BAR */}
+        <div className="border-t border-b border-black/80 py-4 mb-12 flex justify-between text-sm">
+          <div>
+            <span className="text-gray-500">Order Number:</span>
+            <span className="ml-2 font-bold text-black">{order.id}</span>
+          </div>
+          <div>
+            <span className="text-gray-500">Order Date:</span>
+            <span className="ml-2 font-bold text-black">{new Date(order.created_at).toLocaleDateString()}</span>
+          </div>
+          <div className="text-right">
+            <span className="text-gray-500">Invoice Date:</span>
+            <span className="ml-2 font-bold text-black">{new Date(order.created_at).toLocaleDateString()}</span>
+          </div>
+        </div>
+
+        {/* DETAILED TABLE */}
+        <table className="w-full text-sm mb-12 border-collapse">
+          <thead>
+            <tr className="border-b-2 border-black text-xs uppercase tracking-wide text-gray-600">
+              <th className="py-3 text-left w-[40%]">Description</th>
+              <th className="py-3 text-right">Unit Price</th>
+              <th className="py-3 text-center">Qty</th>
+              <th className="py-3 text-right">Net Amount</th>
+              <th className="py-3 text-right">Tax Rate</th>
+              <th className="py-3 text-right">Tax Amount</th>
+              <th className="py-3 text-right text-black font-bold">Total</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {items.map((item, idx) => {
+              const unitPrice = Number(item.price);
+              const qty = item.quantity;
+              const netAmount = unitPrice * qty;
+              const taxRate = 0.20; // 20%
+              const taxAmount = netAmount * taxRate;
+              const totalLine = netAmount + taxAmount;
+
+              return (
+                <tr key={idx}>
+                  <td className="py-4 font-medium text-gray-800">
+                    {item.product_name}
+                    <div className="text-[10px] text-gray-500 mt-0.5">HSN: 851762</div>
                   </td>
+                  <td className="py-4 text-right">£{unitPrice.toFixed(2)}</td>
+                  <td className="py-4 text-center">{qty}</td>
+                  <td className="py-4 text-right">£{netAmount.toFixed(2)}</td>
+                  <td className="py-4 text-right">20%</td>
+                  <td className="py-4 text-right">£{taxAmount.toFixed(2)}</td>
+                  <td className="py-4 text-right font-bold text-black">£{totalLine.toFixed(2)}</td>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              );
+            })}
+          </tbody>
+        </table>
+
+        {/* TOTALS SECTION */}
+        <div className="flex justify-end">
+          <div className="w-72 space-y-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Total Net Amount:</span>
+              <span>£{(Number(order.total_amount) / 1.2).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Total Tax (20%):</span>
+              <span>£{(Number(order.total_amount) - (Number(order.total_amount) / 1.2)).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Shipping:</span>
+              <span className="text-green-600">Free</span>
+            </div>
+            <div className="flex justify-between border-t border-black pt-3 mt-3 text-base">
+              <span className="font-bold text-black">Grand Total:</span>
+              <span className="font-bold text-black">£{Number(order.total_amount).toFixed(2)}</span>
+            </div>
+            <p className="text-[10px] text-right text-gray-500 mt-1 font-medium">(Amount in Words: Pounds Sterling Only)</p>
+          </div>
         </div>
 
-        {/* Totals */}
-        <div className="flex flex-col items-end gap-2 text-sm">
-          <div className="w-full md:w-72 space-y-1">
-            <div className="flex justify-between text-gray-600">
-              <span>Items Total</span>
-              <span>£{itemsTotal.toFixed(2)}</span>
+        {/* FOOTER / INTERNAL USE */}
+        <div className="mt-20 pt-8 border-t border-gray-300">
+          <div className="flex justify-between items-end">
+            <div className="text-[10px] text-gray-500 max-w-sm space-y-1">
+              <p className="font-bold text-black text-xs mb-2">Internal Use Only:</p>
+              <p>This document is for administrative, packing, and accounting purposes only. It is not intended for the customer.</p>
             </div>
-            <div className="flex justify-between text-gray-600">
-              <span>Tax (est.)</span>
-              <span>£{tax.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-gray-600">
-              <span>Shipping</span>
-              <span className="text-green-600 font-medium">Free</span>
-            </div>
-            <div className="flex justify-between pt-2 border-t border-gray-200 mt-2">
-              <span className="font-semibold text-gray-900">
-                Grand Total
-              </span>
-              <span className="font-bold text-lg text-gray-900">
-                £{grandTotal.toFixed(2)}
-              </span>
+            <div className="text-center">
+              <p className="text-sm font-bold text-black mb-20">For Aidezel Ltd.</p>
             </div>
           </div>
         </div>
 
-        <p className="mt-8 text-[11px] text-gray-400 text-center">
-          Internal admin invoice for Aidezel. Use this for packing,
-          shipping and accounting workflows.
-        </p>
       </div>
     </div>
   );

@@ -37,6 +37,7 @@ body {
   color: var(--text-main);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter",
     "Segoe UI", sans-serif;
+  overflow-x: hidden; /* Prevent horizontal scroll issues */
 }
 
 /* Make everything feel better on mobile */
@@ -93,7 +94,39 @@ body {
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
 }
 
-/* Prevent horizontal scroll issues on small screens */
-body {
-  overflow-x: hidden;
+/* ===========================
+   PRINT STYLES (For Invoices)
+   =========================== */
+@media print {
+  /* Hide Navbar, Footer, and anything marked 'no-print' */
+  nav, footer, .no-print {
+    display: none !important;
+  }
+
+  /* Reset body styles for print */
+  body {
+    background-color: white !important;
+    color: black !important;
+    font-size: 12px; /* Smaller font for professional invoice look */
+    overflow: visible !important;
+  }
+
+  /* Ensure container uses full width of the paper */
+  .container {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Force background graphics (for logos/colors) */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  /* Ensure page breaks don't cut inside elements if possible */
+  tr, img {
+    page-break-inside: avoid;
+  }
 }

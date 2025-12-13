@@ -10,15 +10,6 @@ const Cart = () => {
   // Helper to decrease quantity
   const decreaseQuantity = (item: any) => {
     if (item.quantity > 1) {
-      // Adding a negative quantity effectively subtracts it in your current addToCart logic
-      // However, a safer way is to create a dedicated decrease function in Context
-      // For now, we can use addToCart with a negative number if your context supports it, 
-      // OR we just remove the item and add it back with q-1.
-      //
-      // BETTER FIX: Let's assume we modify context slightly or just use this hack:
-      // Since your Context adds quantities, we actually need a `updateQuantity` function.
-      // But based on your current Context code, `addToCart` adds to existing.
-      // Let's rely on a small hack: pass quantity: -1
       addToCart({ ...item, quantity: -1 });
     }
   };
@@ -56,15 +47,24 @@ const Cart = () => {
 
             return (
             <div key={item.id} className="flex gap-4 p-4 border border-gray-200 rounded-2xl bg-white shadow-sm relative">
-              {/* Image */}
-              <div className="w-20 h-20 lg:w-24 lg:h-24 bg-gray-50 rounded-xl flex items-center justify-center flex-shrink-0 p-2">
-                 {item.image ? <img src={item.image} className="w-full h-full object-contain mix-blend-multiply"/> : <span className="text-xs text-gray-400">Img</span>}
-              </div>
+              {/* Clickable Image */}
+              <Link to={`/product/${item.id}`} className="w-20 h-20 lg:w-24 lg:h-24 bg-gray-50 rounded-xl flex items-center justify-center flex-shrink-0 p-2 cursor-pointer hover:opacity-80 transition-opacity border border-transparent hover:border-gray-200">
+                 {item.image ? <img src={item.image} className="w-full h-full object-contain mix-blend-multiply" alt={item.name}/> : <span className="text-xs text-gray-400">Img</span>}
+              </Link>
 
               {/* Info */}
               <div className="flex-1 flex flex-col lg:flex-row lg:items-center justify-between">
                 <div className="mb-2 lg:mb-0">
-                  <h3 className="font-bold text-base lg:text-lg text-gray-900 line-clamp-2">{item.name}</h3>
+                  {/* Clickable Title */}
+                  <Link to={`/product/${item.id}`}>
+                    <h3 className="font-bold text-base lg:text-lg text-gray-900 line-clamp-2 hover:text-blue-600 transition-colors cursor-pointer">{item.name}</h3>
+                  </Link>
+                  
+                  {/* Show Selected Variant if exists - FIXED TYPE ERROR HERE */}
+                  {(item as any).selectedVariant && (
+                      <p className="text-xs text-gray-500 mt-0.5">{(item as any).selectedVariant}</p>
+                  )}
+
                   <p className="text-blue-600 font-bold text-sm lg:text-base mt-1">£{item.price.toLocaleString()}</p>
                   
                   {isMaxedOut && (

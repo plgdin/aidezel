@@ -5,7 +5,8 @@ import ConfirmModal from '../../components/shared/ConfirmModal';
 
 // --- AI Generator Helper ---
 const generateAIDescription = (name: string, category: string, subcategory: string) => {
-  return `Upgrade your lifestyle with the premium ${name}. \n\nPerfect for ${category} enthusiasts looking for ${subcategory}, this product combines industrial-grade durability with a sleek, modern aesthetic.\n\nKey Features:\n• Premium Build Quality\n• Easy to Install & Use\n• Designed for longevity\n• 1-Year Official Warranty`;
+  return `Upgrade your lifestyle with the premium ${name}.
+\n\nPerfect for ${category} enthusiasts looking for ${subcategory}, this product combines industrial-grade durability with a sleek, modern aesthetic.\n\nKey Features:\n• Premium Build Quality\n• Easy to Install & Use\n• Designed for longevity\n• 1-Year Official Warranty`;
 };
 
 const Inventory = () => {
@@ -24,7 +25,6 @@ const Inventory = () => {
     setLoading(true);
     const { data: prodData } = await supabase.from('products').select('*').order('created_at', { ascending: false });
     const { data: catData } = await supabase.from('categories').select('*');
-    
     if (prodData) setProducts(prodData);
     if (catData) setCategories(catData);
     setLoading(false);
@@ -43,10 +43,8 @@ const Inventory = () => {
     p.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // --- FIX: ALLOW MULTIPLE HEROES ---
+  // --- TOGGLE HERO ---
   const toggleHero = async (id: number, currentStatus: boolean) => {
-    // We REMOVED the code that resets all other products to false.
-    // Now you can toggle multiple products to 'true' for the slider.
     const { error } = await supabase.from('products').update({ is_hero: !currentStatus }).eq('id', id);
     if (!error) fetchData(); 
   };
@@ -54,7 +52,6 @@ const Inventory = () => {
   const updateStock = async (id: number, currentStock: number, change: number) => {
     const newStock = Math.max(0, currentStock + change);
     const status = newStock > 0 ? 'In Stock' : 'Out of Stock';
-    
     setProducts(products.map(p => p.id === id ? { ...p, stock_quantity: newStock, status } : p));
     await supabase.from('products').update({ stock_quantity: newStock, status }).eq('id', id);
   };
@@ -144,7 +141,9 @@ const Inventory = () => {
                    </td>
                    <td className="px-6 py-4">
                      <div className="flex items-center gap-4">
-                       <img src={p.image_url} alt={p.name} className="w-12 h-12 object-cover rounded-lg bg-gray-100 border border-gray-200" />
+                        <div className="w-12 h-12 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden">
+                            <img src={p.image_url} alt={p.name} className="w-full h-full object-cover mix-blend-multiply" />
+                        </div>
                        <div>
                          <span className="font-bold text-gray-900 block line-clamp-1">{p.name}</span>
                          <span className="text-xs text-gray-400">{p.category}</span>
@@ -152,7 +151,7 @@ const Inventory = () => {
                      </div>
                    </td>
                    <td className="px-6 py-4">
-                     <div className="flex items-center justify-center gap-3 bg-gray-100 w-fit mx-auto px-2 py-1 rounded-lg">
+                      <div className="flex items-center justify-center gap-3 bg-gray-100 w-fit mx-auto px-2 py-1 rounded-lg">
                        <button onClick={() => updateStock(p.id, p.stock_quantity, -1)} className="w-6 h-6 bg-white rounded shadow-sm flex items-center justify-center hover:text-red-600 font-bold">-</button>
                        <span className={`font-mono font-bold w-8 text-center ${p.stock_quantity === 0 ? 'text-red-600' : 'text-gray-800'}`}>{p.stock_quantity}</span>
                        <button onClick={() => updateStock(p.id, p.stock_quantity, 1)} className="w-6 h-6 bg-white rounded shadow-sm flex items-center justify-center hover:text-green-600 font-bold">+</button>
@@ -220,9 +219,13 @@ const Inventory = () => {
                        onChange={e => setEditingProduct({...editingProduct, subcategory: e.target.value})}
                      >
                         <option value="">Select...</option>
-                        {currentSubcategories.map((sub: string) => (
-                            <option key={sub} value={sub}>{sub}</option>
-                        ))}
+                        {/* ✅ FIX APPLIED HERE: Handle objects correctly */}
+                        {currentSubcategories.map((sub: any, idx: number) => {
+                            const subName = typeof sub === 'string' ? sub : sub.name;
+                            return (
+                                <option key={idx} value={subName}>{subName}</option>
+                            );
+                        })}
                      </select>
                    </div>
                </div>
@@ -244,7 +247,7 @@ const Inventory = () => {
                    className="absolute top-0 right-0 text-[10px] bg-purple-100 text-purple-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-purple-200 font-bold transition-colors cursor-pointer"
                  >
                     <Sparkles size={12} /> Auto-Gen
-                 </button>
+                  </button>
                </div>
             </div>
             

@@ -18,16 +18,37 @@ import ProductCard, { Product } from '../../components/shared/ProductCard';
 
 // --- CONFIGURATION ---
 
+// --- CONFIGURATION ---
+
 const ALLOWED_FILTERS = [
+  // --- General (Applies to almost everything) ---
+  'Brand', 
   'Color', 
   'Material', 
-  'Type', 
   'Style', 
-  'Finish', 
-  'Light Source', 
-  'Shape',
-  'Brand', 
-  'Size'
+  'Type', 
+  
+  // --- Furniture & Hardware ---
+  'Finish',          // e.g., Matte, Gloss, Oak
+  'Shape',           // e.g., Round, Rectangular
+  'Assembly',        // e.g., Pre-assembled, DIY
+  'Seating Capacity',// e.g., 2 Seater, 4 Seater
+  'Room',            // e.g., Living Room, Bedroom
+  'Dimensions',      // e.g., Large, Compact
+  
+  // --- Lighting Specific ---
+  'Light Source',    // e.g., LED, Bulb
+  'Power Source',    // e.g., Battery, Plug-in
+  
+  // --- Dressing / Clothing / Fabrics ---
+  'Size',            // e.g., S, M, L, XL, UK 10
+  'Gender',          // e.g., Men, Women, Unisex
+  'Pattern',         // e.g., Solid, Striped, Floral
+  'Fit',             // e.g., Slim, Regular, Oversized
+  'Fabric',          // e.g., Cotton, Silk (Sometimes separate from Material)
+  'Sleeve Length',   // e.g., Long Sleeve, Short Sleeve
+  'Neckline',        // e.g., V-Neck, Round
+  'Occasion'         // e.g., Casual, Formal, Party
 ];
 
 const SUBCAT_IMAGES: Record<string, string> = {

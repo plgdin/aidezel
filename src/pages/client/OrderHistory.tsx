@@ -115,7 +115,7 @@ const OrderHistory: React.FC = () => {
 
   if (orders.length === 0) {
     return (
-      <div className="container mx-auto px-4 py-12 min-h-screen">
+      <div className="container mx-auto px-4 pt-4 lg:pt-4 lg:py-12 min-h-screen">
         <h1 className="text-3xl font-bold mb-8">My Orders</h1>
         <div className="text-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
           <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -133,7 +133,7 @@ const OrderHistory: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-12 min-h-screen">
+    <div className="container mx-auto px-4 pt-4 lg:pt-4 lg:py-12 min-h-screen">
       <h1 className="text-3xl font-bold mb-8">My Orders</h1>
 
       <div className="grid gap-6">

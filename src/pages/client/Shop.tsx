@@ -1,5 +1,3 @@
-// src/pages/client/Shop.tsx
-
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
@@ -17,6 +15,11 @@ import {
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import ProductCard, { Product } from '../../components/shared/ProductCard';
+// SEO: Import Helmet
+import { Helmet } from 'react-helmet-async';
+
+// FIX: Cast Helmet to 'any' to resolve the TypeScript error
+const SeoHelmet = Helmet as any;
 
 // --- CONFIGURATION ---
 
@@ -336,6 +339,25 @@ const Shop = () => {
     }
   };
 
+  // --- SEO DYNAMIC LOGIC ---
+  const pageTitle = useMemo(() => {
+    if (searchTerm) return `Search Results for "${searchTerm}" | Aidezel UK`;
+    if (selectedCategory && selectedCategory !== 'All') return `Shop ${selectedCategory} | Aidezel UK`;
+    return 'Shop Premium Lighting, Fashion & Home | Aidezel UK';
+  }, [selectedCategory, searchTerm]);
+
+  const metaDescription = useMemo(() => {
+    if (searchTerm) return `Explore search results for ${searchTerm} at Aidezel. Find the best deals on lighting, fashion, and home decor.`;
+    if (selectedCategory && selectedCategory !== 'All') return `Discover our exclusive collection of ${selectedCategory} at Aidezel UK. High quality, fast delivery, and great prices.`;
+    return 'Browse our full catalog of premium lighting, fashion, furniture, and home appliances. Shop online at Aidezel UK for fast delivery.';
+  }, [selectedCategory, searchTerm]);
+
+  const currentUrl = useMemo(() => {
+    const baseUrl = 'https://aidezel.com/shop';
+    if (selectedCategory !== 'All') return `${baseUrl}?category=${encodeURIComponent(selectedCategory)}`;
+    return baseUrl;
+  }, [selectedCategory]);
+
   const renderSubcategoryScroller = () => {
     if (selectedCategory === 'All' || availableSubcats.length === 0 || !isHeroMode) return null;
     const getSubImage = (subName: string) => {
@@ -463,6 +485,26 @@ const Shop = () => {
   return (
     // FIX: Changed pt-8 to pt-0 lg:pt-8 to remove top gap on mobile
     <div className="container mx-auto px-4 pt-0 lg:pt-8 pb-24 min-h-screen">
+      
+      {/* --- SEO METADATA START --- */}
+      <SeoHelmet>
+        <title>{pageTitle}</title>
+        <meta name="description" content={metaDescription} />
+        <link rel="canonical" href={currentUrl} />
+        
+        {/* Open Graph */}
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content={pageTitle} />
+        <meta property="og:description" content={metaDescription} />
+        <meta property="og:url" content={currentUrl} />
+        
+        {/* Twitter */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={pageTitle} />
+        <meta name="twitter:description" content={metaDescription} />
+      </SeoHelmet>
+      {/* --- SEO METADATA END --- */}
+
       <div className="lg:hidden mb-6 flex gap-3 sticky top-[72px] z-30 bg-white/80 backdrop-blur-md py-3 border-b border-gray-100">
         <button onClick={() => setShowMobileFilters(true)} className="flex-1 bg-gray-900 text-white p-3 rounded-xl flex items-center justify-center gap-2 font-bold shadow-md active:scale-95 transition-transform">
           <SlidersHorizontal size={18} /> Filters

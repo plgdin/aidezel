@@ -1,5 +1,6 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
+import { HelmetProvider } from 'react-helmet-async';
 
 // --- Layouts ---
 import ClientLayout from './components/layout/ClientLayout';
@@ -36,72 +37,77 @@ import ManageCategories from './pages/admin/ManageCategories';
 import Inventory from './pages/admin/Inventory';
 import OrderInvoiceAdmin from './pages/admin/OrderInvoiceAdmin';
 
+// FIX: Cast HelmetProvider to 'any' to resolve TypeScript error ts(2786)
+const AppHelmetProvider = HelmetProvider as any;
+
 function App() {
   return (
-    <Routes>
-      {/* =========================================
-          CLIENT ROUTES (Navbar + Footer)
-          ========================================= */}
-      <Route path="/" element={<ClientLayout />}>
-        {/* Main */}
-        <Route index element={<HomePage />} />
-        <Route path="shop" element={<ShopPage />} />
-        <Route path="product/:id" element={<ProductDetails />} />
-        <Route path="cart" element={<Cart />} />
-        <Route path="checkout" element={<Checkout />} />
+    <AppHelmetProvider>
+      <Routes>
+        {/* =========================================
+            CLIENT ROUTES (Navbar + Footer)
+            ========================================= */}
+        <Route path="/" element={<ClientLayout />}>
+          {/* Main */}
+          <Route index element={<HomePage />} />
+          <Route path="shop" element={<ShopPage />} />
+          <Route path="product/:id" element={<ProductDetails />} />
+          <Route path="cart" element={<Cart />} />
+          <Route path="checkout" element={<Checkout />} />
 
-        {/* User Account Section */}
-        <Route path="account" element={<UserAccount />} />
-        <Route path="account/update-password" element={<UpdatePassword />} />
-        <Route path="orders" element={<OrderHistory />} />
-        <Route path="orders/:id" element={<OrderInvoice />} />
-        <Route path="buy-again/:orderId" element={<BuyAgain />} />
-        <Route path="wishlist" element={<Wishlist />} />
+          {/* User Account Section */}
+          <Route path="account" element={<UserAccount />} />
+          <Route path="account/update-password" element={<UpdatePassword />} />
+          <Route path="orders" element={<OrderHistory />} />
+          <Route path="orders/:id" element={<OrderInvoice />} />
+          <Route path="buy-again/:orderId" element={<BuyAgain />} />
+          <Route path="wishlist" element={<Wishlist />} />
 
-        {/* Info Pages */}
-        <Route path="about" element={<About />} />
-        <Route path="contact" element={<Contact />} />
-        <Route path="terms" element={<Terms />} />
+          {/* Info Pages */}
+          <Route path="about" element={<About />} />
+          <Route path="contact" element={<Contact />} />
+          <Route path="terms" element={<Terms />} />
 
-        {/* Footer Links Placeholders */}
-        <Route path="privacy" element={<Terms />} />
-        <Route path="cookies" element={<Terms />} />
-        <Route path="returns" element={<Contact />} />
-        <Route path="new-arrivals" element={<ShopPage />} />
-      </Route>
+          {/* Footer Links Placeholders */}
+          <Route path="privacy" element={<Terms />} />
+          <Route path="cookies" element={<Terms />} />
+          <Route path="returns" element={<Contact />} />
+          <Route path="new-arrivals" element={<ShopPage />} />
+        </Route>
 
-      {/* =========================================
-          ADMIN AUTH ROUTE (Standalone)
-          ========================================= */}
-      {/* This must be outside AdminLayout to prevent redirect loops */}
-      <Route path="/admin/login" element={<AdminLogin />} />
+        {/* =========================================
+            ADMIN AUTH ROUTE (Standalone)
+            ========================================= */}
+        {/* This must be outside AdminLayout to prevent redirect loops */}
+        <Route path="/admin/login" element={<AdminLogin />} />
 
-      {/* =========================================
-          ADMIN ROUTES (Protected by AdminLayout)
-          ========================================= */}
-      <Route path="/admin" element={<AdminLayout />}>
-        <Route index element={<AdminDashboard />} />
+        {/* =========================================
+            ADMIN ROUTES (Protected by AdminLayout)
+            ========================================= */}
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<AdminDashboard />} />
 
-        {/* Product Management */}
-        <Route path="products" element={<ManageProducts />} />
-        <Route path="inventory" element={<Inventory />} />
-        <Route path="categories" element={<ManageCategories />} />
+          {/* Product Management */}
+          <Route path="products" element={<ManageProducts />} />
+          <Route path="inventory" element={<Inventory />} />
+          <Route path="categories" element={<ManageCategories />} />
 
-        {/* Order Management */}
-        <Route path="orders" element={<ManageOrders />} />
-        <Route path="orders/:id" element={<OrderInvoiceAdmin />} />
+          {/* Order Management */}
+          <Route path="orders" element={<ManageOrders />} />
+          <Route path="orders/:id" element={<OrderInvoiceAdmin />} />
 
-        {/* Placeholders */}
-        <Route path="analytics" element={<AdminDashboard />} />
-        <Route path="settings" element={<AdminDashboard />} />
-      </Route>
+          {/* Placeholders */}
+          <Route path="analytics" element={<AdminDashboard />} />
+          <Route path="settings" element={<AdminDashboard />} />
+        </Route>
 
-      {/* =========================================
-          AUTH ROUTES (No Layout)
-          ========================================= */}
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-    </Routes>
+        {/* =========================================
+            AUTH ROUTES (No Layout)
+            ========================================= */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+      </Routes>
+    </AppHelmetProvider>
   );
 }
 

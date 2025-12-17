@@ -4,6 +4,11 @@ import { Star, ShieldCheck, User, MapPin, Heart, Truck, RefreshCw, ChevronDown }
 import { supabase } from '../../lib/supabase';
 import { useCart } from '../../context/CartContext';
 import { Session } from '@supabase/supabase-js';
+// SEO: Import Helmet
+import { Helmet } from 'react-helmet-async';
+
+// FIX: Cast Helmet to 'any' to resolve the TypeScript error
+const SeoHelmet = Helmet as any;
 
 const ProductDetails = () => {
   const { id } = useParams();
@@ -22,7 +27,6 @@ const ProductDetails = () => {
   
   // --- NEW: SELECTED OPTIONS STATE ---
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
-  const [selectedColor, setSelectedColor] = useState(0); // Kept for legacy if needed, but new system uses selectedOptions
   
   // STATE: Wishlist & Toast
   const [isWishlisted, setIsWishlisted] = useState(false);
@@ -168,10 +172,74 @@ const ProductDetails = () => {
           selectedVariant: optionString // Pass option string to cart context
       });
   };
+  
+  // SEO Helper: Create description snippet
+  const metaDescription = product.description 
+      ? product.description.substring(0, 160).replace(/(\r\n|\n|\r)/gm, " ") + "..." 
+      : `Buy ${product.name} at Aidezel UK. Best price, fast delivery, and official warranty.`;
 
   return (
     <div className="bg-white min-h-screen font-sans text-gray-900 pb-24 relative">
       
+      {/* --- SEO METADATA START --- */}
+      <SeoHelmet>
+        <title>{`${product.name} | Buy Online at Aidezel UK`}</title>
+        <meta name="description" content={metaDescription} />
+        <link rel="canonical" href={`https://aidezel.com/product/${product.id}`} />
+        
+        {/* Open Graph (Facebook/WhatsApp) */}
+        <meta property="og:type" content="product" />
+        <meta property="og:title" content={product.name} />
+        <meta property="og:description" content={metaDescription} />
+        <meta property="og:image" content={product.image_url} />
+        <meta property="og:url" content={`https://aidezel.com/product/${product.id}`} />
+        <meta property="product:price:amount" content={product.price} />
+        <meta property="product:price:currency" content="GBP" />
+        <meta property="product:brand" content={product.brand || 'Aidezel'} />
+        <meta property="product:availability" content={isOutOfStock ? 'out of stock' : 'in stock'} />
+
+        {/* Twitter */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={product.name} />
+        <meta name="twitter:description" content={metaDescription} />
+        <meta name="twitter:image" content={product.image_url} />
+
+        {/* Rich Snippet (JSON-LD) for Google Product Results */}
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org/",
+            "@type": "Product",
+            "name": product.name,
+            "image": galleryImages,
+            "description": product.description,
+            "brand": {
+              "@type": "Brand",
+              "name": product.brand || "Aidezel"
+            },
+            "sku": product.id,
+            "offers": {
+              "@type": "Offer",
+              "url": `https://aidezel.co.uk/product/${product.id}`,
+              "priceCurrency": "GBP",
+              "price": product.price,
+              "priceValidUntil": "2025-12-31",
+              "itemCondition": "https://schema.org/NewCondition",
+              "availability": isOutOfStock ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+              "seller": {
+                "@type": "Organization",
+                "name": "Aidezel Ltd"
+              }
+            },
+            "aggregateRating": realReviews.length > 0 ? {
+              "@type": "AggregateRating",
+              "ratingValue": averageRating,
+              "reviewCount": realReviews.length
+            } : undefined
+          })}
+        </script>
+      </SeoHelmet>
+      {/* --- SEO METADATA END --- */}
+
       <div className="bg-gray-50 border-b border-gray-200">
         <div className="container mx-auto px-4 py-2 text-xs text-gray-500 flex items-center gap-2">
             <Link to="/" className="hover:text-blue-600">Home</Link> &rsaquo;
@@ -190,19 +258,27 @@ const ProductDetails = () => {
                     {/* Wishlist Button */}
                     <button 
                         onClick={toggleWishlist}
+                        aria-label="Add to wishlist"
                         className={`absolute top-4 right-4 z-10 p-2 rounded-full bg-white shadow-md transition-all duration-200 ${isWishlisted ? 'text-red-500 bg-red-50' : 'text-gray-400 hover:text-red-500'}`}
                     >
                         <Heart size={20} fill={isWishlisted ? "currentColor" : "none"} />
                     </button>
 
-                    <img src={galleryImages[activeImage]} alt={product.name} className={`w-full h-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-105 ${isOutOfStock ? 'grayscale opacity-70' : ''}`}/>
+                    <img 
+                      src={galleryImages[activeImage]} 
+                      alt={`${product.name} - View ${activeImage + 1}`} 
+                      className={`w-full h-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-105 ${isOutOfStock ? 'grayscale opacity-70' : ''}`}
+                      loading="eager" // SEO: Prioritize loading main product image
+                      // @ts-ignore
+                      fetchPriority="high"
+                    />
                 </div>
                 {/* Only show thumbnails if there are multiple images */}
                 {galleryImages.length > 1 && (
                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
                         {galleryImages.map((img, idx) => (
                             <button key={idx} onMouseEnter={() => setActiveImage(idx)} className={`w-16 h-16 flex-shrink-0 rounded-lg border-2 p-1 ${activeImage === idx ? 'border-blue-600 shadow-md' : 'border-gray-200 hover:border-gray-300'}`}>
-                                <img src={img} alt="thumb" className="w-full h-full object-contain mix-blend-multiply"/>
+                                <img src={img} alt={`${product.name} thumbnail ${idx + 1}`} className="w-full h-full object-contain mix-blend-multiply"/>
                             </button>
                         ))}
                     </div>
@@ -258,18 +334,6 @@ const ProductDetails = () => {
                     </div>
                 </div>
             ))}
-
-            {/* Kept old hardcoded Color Selector for backward compatibility if needed, otherwise optional */}
-            {/* <div className="pt-2">
-                <span className="text-sm font-bold text-gray-700">Color: </span>
-                <span className="text-sm text-gray-600">{['Black', 'White', 'Blue'][selectedColor]}</span>
-                <div className="flex gap-2 mt-2">
-                    {['bg-gray-900', 'bg-gray-100', 'bg-blue-800'].map((color, idx) => (
-                        <button key={idx} onClick={() => setSelectedColor(idx)} className={`w-9 h-9 rounded-full ${color} border-2 ${selectedColor === idx ? 'border-blue-600 ring-2 ring-blue-100' : 'border-transparent hover:border-gray-300'}`}/>
-                    ))}
-                </div>
-            </div> 
-            */}
 
             <div className="pt-4">
                 <h3 className="font-bold text-sm text-gray-900 mb-2">About this item</h3>

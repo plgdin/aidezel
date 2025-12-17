@@ -30,7 +30,7 @@ const Cart = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 lg:py-12 pb-32 lg:pb-12 bg-transparent">
+    <div className="container mx-auto px-4 pt-0 pb-6 lg:py-12 pb-32 lg:pb-12 bg-transparent">
       <div className="flex items-center gap-2 mb-6 lg:mb-8">
         <button onClick={() => navigate(-1)} className="lg:hidden p-2 -ml-2"><ArrowLeft size={20} /></button>
         <h1 className="text-2xl lg:text-3xl font-bold flex items-center gap-2">Shopping Cart <span className="text-gray-400 text-base lg:text-lg font-normal">({cartItems.length})</span></h1>

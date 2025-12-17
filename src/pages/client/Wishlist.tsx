@@ -39,7 +39,7 @@ const Wishlist = () => {
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-gray-400"/></div>;
 
   return (
-    <div className="container mx-auto px-4 py-12 min-h-screen">
+    <div className="container mx-auto px-4 pt-4 lg:py-12 min-h-screen">
       <h1 className="text-3xl font-bold mb-8 flex items-center gap-2">
         <Heart className="text-red-500 fill-red-500" /> My Wishlist
       </h1>

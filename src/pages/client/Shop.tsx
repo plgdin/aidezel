@@ -1,3 +1,5 @@
+// src/pages/client/Shop.tsx
+
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
@@ -15,8 +17,6 @@ import {
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import ProductCard, { Product } from '../../components/shared/ProductCard';
-
-// --- CONFIGURATION ---
 
 // --- CONFIGURATION ---
 
@@ -70,30 +70,20 @@ interface CategoryData {
 }
 
 // ✅ HELPER: Robust Standardization
-// - Splits mixed materials (Iron + Acrylic)
-// - Fixes casing (acrylic -> Acrylic)
-// - Sorts parts alphabetically (Iron + Acrylic -> Acrylic + Iron)
 const standardizeValue = (val: string): string => {
   if (!val || typeof val !== 'string') return '';
-  
-  // 1. Split by common separators (+, &, /) and comma
   const parts = val.split(/[\+\/&,]+/).map(p => p.trim());
-  
-  // 2. Capitalize each word properly and Sort Alphabetically
   const formattedParts = parts.map(p => {
     return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
   }).sort();
-
-  // 3. Rejoin with a consistent separator
   return formattedParts.join(' + ');
 };
 
 // ✅ HELPER: Fuzzy Key Matcher
-// Handles "Material", "Materials", "material " being treated as the same key
 const findMatchingKey = (obj: any, targetKey: string) => {
   if (!obj) return null;
   return Object.keys(obj).find(k => {
-    const cleanK = k.toLowerCase().trim().replace(/s$/, ''); // Remove plural 's'
+    const cleanK = k.toLowerCase().trim().replace(/s$/, ''); 
     const cleanTarget = targetKey.toLowerCase().trim().replace(/s$/, '');
     return cleanK === cleanTarget;
   });
@@ -149,7 +139,7 @@ const Shop = () => {
           subcategory: item.subcategory,
           brand: item.brand,
           specs: item.specs || {},
-          options: item.options || [], // Ensure options array exists
+          options: item.options || [],
           tag: item.status === 'Out of Stock' ? 'Sold Out' : item.is_hero ? 'Featured' : 'New',
           stock_quantity: item.stock_quantity,
         }));
@@ -191,13 +181,10 @@ const Shop = () => {
 
     const specsMap: Record<string, Set<string>> = {};
     
-    // --- BUILD FILTER LIST FROM PRODUCTS ---
     relevantProducts.forEach((p: any) => {
-      // We loop through our allowed whitelist to see if the product has these attributes
       ALLOWED_FILTERS.forEach((allowedKey) => {
         let valuesFound: string[] = [];
 
-        // 1. Priority: Check Variants (Options)
         if (Array.isArray(p.options)) {
           const variantGroup = p.options.find((o: any) => o.name.toLowerCase() === allowedKey.toLowerCase());
           if (variantGroup && Array.isArray(variantGroup.values)) {
@@ -205,7 +192,6 @@ const Shop = () => {
           }
         }
 
-        // 2. Fallback: Check Specs (Features) if no variants found for this key
         if (valuesFound.length === 0 && p.specs) {
            const specKey = findMatchingKey(p.specs, allowedKey);
            if (specKey && p.specs[specKey]) {
@@ -213,7 +199,6 @@ const Shop = () => {
            }
         }
 
-        // 3. Add to Filter List (Standardized)
         if (valuesFound.length > 0) {
            if (!specsMap[allowedKey]) specsMap[allowedKey] = new Set();
            valuesFound.forEach(v => specsMap[allowedKey].add(standardizeValue(v)));
@@ -241,13 +226,11 @@ const Shop = () => {
       if (selectedSubcats.length > 0 && (!product.subcategory || !selectedSubcats.includes(product.subcategory))) return false;
       if (selectedBrands.length > 0 && (!product.brand || !selectedBrands.includes(product.brand))) return false;
 
-      // --- SPECS MATCHING LOGIC ---
       const matchesSpecs = Object.entries(selectedSpecs).every(([filterKey, selectedValues]) => {
         if (selectedValues.length === 0) return true;
         
         let productValues: string[] = [];
 
-        // 1. Get Values from Variants (Options) - Priority
         if (Array.isArray(product.options)) {
             const variantGroup = product.options.find((o: any) => o.name.toLowerCase() === filterKey.toLowerCase());
             if (variantGroup && Array.isArray(variantGroup.values)) {
@@ -255,7 +238,6 @@ const Shop = () => {
             }
         }
 
-        // 2. Get Values from Specs (Features) - Fallback
         if (productValues.length === 0 && product.specs) {
             const specKey = findMatchingKey(product.specs, filterKey);
             if (specKey && product.specs[specKey]) {
@@ -263,18 +245,14 @@ const Shop = () => {
             }
         }
 
-        // 3. Check for Match (Logic: If any of product's values match any of selected values)
         let hasMatch = productValues.some(val => selectedValues.includes(val));
 
-        // 4. Fallback: Search Title/Desc if no strict match found
         if (!hasMatch) {
             const titleLower = product.name.toLowerCase();
             const descriptionLower = (product.description || "").toLowerCase();
             
             hasMatch = selectedValues.some(sv => {
-                // Split filter "Acrylic + Iron" into "Acrylic" and "Iron"
                 const parts = sv.toLowerCase().split(' + ');
-                // Check if ALL parts exist in the title/desc
                 return parts.every(part => titleLower.includes(part) || descriptionLower.includes(part));
             });
         }
@@ -483,7 +461,8 @@ const Shop = () => {
   );
 
   return (
-    <div className="container mx-auto px-4 pt-8 pb-24 min-h-screen">
+    // FIX: Changed pt-8 to pt-0 lg:pt-8 to remove top gap on mobile
+    <div className="container mx-auto px-4 pt-0 lg:pt-8 pb-24 min-h-screen">
       <div className="lg:hidden mb-6 flex gap-3 sticky top-[72px] z-30 bg-white/80 backdrop-blur-md py-3 border-b border-gray-100">
         <button onClick={() => setShowMobileFilters(true)} className="flex-1 bg-gray-900 text-white p-3 rounded-xl flex items-center justify-center gap-2 font-bold shadow-md active:scale-95 transition-transform">
           <SlidersHorizontal size={18} /> Filters

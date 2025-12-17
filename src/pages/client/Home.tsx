@@ -190,7 +190,7 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
   };
 
   return (
-    <div className="w-full bg-transparent py-4 lg:py-12">
+    <div className="w-full bg-transparent pt-0 pb-4 lg:py-12">
       {/* ================================================================
         MOBILE HERO (Amazon Style - Taller Card with SWIPE) - md:hidden
         ================================================================
@@ -581,7 +581,7 @@ const HomePage: React.FC = () => {
                 {/* SCROLL AREA */}
                 <div 
                   ref={scrollRef}
-                  className="flex gap-4 overflow-x-auto flex-1 snap-x snap-mandatory scrollbar-hide scroll-smooth py-4"
+                  className="flex gap-4 overflow-x-auto flex-1 snap-x snap-mandatory scrollbar-hide scroll-smooth pt-0 pb-4"
                   style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                 >
                     {categories.map((cat, idx) => (

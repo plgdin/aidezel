@@ -1,6 +1,6 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { HelmetProvider } from 'react-helmet-async';
+import { HelmetProvider, Helmet } from 'react-helmet-async'; // Added Helmet import
 
 // --- Layouts ---
 import ClientLayout from './components/layout/ClientLayout';
@@ -43,6 +43,13 @@ const AppHelmetProvider = HelmetProvider as any;
 function App() {
   return (
     <AppHelmetProvider>
+      {/* GLOBAL SEO CONFIGURATION */}
+      <Helmet>
+        <title>Aidezel</title>
+        <link rel="canonical" href="https://www.aidezel.co.uk" />
+        <meta property="og:url" content="https://www.aidezel.co.uk" />
+      </Helmet>
+
       <Routes>
         {/* =========================================
             CLIENT ROUTES (Navbar + Footer)

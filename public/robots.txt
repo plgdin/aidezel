@@ -5,4 +5,4 @@ Disallow: /profile
 Disallow: /checkout
 Disallow: /cart
 
-Sitemap: https://aidezel.vercel.app/sitemap.xml
+Sitemap: https://www.aidezel.co.uk/sitemap.xml

@@ -10,6 +10,8 @@ import {
   ArrowRight,
   TrendingUp,
   MapPin,
+  Menu,
+  X,
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { supabase } from '../../lib/supabase';
@@ -38,6 +40,8 @@ const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -57,7 +61,6 @@ const Navbar = () => {
     setIsLoggedIn(!!session);
 
     if (session) {
-      // 1. Try to fetch the DEFAULT address
       let { data: address } = await supabase
         .from('user_addresses')
         .select('full_name, city, postcode')
@@ -65,7 +68,6 @@ const Navbar = () => {
         .eq('is_default', true)
         .single();
 
-      // 2. If no default exists, fetch ANY address
       if (!address) {
          const { data: anyAddress } = await supabase
           .from('user_addresses')
@@ -87,7 +89,6 @@ const Navbar = () => {
           full: `Deliver to ${firstName} - ${loc}`,
         });
       } else {
-         // Fallback to profile name if no addresses found
          const { data: profile } = await supabase
           .from('profiles')
           .select('full_name')
@@ -110,16 +111,12 @@ const Navbar = () => {
     }
   };
 
-  // --- useEffect with Event Listener ---
   useEffect(() => {
-    fetchUserLocation(); // Initial fetch
-
+    fetchUserLocation();
     const handleAddressUpdate = () => {
         fetchUserLocation();
     };
-
     window.addEventListener('address-updated', handleAddressUpdate);
-
     return () => {
         window.removeEventListener('address-updated', handleAddressUpdate);
     };
@@ -309,39 +306,48 @@ const Navbar = () => {
       >
         <div className="container mx-auto flex items-center justify-between gap-4 lg:gap-8">
           
-          {/* 1. Logo (FIXED CLICK AREA) */}
-          <div className="flex items-center shrink-0">
-            <Link
-              to="/"
-              // The container (Link) defines the clickable area (approx navbar height)
-              className="shrink-0 relative z-50 group flex items-center justify-center w-28 h-10"
-              aria-label="home"
-            >
-              <img
-                src={logo}
-                alt="Aidezel"
-                // 'pointer-events-none' ensures clicks on the overflowing parts are ignored
-                // 'transform-gpu' ensures smooth rendering without blur
-                className="pointer-events-none absolute h-[120px] w-auto max-w-none object-contain transition-transform duration-300 ease-out group-hover:scale-105 transform-gpu"
-                style={{
-                  padding: 6,
-                  borderRadius: 8,
-                  background: 'transparent',
-                  filter: 'drop-shadow(0 6px 18px rgba(2,6,23,0.45))',
-                  WebkitFilter: 'drop-shadow(0 6px 18px rgba(2,6,23,0.45))',
-                  
-                  backfaceVisibility: 'hidden',
-                  WebkitBackfaceVisibility: 'hidden',
-                  willChange: 'transform',
-                  imageRendering: '-webkit-optimize-contrast',
-                }}
-              />
-            </Link>
+          {/* --- LEFT SECTION: Hamburger + Logo --- */}
+          <div className="flex items-center gap-3 shrink-0">
+             {/* Mobile Hamburger Button */}
+             <button 
+                onClick={() => setIsMobileMenuOpen(true)}
+                // FIX APPLIED HERE:
+                // bg-transparent (Surrounding transparent)
+                // text-slate-900 (The 3 strips are the dark color)
+                className="lg:hidden bg-transparent text-slate-900 p-1 rounded-lg transition-colors hover:bg-white/10"
+                aria-label="Open menu"
+             >
+                <Menu size={28} strokeWidth={2} />
+             </button>
+
+             {/* Logo */}
+             <Link
+               to="/"
+               className="shrink-0 relative z-50 group flex items-center justify-center w-28 h-10"
+               aria-label="home"
+             >
+               <img
+                 src={logo}
+                 alt="Aidezel"
+                 className="pointer-events-none absolute h-[120px] w-auto max-w-none object-contain transition-transform duration-300 ease-out group-hover:scale-105 transform-gpu"
+                 style={{
+                   padding: 6,
+                   borderRadius: 8,
+                   background: 'transparent',
+                   filter: 'drop-shadow(0 6px 18px rgba(2,6,23,0.45))',
+                   WebkitFilter: 'drop-shadow(0 6px 18px rgba(2,6,23,0.45))',
+                   backfaceVisibility: 'hidden',
+                   WebkitBackfaceVisibility: 'hidden',
+                   willChange: 'transform',
+                   imageRendering: '-webkit-optimize-contrast',
+                 }}
+               />
+             </Link>
           </div>
 
-          {/* --- MOBILE SEARCH BAR --- */}
+          {/* --- MIDDLE SECTION: Search Bar (Mobile & Desktop) --- */}
           <div className="flex-1 lg:hidden ml-2">
-             {renderSearchForm()}
+              {renderSearchForm()}
           </div>
 
           {/* 2. DESKTOP ADDRESS WIDGET */}
@@ -421,77 +427,110 @@ const Navbar = () => {
           </span>
       </button>
 
-      {/* BOTTOM NAV - Mobile Only */}
-      <div className="no-print fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50 lg:hidden pb-safe">
-        <div className="flex justify-between items-center px-6 py-2">
-          <Link
-            to="/"
-            className={`flex flex-col items-center gap-1 transition-colors ${
-              location.pathname === '/' ? 'text-blue-600' : 'text-slate-400'
-            }`}
-          >
-            <Home size={24} strokeWidth={1.5} />
-            <span className="text-[10px] font-bold">Home</span>
-          </Link>
+      {/* --- MOBILE SIDE DRAWER --- */}
+      {isMobileMenuOpen && (
+        <div className="relative z-[100] lg:hidden">
+          {/* Backdrop */}
+          <div 
+             className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+             onClick={() => setIsMobileMenuOpen(false)}
+          />
 
-          <Link
-            to="/shop"
-            className={`flex flex-col items-center gap-1 transition-colors ${
-              location.pathname === '/shop' ? 'text-blue-600' : 'text-slate-400'
-            }`}
-          >
-            <ShoppingBag size={24} strokeWidth={1.5} />
-            <span className="text-[10px] font-bold">Shop</span>
-          </Link>
+          {/* Drawer Content */}
+          <div className="fixed inset-y-0 left-0 w-[280px] bg-white shadow-2xl transform transition-transform duration-300 ease-in-out">
+            <div className="p-5 flex flex-col h-full">
+              
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between mb-8 border-b border-gray-100 pb-4">
+                 <span className="text-lg font-bold text-slate-900 tracking-tight">Menu</span>
+                 <button 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="p-1 rounded-full hover:bg-slate-100 text-slate-500 transition-colors"
+                 >
+                    <X size={24} />
+                 </button>
+              </div>
 
-          <Link
-            to="/wishlist"
-            className={`flex flex-col items-center gap-1 transition-colors ${
-              location.pathname === '/wishlist'
-                ? 'text-blue-600'
-                : 'text-slate-400'
-            }`}
-          >
-            <Heart size={24} strokeWidth={1.5} />
-            <span className="text-[10px] font-bold">Wishlist</span>
-          </Link>
+              {/* Navigation Links */}
+              <div className="flex flex-col gap-2 space-y-1">
+                 
+                 <Link 
+                    to="/" 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all font-medium ${
+                        location.pathname === '/' 
+                        ? 'bg-blue-50 text-blue-600' 
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                 >
+                    <Home size={22} />
+                    <span>Home</span>
+                 </Link>
 
-          <Link
-            to="/cart"
-            className={`flex flex-col items-center gap-1 relative transition-colors ${
-              location.pathname === '/cart' ? 'text-blue-600' : 'text-slate-400'
-            }`}
-          >
-            <div className="relative">
-              <ShoppingCart size={24} strokeWidth={1.5} />
-              {cartCount > 0 && (
-                <div
-                  className="absolute -top-2 -right-2 w-4 h-4 text-white rounded-full text-[10px] font-bold flex items-center justify-center"
-                  style={{ backgroundColor: 'var(--nav-accent)' }}
-                >
-                  {cartCount}
-                </div>
-              )}
+                 <Link 
+                    to="/shop" 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all font-medium ${
+                        location.pathname === '/shop' 
+                        ? 'bg-blue-50 text-blue-600' 
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                 >
+                    <ShoppingBag size={22} />
+                    <span>Shop</span>
+                 </Link>
+
+                 <Link 
+                    to="/wishlist" 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all font-medium ${
+                        location.pathname === '/wishlist' 
+                        ? 'bg-blue-50 text-blue-600' 
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                 >
+                    <Heart size={22} />
+                    <span>Wishlist</span>
+                 </Link>
+
+                 <Link 
+                    to="/cart" 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all font-medium ${
+                        location.pathname === '/cart' 
+                        ? 'bg-blue-50 text-blue-600' 
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                 >
+                    <div className="relative">
+                       <ShoppingCart size={22} />
+                       {cartCount > 0 && (
+                          <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                             {cartCount}
+                          </span>
+                       )}
+                    </div>
+                    <span>Cart</span>
+                 </Link>
+
+                 <Link 
+                    to="/account" 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all font-medium ${
+                        location.pathname === '/account' 
+                        ? 'bg-blue-50 text-blue-600' 
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                 >
+                    <User size={22} />
+                    <span>Account</span>
+                 </Link>
+
+              </div>
             </div>
-            <span className="text-[10px] font-bold">Cart</span>
-          </Link>
-
-          <Link
-            to="/account"
-            className={`flex flex-col items-center gap-1 transition-colors ${
-              location.pathname === '/account'
-                ? 'text-blue-600'
-                : 'text-slate-400'
-            }`}
-          >
-            <User size={24} strokeWidth={1.5} />
-            <span className="text-[10px] font-bold">Account</span>
-          </Link>
+          </div>
         </div>
-      </div>
-
-      {/* Spacer */}
-      <div className="no-print h-20 lg:hidden" />
+      )}
     </>
   );
 };

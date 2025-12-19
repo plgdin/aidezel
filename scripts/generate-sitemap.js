@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 // 2. Load .env explicitly
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
-const SITE_URL = 'https://aidezel.vercel.app'; 
+const SITE_URL = 'https://www.aidezel.co.uk';
 
 // 3. Check for keys
 if (!process.env.VITE_SUPABASE_URL || !process.env.VITE_SUPABASE_ANON_KEY) {

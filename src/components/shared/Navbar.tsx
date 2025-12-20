@@ -311,9 +311,6 @@ const Navbar = () => {
              {/* Mobile Hamburger Button */}
              <button 
                 onClick={() => setIsMobileMenuOpen(true)}
-                // FIX APPLIED HERE:
-                // bg-transparent (Surrounding transparent)
-                // text-slate-900 (The 3 strips are the dark color)
                 className="lg:hidden bg-transparent text-slate-900 p-1 rounded-lg transition-colors hover:bg-white/10"
                 aria-label="Open menu"
              >
@@ -427,17 +424,26 @@ const Navbar = () => {
           </span>
       </button>
 
-      {/* --- MOBILE SIDE DRAWER --- */}
-      {isMobileMenuOpen && (
-        <div className="relative z-[100] lg:hidden">
-          {/* Backdrop */}
+      {/* --- MOBILE SIDE DRAWER (PERSISTENT for Animations) --- */}
+      <div 
+        className={`fixed inset-0 z-[100] lg:hidden transition-all duration-300 ${
+           isMobileMenuOpen ? 'pointer-events-auto' : 'pointer-events-none'
+        }`}
+      >
+          {/* Backdrop (Fades in/out) */}
           <div 
-             className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+             className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${
+                isMobileMenuOpen ? 'opacity-100' : 'opacity-0'
+             }`}
              onClick={() => setIsMobileMenuOpen(false)}
           />
 
-          {/* Drawer Content */}
-          <div className="fixed inset-y-0 left-0 w-[280px] bg-white shadow-2xl transform transition-transform duration-300 ease-in-out">
+          {/* Drawer Content (Slides in/out) */}
+          <div 
+             className={`absolute inset-y-0 left-0 w-[280px] bg-white shadow-2xl transition-transform duration-300 ease-out ${
+                isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+             }`}
+          >
             <div className="p-5 flex flex-col h-full">
               
               {/* Drawer Header */}
@@ -529,8 +535,7 @@ const Navbar = () => {
               </div>
             </div>
           </div>
-        </div>
-      )}
+      </div>
     </>
   );
 };

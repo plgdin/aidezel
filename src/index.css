@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===========================
+   GLOBAL THEME VARIABLES
+   =========================== */
+:root {
+  /* Backgrounds */
+  --bg-main: #e5edf7;          /* Light bluish page background */
+  --bg-header: #020617;        /* Very dark navy */
+  --bg-card: #ffffff;
+
+  /* Brand colours */
+  --brand-primary: #1d4ed8;    /* Royal blue */
+  --brand-secondary: #0f172a;  /* Deep navy */
+  --brand-accent: #38bdf8;     /* Sky accent */
+
+  /* Text colours */
+  --text-main: #0f172a;
+  --text-soft: #64748b;
+}
+
+/* ===========================
+   BASE STYLES
+   =========================== */
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply antialiased;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter",
+    "Segoe UI", sans-serif;
+  overflow-x: hidden; /* Prevent horizontal scroll issues */
+}
+
+/* Make everything feel better on mobile */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Limit page width & add nice padding */
+.container {
+  @apply mx-auto;
+  max-width: 1400px;           /* ⬅️ widened to match live look */
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+}
+
+@media (min-width: 1024px) {
+  .container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+/* Utility for main page sections */
+.page-section {
+  @apply w-full;
+}
+
+/* ===========================
+   SCROLLBAR & UTILITIES
+   =========================== */
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Slightly tighter padding on mobile for all main content blocks */
+  .mobile-px {
+    @apply px-4;
+  }
+
+  /* Card look used all over the site */
+  .card {
+    @apply bg-white rounded-2xl border border-slate-100 shadow-sm;
+  }
+}
+
+/* Smooth nav shadow on scroll (optional helper) */
+.nav-shadow {
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
+}
+
+/* ===========================
+   PRINT STYLES (For Invoices)
+   =========================== */
+@media print {
+  /* Hide Navbar, Footer, and anything marked 'no-print' */
+  nav, footer, .no-print {
+    display: none !important;
+  }
+
+  /* Reset body styles for print */
+  body {
+    background-color: white !important;
+    color: black !important;
+    font-size: 12px; /* Smaller font for professional invoice look */
+    overflow: visible !important;
+  }
+
+  /* Ensure container uses full width of the paper */
+  .container {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Force background graphics (for logos/colors) */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  /* Ensure page breaks don't cut inside elements if possible */
+  tr, img {
+    page-break-inside: avoid;
+  }
+}

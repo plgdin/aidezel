@@ -413,10 +413,10 @@ const Navbar = () => {
         </div>
       </nav>
 
-      {/* --- MOBILE ADDRESS BAR --- */}
+      {/* --- MOBILE ADDRESS BAR (ADDED mb-6 HERE) --- */}
       <button 
           onClick={handleLocationClick}
-          className="no-print w-full text-left lg:hidden bg-slate-900 text-white px-4 py-2.5 flex items-center gap-2 text-sm border-b border-slate-800 shadow-sm active:bg-slate-800 transition-colors"
+          className="no-print w-full text-left lg:hidden bg-slate-900 text-white px-4 py-2.5 flex items-center gap-2 text-sm border-b border-slate-800 shadow-sm active:bg-slate-800 transition-colors mb-6"
       >
           <MapPin size={18} className="flex-shrink-0 text-blue-400" />
           <span className="truncate font-medium flex-1">
@@ -430,7 +430,7 @@ const Navbar = () => {
            isMobileMenuOpen ? 'pointer-events-auto' : 'pointer-events-none'
         }`}
       >
-          {/* Backdrop (Fades in/out) */}
+          {/* Backdrop */}
           <div 
              className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${
                 isMobileMenuOpen ? 'opacity-100' : 'opacity-0'
@@ -438,7 +438,7 @@ const Navbar = () => {
              onClick={() => setIsMobileMenuOpen(false)}
           />
 
-          {/* Drawer Content (Slides in/out) */}
+          {/* Drawer Content */}
           <div 
              className={`absolute inset-y-0 left-0 w-[280px] bg-white shadow-2xl transition-transform duration-300 ease-out ${
                 isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'

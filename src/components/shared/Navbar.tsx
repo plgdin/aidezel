@@ -41,11 +41,17 @@ const Navbar = () => {
   const navigate = useNavigate();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
+  
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  
+  // NEW: Ref for the mobile search button to prevent conflict
+  const mobileSearchTriggerRef = useRef<HTMLButtonElement>(null);
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [deliveryLocation, setDeliveryLocation] = useState({
@@ -122,6 +128,24 @@ const Navbar = () => {
     };
   }, []);
 
+  // Close dropdown if mobile search is closed
+  useEffect(() => {
+    if (!isMobileSearchOpen) {
+        setShowDropdown(false);
+    }
+  }, [isMobileSearchOpen]);
+
+  // NEW: Auto-focus input and open dropdown when Mobile Search opens
+  useEffect(() => {
+    if (isMobileSearchOpen) {
+        // Small delay to allow transition to start/render
+        setTimeout(() => {
+            searchInputRef.current?.focus();
+            setShowDropdown(true);
+        }, 100);
+    }
+  }, [isMobileSearchOpen]);
+
   const handleLocationClick = () => {
     if (isLoggedIn) {
       navigate('/account');
@@ -159,22 +183,35 @@ const Navbar = () => {
     return () => clearTimeout(timeoutId);
   }, [searchQuery]);
 
+  // --- UPDATED CLICK OUTSIDE LOGIC ---
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        searchContainerRef.current &&
-        !searchContainerRef.current.contains(event.target as Node)
-      ) {
+      const target = event.target as Node;
+      
+      // If click is outside the search container
+      if (searchContainerRef.current && !searchContainerRef.current.contains(target)) {
         setShowDropdown(false);
+        
+        // ADDED: Logic to close Mobile Search Overlay
+        // We ensure the click wasn't on the "Open Search" button itself (to avoid conflicts)
+        if (
+             isMobileSearchOpen && 
+             mobileSearchTriggerRef.current && 
+             !mobileSearchTriggerRef.current.contains(target)
+        ) {
+            setIsMobileSearchOpen(false);
+        }
       }
     };
+    
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isMobileSearchOpen]); // Added dependency to access latest state
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setShowDropdown(false);
+    setIsMobileSearchOpen(false); 
     if (searchQuery.trim()) {
       navigate(`/shop?search=${encodeURIComponent(searchQuery)}`);
     } else {
@@ -185,6 +222,7 @@ const Navbar = () => {
   const handleSuggestionClick = (term: string) => {
     setSearchQuery(term);
     setShowDropdown(false);
+    setIsMobileSearchOpen(false);
     navigate(`/shop?search=${encodeURIComponent(term)}`);
   };
 
@@ -211,6 +249,7 @@ const Navbar = () => {
         </div>
 
         <input
+          ref={searchInputRef}
           type="text"
           placeholder="Search premium electronics..."
           value={searchQuery}
@@ -222,13 +261,15 @@ const Navbar = () => {
           className="w-full py-3 pl-12 pr-14 bg-transparent text-slate-900 focus:outline-none text-sm placeholder:text-slate-500 h-12 rounded-full"
         />
 
-        <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
+        {/* This button stays at right-0. Because the parent container now has pr-4, 
+            this button will sit exactly where the closed button sits. */}
+        <div className="absolute right-0 top-1/2 -translate-y-1/2">
           <button
             type="submit"
-            className="h-9 w-9 rounded-full flex items-center justify-center text-white hover:scale-105 transition-transform shadow-sm"
+            className="h-10 w-10 rounded-full flex items-center justify-center text-white hover:scale-105 transition-transform shadow-sm"
             style={{ backgroundColor: 'var(--nav-accent)' }}
           >
-            <Search size={18} />
+            <Search size={20} />
           </button>
         </div>
       </form>
@@ -294,7 +335,7 @@ const Navbar = () => {
     <>
       {/* MAIN NAVBAR */}
       <nav
-        className="no-print sticky top-0 z-50 py-3 transition-all duration-300"
+        className="no-print sticky top-0 z-50 py-3 transition-all duration-300 relative"
         style={{
           background: NAV_STYLE.backgroundGradient,
           backdropFilter: `blur(${NAV_STYLE.blurAmount})`,
@@ -304,7 +345,8 @@ const Navbar = () => {
           '--nav-accent': NAV_STYLE.accentColor,
         } as React.CSSProperties}
       >
-        <div className="container mx-auto flex items-center justify-between gap-4 lg:gap-8">
+        {/* FIXED: Added px-4 here. This ensures the Closed button is inset by 16px. */}
+        <div className="container mx-auto px-4 flex items-center justify-between gap-4 lg:gap-8 relative">
           
           {/* --- LEFT SECTION: Hamburger + Logo --- */}
           <div className="flex items-center gap-3 shrink-0">
@@ -342,9 +384,16 @@ const Navbar = () => {
              </Link>
           </div>
 
-          {/* --- MIDDLE SECTION: Search Bar (Mobile & Desktop) --- */}
-          <div className="flex-1 lg:hidden ml-2">
-              {renderSearchForm()}
+          {/* --- RIGHT SECTION (Mobile Only): Search Icon --- */}
+          <div className="lg:hidden">
+             <button 
+                ref={mobileSearchTriggerRef} 
+                onClick={() => setIsMobileSearchOpen(true)}
+                className="h-10 w-10 rounded-full flex items-center justify-center text-white shadow-sm transition-transform active:scale-95 hover:scale-105"
+                style={{ backgroundColor: NAV_STYLE.accentColor }}
+             >
+                <Search size={20} strokeWidth={2.5} />
+             </button>
           </div>
 
           {/* 2. DESKTOP ADDRESS WIDGET */}
@@ -410,10 +459,26 @@ const Navbar = () => {
               </span>
             </Link>
           </div>
+
+          {/* --- MOBILE SEARCH OVERLAY (Slide from Right, Stop at left:56px) --- */}
+          {/* FIXED: Added pr-4 here. This ensures the Open Search Bar STOPS 16px from the right edge, matching the position of the Closed button. */}
+          <div 
+             className={`absolute top-0 bottom-0 right-0 flex items-center z-[60] pr-4 transition-all duration-300 ease-in-out lg:hidden ${
+               isMobileSearchOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+             }`}
+             style={{ 
+               left: isMobileSearchOpen ? '56px' : '100%',
+             }}
+          >
+             <div className="flex-1 w-full">
+                {renderSearchForm()}
+             </div>
+          </div>
+
         </div>
       </nav>
 
-      {/* --- MOBILE ADDRESS BAR (ADDED mb-6 HERE) --- */}
+      {/* --- MOBILE ADDRESS BAR (mb-6) --- */}
       <button 
           onClick={handleLocationClick}
           className="no-print w-full text-left lg:hidden bg-slate-900 text-white px-4 py-2.5 flex items-center gap-2 text-sm border-b border-slate-800 shadow-sm active:bg-slate-800 transition-colors mb-6"
@@ -509,13 +574,13 @@ const Navbar = () => {
                     }`}
                  >
                     <div className="relative">
-                       <ShoppingCart size={22} />
-                       {cartCount > 0 && (
-                          <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                             {cartCount}
-                          </span>
-                       )}
-                    </div>
+                        <ShoppingCart size={22} />
+                        {cartCount > 0 && (
+                           <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                              {cartCount}
+                           </span>
+                        )}
+                     </div>
                     <span>Cart</span>
                  </Link>
 

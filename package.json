@@ -26,6 +26,7 @@
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
+<<<<<<< HEAD
     "@types/node": "^20.11.0",
     "@types/react": "^18.2.55",
     "@types/react-dom": "^18.2.19",
@@ -42,5 +43,23 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.3.3",
     "vite": "^7.3.0"
+=======
+    "@types/node": "^20.19.25",
+    "@types/react": "^18.3.27",
+    "@types/react-dom": "^18.3.7",
+    "@typescript-eslint/eslint-plugin": "^7.2.0",
+    "@typescript-eslint/parser": "^7.2.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.22",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.6",
+    "gh-pages": "^6.3.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.18",
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.4"
+>>>>>>> 280a961990ce51908e893c680b8482c5f894bce2
   }
 }

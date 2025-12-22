@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
+<<<<<<< HEAD
 // 1. Read variables
 const rawSupabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -20,4 +21,13 @@ if (!rawSupabaseUrl || !supabaseKey) {
 const supabaseUrl = rawSupabaseUrl.replace(/\/$/, '');
 
 // 4. Create Client
+=======
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase Environment Variables');
+}
+
+>>>>>>> 280a961990ce51908e893c680b8482c5f894bce2
 export const supabase = createClient(supabaseUrl, supabaseKey);

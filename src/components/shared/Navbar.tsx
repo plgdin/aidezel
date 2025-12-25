@@ -261,9 +261,8 @@ const Navbar = () => {
           className="w-full py-3 pl-12 pr-14 bg-transparent text-slate-900 focus:outline-none text-sm placeholder:text-slate-500 h-12 rounded-full"
         />
 
-        {/* This button stays at right-0. Because the parent container now has pr-4, 
-            this button will sit exactly where the closed button sits. */}
-        <div className="absolute right-0 top-1/2 -translate-y-1/2">
+        {/* Changed right-0 to right-1.5 to add spacing on the right */}
+        <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
           <button
             type="submit"
             className="h-10 w-10 rounded-full flex items-center justify-center text-white hover:scale-105 transition-transform shadow-sm"
@@ -345,14 +344,16 @@ const Navbar = () => {
           '--nav-accent': NAV_STYLE.accentColor,
         } as React.CSSProperties}
       >
-        <div className="container mx-auto px-4 flex items-center justify-between gap-4 lg:gap-8 relative">
+        {/* CHANGED: lg:gap-8 to md:gap-8 */}
+        <div className="container mx-auto px-4 flex items-center justify-between gap-4 md:gap-8 relative">
           
           {/* --- LEFT SECTION: Hamburger + Logo --- */}
           <div className="flex items-center gap-3 shrink-0">
              {/* Mobile Hamburger Button */}
+             {/* CHANGED: lg:hidden to md:hidden */}
              <button 
                 onClick={() => setIsMobileMenuOpen(true)}
-                className="lg:hidden bg-transparent text-slate-900 p-1 rounded-lg transition-colors hover:bg-white/10"
+                className="md:hidden bg-transparent text-slate-900 p-1 rounded-lg transition-colors hover:bg-white/10"
                 aria-label="Open menu"
              >
                 <Menu size={28} strokeWidth={2} />
@@ -384,7 +385,8 @@ const Navbar = () => {
           </div>
 
           {/* --- RIGHT SECTION (Mobile Only): Search Icon --- */}
-          <div className="lg:hidden">
+          {/* CHANGED: lg:hidden to md:hidden */}
+          <div className="md:hidden">
              <button 
                 ref={mobileSearchTriggerRef} 
                 onClick={() => setIsMobileSearchOpen(true)}
@@ -396,9 +398,10 @@ const Navbar = () => {
           </div>
 
           {/* 2. DESKTOP ADDRESS WIDGET */}
+          {/* CHANGED: hidden lg:flex to hidden md:flex */}
           <button 
              onClick={handleLocationClick}
-             className="hidden lg:flex items-center gap-2 cursor-pointer hover:opacity-80 active:scale-95 transition-all duration-200 p-2 min-w-[140px] text-left"
+             className="hidden md:flex items-center gap-2 cursor-pointer hover:opacity-80 active:scale-95 transition-all duration-200 p-2 min-w-[140px] text-left"
           >
              <div className="text-slate-900 mt-1"> 
                 <MapPin size={20} />
@@ -410,12 +413,14 @@ const Navbar = () => {
           </button>
 
           {/* 3. DESKTOP SEARCH */}
-          <div className="hidden lg:flex flex-1 px-2 lg:px-4">
+          {/* CHANGED: hidden lg:flex to hidden md:flex, px-2 lg:px-4 to px-2 md:px-4 */}
+          <div className="hidden md:flex flex-1 px-2 md:px-4">
             <div className="w-full max-w-4xl">{renderSearchForm()}</div>
           </div>
 
           {/* 4. ICONS - Desktop */}
-          <div className="hidden lg:flex items-center gap-14 text-white">
+          {/* CHANGED: hidden lg:flex to hidden md:flex */}
+          <div className="hidden md:flex items-center gap-14 text-white">
             <Link
               to="/wishlist"
               className="flex flex-col items-center gap-1.5 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:text-blue-100 group"
@@ -460,8 +465,9 @@ const Navbar = () => {
           </div>
 
           {/* --- MOBILE SEARCH OVERLAY (Slide from Right, Stop at left:56px) --- */}
+          {/* CHANGED: lg:hidden to md:hidden */}
           <div 
-             className={`absolute top-0 bottom-0 right-0 flex items-center z-[60] pr-4 transition-all duration-300 ease-in-out lg:hidden ${
+             className={`absolute top-0 bottom-0 right-0 flex items-center z-[60] pr-4 transition-all duration-300 ease-in-out md:hidden ${
                isMobileSearchOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
              }`}
              style={{ 
@@ -477,9 +483,10 @@ const Navbar = () => {
       </nav>
 
       {/* --- MOBILE ADDRESS BAR --- */}
+      {/* CHANGED: lg:hidden to md:hidden */}
       <button 
           onClick={handleLocationClick}
-          className="no-print w-full text-left lg:hidden bg-slate-900 text-white px-4 py-2.5 flex items-center gap-2 text-sm border-b border-slate-800 shadow-sm active:bg-slate-800 transition-colors mb-6"
+          className="no-print w-full text-left md:hidden bg-slate-900 text-white px-4 py-2.5 flex items-center gap-2 text-sm border-b border-slate-800 shadow-sm active:bg-slate-800 transition-colors mb-6"
       >
           <MapPin size={18} className="flex-shrink-0 text-blue-400" />
           <span className="truncate font-medium flex-1">
@@ -488,8 +495,9 @@ const Navbar = () => {
       </button>
 
       {/* --- MOBILE SIDE DRAWER (PERSISTENT for Animations) --- */}
+      {/* CHANGED: lg:hidden to md:hidden */}
       <div 
-        className={`fixed inset-0 z-[100] lg:hidden transition-all duration-300 ${
+        className={`fixed inset-0 z-[100] md:hidden transition-all duration-300 ${
            isMobileMenuOpen ? 'pointer-events-auto' : 'pointer-events-none'
         }`}
       >

@@ -1,8 +1,9 @@
 // src/components/layout/AdminLayout.tsx
 import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabase'; // Adjust path as needed
-import { LayoutDashboard, Package, ShoppingCart, LogOut, Tags, ClipboardList, Loader2 } from 'lucide-react';
+import { supabase } from '../../lib/supabase'; 
+// ADDED: FileText icon
+import { LayoutDashboard, Package, ShoppingCart, LogOut, Tags, ClipboardList, Loader2, FileText } from 'lucide-react';
 import { Toaster } from '../ui/toaster';
 
 const AdminLayout = () => {
@@ -78,6 +79,10 @@ const AdminLayout = () => {
           </Link>
           <Link to="/admin/orders" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive('/admin/orders')}`}>
             <ShoppingCart size={20} /> Orders
+          </Link>
+          {/* NEW: Legal Content Link */}
+          <Link to="/admin/content" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive('/admin/content')}`}>
+            <FileText size={20} /> Legal Content
           </Link>
         </nav>
 

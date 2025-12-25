@@ -1,6 +1,6 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { HelmetProvider, Helmet } from 'react-helmet-async'; // Added Helmet import
+import { HelmetProvider, Helmet } from 'react-helmet-async';
 
 // --- Layouts ---
 import ClientLayout from './components/layout/ClientLayout';
@@ -11,7 +11,7 @@ import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import UpdatePassword from './pages/auth/UpdatePassword';
 
-// --- Pages: ADMIN AUTH (New) ---
+// --- Pages: ADMIN AUTH ---
 import AdminLogin from './pages/admin/AdminLogin';
 
 // --- Pages: CLIENT ---
@@ -26,6 +26,7 @@ import OrderHistory from './pages/client/OrderHistory';
 import About from './pages/client/About';
 import Contact from './pages/client/Contact';
 import Terms from './pages/client/Terms';
+import Privacy from './pages/client/Privacy'; // ADDED
 import OrderInvoice from './pages/client/OrderInvoice';
 import BuyAgain from './pages/client/BuyAgain';
 
@@ -35,6 +36,7 @@ import ManageProducts from './pages/admin/ManageProducts';
 import ManageOrders from './pages/admin/ManageOrders';
 import ManageCategories from './pages/admin/ManageCategories';
 import Inventory from './pages/admin/Inventory';
+import ManageLegal from './pages/admin/ManageLegal'; // ADDED
 import OrderInvoiceAdmin from './pages/admin/OrderInvoiceAdmin';
 
 // FIX: Cast HelmetProvider to 'any' to resolve TypeScript error ts(2786)
@@ -74,9 +76,9 @@ function App() {
           <Route path="about" element={<About />} />
           <Route path="contact" element={<Contact />} />
           <Route path="terms" element={<Terms />} />
+          <Route path="privacy" element={<Privacy />} /> {/* ADDED */}
 
           {/* Footer Links Placeholders */}
-          <Route path="privacy" element={<Terms />} />
           <Route path="cookies" element={<Terms />} />
           <Route path="returns" element={<Contact />} />
           <Route path="new-arrivals" element={<ShopPage />} />
@@ -102,6 +104,9 @@ function App() {
           {/* Order Management */}
           <Route path="orders" element={<ManageOrders />} />
           <Route path="orders/:id" element={<OrderInvoiceAdmin />} />
+
+          {/* Legal Content Management - NEW */}
+          <Route path="content" element={<ManageLegal />} />
 
           {/* Placeholders */}
           <Route path="analytics" element={<AdminDashboard />} />

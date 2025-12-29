@@ -236,11 +236,12 @@ const Navbar = () => {
     >
       <form
         onSubmit={handleSearchSubmit}
-        className={`w-full relative flex items-center
+        // FIX: rounded-full is maintained here to keep Pill Shape
+        className={`w-full relative flex items-center rounded-full transition-all duration-200
           ${
             isDropdownOpen
-              ? 'bg-white rounded-t-2xl rounded-b-none border border-gray-100 border-b-0 z-50 shadow-none'
-              : 'bg-white/90 backdrop-blur-md border border-white/40 rounded-full shadow-lg'
+              ? 'bg-white z-50 shadow-md border border-gray-200'
+              : 'bg-white/90 backdrop-blur-md border border-white/40 shadow-lg'
           }
         `}
       >
@@ -258,7 +259,8 @@ const Navbar = () => {
             setShowDropdown(true);
           }}
           onFocus={() => setShowDropdown(true)}
-          className="w-full py-3 pl-12 pr-14 bg-transparent text-slate-900 focus:outline-none text-sm placeholder:text-slate-500 h-12 rounded-full"
+          // FIX: rounded-full and appearance-none for proper Mobile Pill rendering
+          className="w-full py-3 pl-12 pr-14 bg-transparent text-slate-900 focus:outline-none text-sm placeholder:text-slate-500 h-12 rounded-full appearance-none"
         />
 
         {/* Changed right-0 to right-1.5 to add spacing on the right */}
@@ -273,8 +275,9 @@ const Navbar = () => {
         </div>
       </form>
 
+      {/* DROPDOWN - DETACHED (mt-2) to ensure the search bar stays a Pill */}
       {isDropdownOpen && (
-        <div className="absolute top-full left-0 right-0 bg-white border-x border-b border-gray-100 rounded-b-2xl shadow-xl overflow-hidden z-40 -mt-px">
+        <div className="absolute top-full left-0 right-0 bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden z-40 mt-2">
           {searchQuery && suggestions.length > 0 && (
             <div className="py-2">
               <p className="px-5 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
@@ -464,16 +467,19 @@ const Navbar = () => {
             </Link>
           </div>
 
-          {/* --- MOBILE SEARCH OVERLAY (Slide from Right, Stop at left:56px) --- */}
-          {/* CHANGED: lg:hidden to md:hidden */}
+          {/* --- MOBILE SEARCH OVERLAY (FIXED GLITCH + SUGGESTIONS VISIBLE) --- */}
           <div 
-             className={`absolute top-0 bottom-0 right-0 flex items-center z-[60] pr-4 transition-all duration-300 ease-in-out md:hidden ${
-               isMobileSearchOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+             className={`absolute top-0 bottom-0 right-0 flex items-center z-[60] transition-all duration-300 ease-in-out md:hidden ${
+               isMobileSearchOpen ? 'opacity-100 pointer-events-auto pr-4' : 'opacity-0 pointer-events-none pr-0'
              }`}
              style={{ 
-               left: isMobileSearchOpen ? '56px' : '100%',
+               // FIX 1: Use width transition instead of left:100% to stop wobble.
+               width: isMobileSearchOpen ? 'calc(100% - 56px)' : '0px',
+               // FIX 2: Overflow logic - Hidden when closed (fixes glitch), Visible when open (shows suggestions)
+               overflow: isMobileSearchOpen ? 'visible' : 'hidden'
              }}
           >
+             {/* Removed min-w-[200px] so it doesn't force overflow during the closing animation */}
              <div className="flex-1 w-full">
                 {renderSearchForm()}
              </div>
@@ -486,7 +492,8 @@ const Navbar = () => {
       {/* CHANGED: lg:hidden to md:hidden */}
       <button 
           onClick={handleLocationClick}
-          className="no-print w-full text-left md:hidden bg-slate-900 text-white px-4 py-2.5 flex items-center gap-2 text-sm border-b border-slate-800 shadow-sm active:bg-slate-800 transition-colors mb-6"
+          // FIX 3: Address bar glitch fix
+          className="no-print w-full max-w-[100vw] overflow-hidden text-left md:hidden bg-slate-900 text-white px-4 py-2.5 flex items-center gap-2 text-sm border-b border-slate-800 shadow-sm active:bg-slate-800 transition-colors mb-6"
       >
           <MapPin size={18} className="flex-shrink-0 text-blue-400" />
           <span className="truncate font-medium flex-1">
@@ -511,7 +518,7 @@ const Navbar = () => {
 
           {/* Drawer Content */}
           <div 
-             className={`absolute inset-y-0 left-0 w-[280px] bg-white shadow-2xl transition-transform duration-300 ease-out ${
+             className={`absolute inset-y-0 left-0 w-[280px] bg-white shadow-2xl transition-transform duration-300 ease-out h-[100dvh] ${
                 isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
              }`}
           >

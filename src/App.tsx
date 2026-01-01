@@ -1,3 +1,4 @@
+// src/App.tsx
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { HelmetProvider, Helmet } from 'react-helmet-async';
@@ -5,6 +6,7 @@ import { HelmetProvider, Helmet } from 'react-helmet-async';
 // --- Layouts ---
 import ClientLayout from './components/layout/ClientLayout';
 import AdminLayout from './components/layout/AdminLayout';
+import StaffLayout from './components/layout/StaffLayout'; // 
 
 // --- Pages: AUTH ---
 import Login from './pages/auth/Login';
@@ -13,6 +15,10 @@ import UpdatePassword from './pages/auth/UpdatePassword';
 
 // --- Pages: ADMIN AUTH ---
 import AdminLogin from './pages/admin/AdminLogin';
+
+// --- Pages: STAFF AUTH ---
+import StaffLogin from './pages/staff/StaffLogin';       // <--- NEW
+import StaffRegister from './pages/staff/StaffRegister'; // <--- NEW
 
 // --- Pages: CLIENT ---
 import HomePage from './pages/client/Home';
@@ -26,17 +32,17 @@ import OrderHistory from './pages/client/OrderHistory';
 import About from './pages/client/About';
 import Contact from './pages/client/Contact';
 import Terms from './pages/client/Terms';
-import Privacy from './pages/client/Privacy'; // ADDED
+import Privacy from './pages/client/Privacy';
 import OrderInvoice from './pages/client/OrderInvoice';
 import BuyAgain from './pages/client/BuyAgain';
 
-// --- Pages: ADMIN ---
+// --- Pages: ADMIN & STAFF (Shared Components) ---
 import AdminDashboard from './pages/admin/Dashboard';
 import ManageProducts from './pages/admin/ManageProducts';
 import ManageOrders from './pages/admin/ManageOrders';
 import ManageCategories from './pages/admin/ManageCategories';
 import Inventory from './pages/admin/Inventory';
-import ManageLegal from './pages/admin/ManageLegal'; // ADDED
+import ManageLegal from './pages/admin/ManageLegal';
 import OrderInvoiceAdmin from './pages/admin/OrderInvoiceAdmin';
 
 // FIX: Cast HelmetProvider to 'any' to resolve TypeScript error ts(2786)
@@ -76,7 +82,7 @@ function App() {
           <Route path="about" element={<About />} />
           <Route path="contact" element={<Contact />} />
           <Route path="terms" element={<Terms />} />
-          <Route path="privacy" element={<Privacy />} /> {/* ADDED */}
+          <Route path="privacy" element={<Privacy />} />
 
           {/* Footer Links Placeholders */}
           <Route path="cookies" element={<Terms />} />
@@ -87,7 +93,6 @@ function App() {
         {/* =========================================
             ADMIN AUTH ROUTE (Standalone)
             ========================================= */}
-        {/* This must be outside AdminLayout to prevent redirect loops */}
         <Route path="/admin/login" element={<AdminLogin />} />
 
         {/* =========================================
@@ -105,12 +110,28 @@ function App() {
           <Route path="orders" element={<ManageOrders />} />
           <Route path="orders/:id" element={<OrderInvoiceAdmin />} />
 
-          {/* Legal Content Management - NEW */}
+          {/* Legal Content Management */}
           <Route path="content" element={<ManageLegal />} />
 
           {/* Placeholders */}
           <Route path="analytics" element={<AdminDashboard />} />
           <Route path="settings" element={<AdminDashboard />} />
+        </Route>
+
+        {/* =========================================
+            STAFF ROUTES (Protected by StaffLayout)
+            ========================================= */}
+        <Route path="/staff/login" element={<StaffLogin />} />
+        <Route path="/staff/register" element={<StaffRegister />} />
+
+        <Route path="/staff" element={<StaffLayout />}>
+           {/* Reusing Admin Components for Staff to ensure consistency */}
+           <Route index element={<AdminDashboard />} />
+           <Route path="inventory" element={<Inventory />} />
+           <Route path="products" element={<ManageProducts />} />
+           <Route path="categories" element={<ManageCategories />} />
+           <Route path="orders" element={<ManageOrders />} />
+           <Route path="orders/:id" element={<OrderInvoiceAdmin />} />
         </Route>
 
         {/* =========================================

@@ -1,0 +1,63 @@
+import React, { useState } from 'react';
+import { supabase } from '../../lib/supabase';
+import { useNavigate, Link } from 'react-router-dom';
+import { Lock, Loader2, UserCircle } from 'lucide-react';
+
+const StaffLogin = () => {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState(''); 
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.signInWithPassword({
+        email, password
+      });
+
+      if (authError || !user) throw new Error('Invalid credentials');
+
+      // Check Privileges
+      const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single();
+
+      if (!profile || !profile.is_admin) {
+        await supabase.auth.signOut();
+        throw new Error('Access Denied: Not a registered staff member.');
+      }
+
+      navigate('/staff'); // Redirect to Staff Dashboard
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+      <div className="bg-white w-full max-w-md rounded-2xl shadow-xl p-8">
+        <div className="text-center mb-8">
+            <h1 className="text-2xl font-bold text-slate-900">Staff Login</h1>
+            <p className="text-slate-500 text-sm">Access the inventory & order system</p>
+        </div>
+        {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm font-bold">{error}</div>}
+        <form onSubmit={handleLogin} className="space-y-4">
+            <input type="email" placeholder="Staff Email" className="w-full p-3 border rounded-lg bg-gray-50" value={email} onChange={e => setEmail(e.target.value)} required />
+            <input type="password" placeholder="Password" className="w-full p-3 border rounded-lg bg-gray-50" value={password} onChange={e => setPassword(e.target.value)} required />
+            <button disabled={loading} className="w-full bg-purple-700 hover:bg-purple-800 text-white font-bold py-3 rounded-lg flex justify-center items-center gap-2">
+                {loading ? <Loader2 className="animate-spin" /> : "Enter Portal"}
+            </button>
+        </form>
+        <div className="text-center mt-4 text-sm">
+            <Link to="/staff/register" className="text-purple-600 hover:underline">New staff? Register here</Link>
+        </div>
+      </div>
+    </div>
+  );
+};
+export default StaffLogin;

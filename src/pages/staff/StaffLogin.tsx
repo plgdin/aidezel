@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate, Link } from 'react-router-dom';
-import { Lock, Loader2, UserCircle } from 'lucide-react';
+import { Lock, Loader2 } from 'lucide-react';
 
 const StaffLogin = () => {
   const navigate = useNavigate();
@@ -22,10 +22,17 @@ const StaffLogin = () => {
 
       if (authError || !user) throw new Error('Invalid credentials');
 
-      // Check Privileges
-      const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single();
+      // --- KEY CHANGE HERE ---
+      // 1. We fetch the 'role' column instead of just 'is_admin'
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
 
-      if (!profile || !profile.is_admin) {
+      // 2. We check if the role is VALID (either 'staff' OR 'admin')
+      // This allows both Staff and Admins to enter, but blocks 'client'
+      if (!profile || (profile.role !== 'staff' && profile.role !== 'admin')) {
         await supabase.auth.signOut();
         throw new Error('Access Denied: Not a registered staff member.');
       }

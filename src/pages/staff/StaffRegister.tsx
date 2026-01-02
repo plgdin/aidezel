@@ -15,8 +15,9 @@ const StaffRegister = () => {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null); // Clear previous errors
     
-    // Simple Code to prevent public signups
+    // 1. Security Check
     if (staffCode !== 'STAFF2025') {
         setError("Invalid Staff Access Code");
         setLoading(false);
@@ -24,20 +25,31 @@ const StaffRegister = () => {
     }
 
     try {
-      const { data: { user }, error: upError } = await supabase.auth.signUp({ email, password });
+      // 2. Create Auth User AND pass the access code in metadata
+      // The Database Trigger will read 'access_code', see it is correct, 
+      // and automatically set the role to 'admin'/'staff'.
+      const { data, error: upError } = await supabase.auth.signUp({ 
+          email, 
+          password,
+          options: {
+            data: {
+                access_code: staffCode, // <--- Passing code to the DB Trigger
+                full_name: "Staff Member"
+            }
+          }
+      });
       
       if (upError) throw upError;
       
-      if (user) {
-          // Grant access (optional depending on your RLS policies)
-          await supabase.from('profiles').update({ is_admin: true }).eq('id', user.id);
+      // We do NOT run an upsert here anymore. 
+      // The database trigger handles the profile creation securely.
           
-          // --- UPDATED POPUP MESSAGE ---
-          alert("Registration Successful! Please check your email for confirmation.");
-          
-          navigate('/staff/login');
-      }
+      // 3. Success Message
+      alert("Registration Successful! Please check your email for confirmation.");
+      navigate('/staff/login');
+
     } catch (err: any) {
+      console.error(err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -55,15 +67,34 @@ const StaffRegister = () => {
         <form onSubmit={handleRegister} className="space-y-4">
             <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">Access Code</label>
-                <input type="text" className="w-full p-3 border rounded-lg" placeholder="Ask manager for code" value={staffCode} onChange={e => setStaffCode(e.target.value)} required />
+                <input 
+                    type="text" 
+                    className="w-full p-3 border rounded-lg" 
+                    placeholder="Ask manager for code" 
+                    value={staffCode} 
+                    onChange={e => setStaffCode(e.target.value)} 
+                    required 
+                />
             </div>
             <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">Email</label>
-                <input type="email" className="w-full p-3 border rounded-lg" value={email} onChange={e => setEmail(e.target.value)} required />
+                <input 
+                    type="email" 
+                    className="w-full p-3 border rounded-lg" 
+                    value={email} 
+                    onChange={e => setEmail(e.target.value)} 
+                    required 
+                />
             </div>
             <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">Password</label>
-                <input type="password" className="w-full p-3 border rounded-lg" value={password} onChange={e => setPassword(e.target.value)} required />
+                <input 
+                    type="password" 
+                    className="w-full p-3 border rounded-lg" 
+                    value={password} 
+                    onChange={e => setPassword(e.target.value)} 
+                    required 
+                />
             </div>
             <button disabled={loading} className="w-full bg-purple-700 hover:bg-purple-800 text-white font-bold py-3 rounded-lg flex justify-center items-center gap-2">
                 {loading ? <Loader2 className="animate-spin" /> : "Create Account"}

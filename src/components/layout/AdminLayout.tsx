@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase'; 
-// ADDED: FileText icon
 import { LayoutDashboard, Package, ShoppingCart, LogOut, Tags, ClipboardList, Loader2, FileText } from 'lucide-react';
 import { Toaster } from '../ui/toaster';
 
@@ -11,26 +10,31 @@ const AdminLayout = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
 
-  // --- NEW SECURITY CHECK ---
+  // --- STRICT SECURITY CHECK ---
   useEffect(() => {
     const checkAdmin = async () => {
+      // 1. Check Session
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
-        navigate('/admin/login'); // Redirect to new Admin Login
+        navigate('/admin/login'); 
         return;
       }
 
-      // Check Profile for is_admin flag
+      // 2. Check Profile Role
       const { data: profile } = await supabase
         .from('profiles')
-        .select('is_admin')
+        .select('role') // Fetch the specific role text
         .eq('id', session.user.id)
         .single();
 
-      if (!profile || !profile.is_admin) {
-        alert("Unauthorized Access");
-        navigate('/'); // Kick them out to home
+      // 3. ENFORCE 3-LAYER LOGIC
+      // Only allow if role is EXACTLY 'admin'.
+      // This blocks 'staff' and 'client' users.
+      if (!profile || profile.role !== 'admin') {
+        alert("Access Denied: Administrators Only");
+        navigate('/'); // Redirect unauthorized users to Home
+        return;
       }
       
       setLoading(false);
@@ -52,13 +56,13 @@ const AdminLayout = () => {
 
   if (loading) return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">
-        <Loader2 className="animate-spin mr-2"/> Verifying Privileges...
+        <Loader2 className="animate-spin mr-2"/> Verifying Admin Privileges...
     </div>
   );
 
   return (
     <div className="flex min-h-screen bg-[var(--bg-main)]">
-      {/* Sidebar */}
+      {/* Sidebar - Blue Theme for Admins */}
       <aside className="w-64 bg-blue-950 text-white flex flex-col fixed inset-y-0 left-0 z-50">
         <div className="p-6 border-b border-blue-900">
           <h2 className="text-2xl font-bold tracking-tight">Admin Panel</h2>
@@ -80,7 +84,7 @@ const AdminLayout = () => {
           <Link to="/admin/orders" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive('/admin/orders')}`}>
             <ShoppingCart size={20} /> Orders
           </Link>
-          {/* NEW: Legal Content Link */}
+          {/* Legal Content - Exclusive to Admins */}
           <Link to="/admin/content" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive('/admin/content')}`}>
             <FileText size={20} /> Legal Content
           </Link>

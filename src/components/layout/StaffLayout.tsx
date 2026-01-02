@@ -10,9 +10,10 @@ const StaffLayout = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
 
-  // --- SECURITY CHECK ---
+  // --- SECURITY CHECK (Permissive) ---
   useEffect(() => {
     const checkStaff = async () => {
+      // 1. Check Session
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
@@ -20,14 +21,17 @@ const StaffLayout = () => {
         return;
       }
 
-      // Check Profile for permissions (Assuming staff are also admins or have a specific flag)
+      // 2. Check Profile Role
       const { data: profile } = await supabase
         .from('profiles')
-        .select('is_admin')
+        .select('role') // Fetch specific role
         .eq('id', session.user.id)
         .single();
 
-      if (!profile || !profile.is_admin) {
+      // 3. ALLOW STAFF OR ADMIN
+      // This is the key logic: Staff can enter, Admins can also enter (to supervise).
+      // Clients/Public are blocked.
+      if (!profile || (profile.role !== 'staff' && profile.role !== 'admin')) {
         alert("Unauthorized: Staff Access Only");
         navigate('/'); 
       }
@@ -37,6 +41,7 @@ const StaffLayout = () => {
 
     checkStaff();
   }, [navigate]);
+  // ---------------------------------
 
   const isActive = (path: string) => {
     return location.pathname === path ?

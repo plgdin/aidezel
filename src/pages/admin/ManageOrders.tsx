@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Clock, CheckCircle, Truck, Search, Eye } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { logAction } from '../../lib/logger'; // <--- IMPORTED LOGGER
 
 const ManageOrders = () => {
   const [orders, setOrders] = useState<any[]>([]);
@@ -41,6 +42,10 @@ const ManageOrders = () => {
     if (error) {
       alert('Failed to update status');
       fetchOrders(); // revert
+    } else {
+      // --- LOGGING ADDED HERE ---
+      // This runs only if the database update was successful
+      await logAction('Order Status Update', `Changed Order #${id} status from ${currentStatus} to ${nextStatus}`);
     }
   };
 

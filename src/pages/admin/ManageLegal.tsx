@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Save, Loader2, FileText } from 'lucide-react';
 import { toast } from 'sonner';
+import { logAction } from '../../lib/logger'; // <--- IMPORTED LOGGER
 
 const ManageLegal = () => {
   const [loading, setLoading] = useState(true);
@@ -51,6 +52,10 @@ const ManageLegal = () => {
     if (error) {
       toast.error('Error saving content');
     } else {
+      // --- LOGGING ADDED HERE ---
+      const docName = activeTab === 'privacy' ? 'Privacy Policy' : 'Terms & Conditions';
+      await logAction('Legal Content Update', `Updated content for: "${docName}"`);
+
       toast.success(`${activeTab === 'privacy' ? 'Privacy Policy' : 'Terms'} updated successfully!`);
     }
     setSaving(false);

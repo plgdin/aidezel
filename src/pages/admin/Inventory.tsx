@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { RefreshCcw, Search, Edit, Trash2, Star, Save, X, Sparkles, Settings } from 'lucide-react';
 import ConfirmModal from '../../components/shared/ConfirmModal';
+import { logAction } from '../../lib/logger'; // <--- IMPORTED LOGGER
 
 // --- AI Generator Helper ---
 const generateAIDescription = (name: string, category: string, subcategory: string) => {
@@ -47,17 +48,28 @@ const Inventory = () => {
     p.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // --- TOGGLE HERO ---
-  const toggleHero = async (id: number, currentStatus: boolean) => {
+  // --- TOGGLE HERO (Updated to Log) ---
+  const toggleHero = async (id: number, currentStatus: boolean, productName: string) => {
     const { error } = await supabase.from('products').update({ is_hero: !currentStatus }).eq('id', id);
-    if (!error) fetchData(); 
+    if (!error) {
+        await logAction('Hero Update', `Toggled Hero status for "${productName}" to ${!currentStatus}`);
+        fetchData(); 
+    }
   };
 
-  const updateStock = async (id: number, currentStock: number, change: number) => {
+  // --- UPDATE STOCK (Updated to Log) ---
+  const updateStock = async (id: number, currentStock: number, change: number, productName: string) => {
     const newStock = Math.max(0, currentStock + change);
     const status = newStock > 0 ? 'In Stock' : 'Out of Stock';
+    
+    // Optimistic Update
     setProducts(products.map(p => p.id === id ? { ...p, stock_quantity: newStock, status } : p));
-    await supabase.from('products').update({ stock_quantity: newStock, status }).eq('id', id);
+    
+    const { error } = await supabase.from('products').update({ stock_quantity: newStock, status }).eq('id', id);
+    
+    if (!error) {
+        await logAction('Stock Update', `Changed stock for "${productName}" from ${currentStock} to ${newStock}`);
+    }
   };
 
   // --- DELETE HANDLERS ---
@@ -66,12 +78,19 @@ const Inventory = () => {
     setShowDeleteModal(true);
   };
 
+  // --- EXECUTE DELETE (Updated to Log) ---
   const executeDelete = async () => {
     if (!productToDelete) return;
     
+    // Capture name before deleting for the log
+    const product = products.find(p => p.id === productToDelete);
+    const productName = product ? product.name : 'Unknown Product';
+
     await supabase.from('products').delete().eq('id', productToDelete);
     setProducts(products.filter(p => p.id !== productToDelete));
     
+    await logAction('Delete Product', `Permanently deleted product: "${productName}"`);
+
     setShowDeleteModal(false);
     setProductToDelete(null);
   };
@@ -110,6 +129,7 @@ const Inventory = () => {
       setEditOptions(newOpts);
   };
 
+  // --- SAVE CHANGES (Updated to Log) ---
   const handleSaveChanges = async () => {
      if (!editingProduct) return;
      
@@ -127,6 +147,7 @@ const Inventory = () => {
      }).eq('id', editingProduct.id);
 
      if (!error) {
+        await logAction('Edit Product', `Updated details for product: "${editingProduct.name}"`);
         setEditingProduct(null);
         fetchData();
      } else {
@@ -175,7 +196,8 @@ const Inventory = () => {
                  <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                    <td className="px-6 py-4">
                       <button 
-                        onClick={() => toggleHero(p.id, p.is_hero)}
+                        // UPDATED: Passing p.name for logging
+                        onClick={() => toggleHero(p.id, p.is_hero, p.name)}
                         className={`p-2 rounded-full transition-colors ${p.is_hero ? 'bg-yellow-100 text-yellow-600' : 'text-gray-300 hover:text-yellow-400'}`}
                         title="Toggle Hero Slider"
                       >
@@ -195,9 +217,10 @@ const Inventory = () => {
                    </td>
                    <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-3 bg-gray-100 w-fit mx-auto px-2 py-1 rounded-lg">
-                       <button onClick={() => updateStock(p.id, p.stock_quantity, -1)} className="w-6 h-6 bg-white rounded shadow-sm flex items-center justify-center hover:text-red-600 font-bold">-</button>
+                       {/* UPDATED: Passing p.name for logging */}
+                       <button onClick={() => updateStock(p.id, p.stock_quantity, -1, p.name)} className="w-6 h-6 bg-white rounded shadow-sm flex items-center justify-center hover:text-red-600 font-bold">-</button>
                        <span className={`font-mono font-bold w-8 text-center ${p.stock_quantity === 0 ? 'text-red-600' : 'text-gray-800'}`}>{p.stock_quantity}</span>
-                       <button onClick={() => updateStock(p.id, p.stock_quantity, 1)} className="w-6 h-6 bg-white rounded shadow-sm flex items-center justify-center hover:text-green-600 font-bold">+</button>
+                       <button onClick={() => updateStock(p.id, p.stock_quantity, 1, p.name)} className="w-6 h-6 bg-white rounded shadow-sm flex items-center justify-center hover:text-green-600 font-bold">+</button>
                       </div>
                    </td>
                    <td className="px-6 py-4 font-bold text-gray-900">£{p.price}</td>
@@ -348,15 +371,15 @@ const Inventory = () => {
 
        {/* --- CONFIRM DELETE MODAL --- */}
        <ConfirmModal
-          isOpen={showDeleteModal}
-          title="Delete Product?"
-          message="This will permanently remove this item from your inventory. This action cannot be undone."
-          confirmText="Delete Product"
-          cancelText="Cancel"
-          isDanger={true}
-          onConfirm={executeDelete}
-          onCancel={() => setShowDeleteModal(false)}
-        />
+         isOpen={showDeleteModal}
+         title="Delete Product?"
+         message="This will permanently remove this item from your inventory. This action cannot be undone."
+         confirmText="Delete Product"
+         cancelText="Cancel"
+         isDanger={true}
+         onConfirm={executeDelete}
+         onCancel={() => setShowDeleteModal(false)}
+       />
 
     </div>
   );

@@ -6,7 +6,7 @@ import { HelmetProvider, Helmet } from 'react-helmet-async';
 // --- Layouts ---
 import ClientLayout from './components/layout/ClientLayout';
 import AdminLayout from './components/layout/AdminLayout';
-import StaffLayout from './components/layout/StaffLayout'; // 
+import StaffLayout from './components/layout/StaffLayout'; 
 
 // --- Pages: AUTH ---
 import Login from './pages/auth/Login';
@@ -17,8 +17,8 @@ import UpdatePassword from './pages/auth/UpdatePassword';
 import AdminLogin from './pages/admin/AdminLogin';
 
 // --- Pages: STAFF AUTH ---
-import StaffLogin from './pages/staff/StaffLogin';       // <--- NEW
-import StaffRegister from './pages/staff/StaffRegister'; // <--- NEW
+import StaffLogin from './pages/staff/StaffLogin';      
+import StaffRegister from './pages/staff/StaffRegister';
 
 // --- Pages: CLIENT ---
 import HomePage from './pages/client/Home';
@@ -44,6 +44,9 @@ import ManageCategories from './pages/admin/ManageCategories';
 import Inventory from './pages/admin/Inventory';
 import ManageLegal from './pages/admin/ManageLegal';
 import OrderInvoiceAdmin from './pages/admin/OrderInvoiceAdmin';
+
+// --- NEW IMPORT: ADMIN LOGS ---
+import AdminLogs from './pages/admin/AdminLogs'; 
 
 // FIX: Cast HelmetProvider to 'any' to resolve TypeScript error ts(2786)
 const AppHelmetProvider = HelmetProvider as any;
@@ -112,6 +115,9 @@ function App() {
 
           {/* Legal Content Management */}
           <Route path="content" element={<ManageLegal />} />
+
+          {/* --- NEW ROUTE: Activity Logs --- */}
+          <Route path="logs" element={<AdminLogs />} />
 
           {/* Placeholders */}
           <Route path="analytics" element={<AdminDashboard />} />

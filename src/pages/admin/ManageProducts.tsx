@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Plus, Loader2, ImageIcon, Sparkles, Edit, Trash2, X, Save, ListPlus, TableProperties, MinusCircle, ImagePlus, Settings } from 'lucide-react';
 import ConfirmModal from '../../components/shared/ConfirmModal';
+import { logAction } from '../../lib/logger'; // <--- IMPORTED LOGGER
 
 // --- IMPROVED SMART GENERATOR ---
 const generateAIDescription = (
@@ -164,12 +165,18 @@ const ManageProducts = () => {
   const executeDelete = async () => {
     if (!productToDelete) return;
     
+    // Capture name for logging before delete
+    const product = products.find(p => p.id === productToDelete);
+    const productName = product ? product.name : 'Unknown Product';
+
     setIsDeleting(true);
     const { error } = await supabase.from('products').delete().eq('id', productToDelete);
     
     if (error) {
         alert(error.message);
     } else {
+        // --- LOGGING ADDED HERE ---
+        await logAction('Delete Product', `Permanently deleted product: "${productName}"`);
         fetchData();
     }
     
@@ -296,10 +303,16 @@ const ManageProducts = () => {
       if (editingId) {
         const { error } = await supabase.from('products').update(productData).eq('id', editingId);
         if (error) throw error;
+        
+        // --- LOGGING ADDED HERE ---
+        await logAction('Update Product', `Updated details for product: "${newItem.name}"`);
         alert("Product Updated!");
       } else {
         const { error } = await supabase.from('products').insert([productData]);
         if (error) throw error;
+        
+        // --- LOGGING ADDED HERE ---
+        await logAction('Create Product', `Created new product: "${newItem.name}"`);
         alert("Product Added!");
       }
 
@@ -474,7 +487,6 @@ const ManageProducts = () => {
                     if (!newItem.name) return alert("Enter name first"); 
                     setNewItem({ 
                         ...newItem, 
-                        // --- UPDATED: Pass 'newItem.brand', 'features', and 'specs' ---
                         description: generateAIDescription(newItem.name, newItem.category, newItem.subcategory, newItem.brand, features, specs) 
                     }) 
                 }} 

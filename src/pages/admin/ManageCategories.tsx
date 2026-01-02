@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Plus, Trash2, Loader2, Tag, ImageIcon, X, Edit, Save, ChevronDown, ChevronUp, Zap, RotateCcw } from 'lucide-react';
 import ConfirmModal from '../../components/shared/ConfirmModal';
+import { logAction } from '../../lib/logger'; // <--- IMPORTED LOGGER
 
 // Interface for stricter typing
 interface Subcategory {
@@ -88,6 +89,9 @@ const ManageCategories = () => {
 
         if (dbError) throw dbError;
 
+        // --- LOGGING ---
+        await logAction('Create Category', `Created new category: "${newCatName}"`);
+
         setNewCatName('');
         setNewCatImage(null);
         setNewIsIlluminated(false); 
@@ -107,7 +111,16 @@ const ManageCategories = () => {
 
   const executeDelete = async () => {
     if (!categoryToDelete) return;
+
+    // Capture name for logging
+    const cat = categories.find(c => c.id === categoryToDelete);
+    const catName = cat ? cat.name : 'Unknown Category';
+
     await supabase.from('categories').delete().eq('id', categoryToDelete);
+    
+    // --- LOGGING ---
+    await logAction('Delete Category', `Permanently deleted category: "${catName}"`);
+
     fetchCategories();
     setShowDeleteModal(false);
     setCategoryToDelete(null);
@@ -123,6 +136,9 @@ const ManageCategories = () => {
       if (error) {
           console.error("Error updating hero mode:", error);
           fetchCategories(); 
+      } else {
+          // --- LOGGING ---
+          await logAction('Category Update', `Toggled Hero Mode for category "${cat.name}" to ${newValue}`);
       }
   };
 
@@ -149,6 +165,10 @@ const ManageCategories = () => {
         const { error } = await supabase.from('categories').update({ subcategories: updatedSubs }).eq('id', catId);
         if (error) throw error;
 
+        // --- LOGGING ---
+        const cat = categories.find(c => c.id === catId);
+        await logAction('Subcategory Add', `Added subcategory "${newSubName}" to "${cat?.name}"`);
+
         setNewSubName('');
         setNewSubImage(null);
         fetchCategories();
@@ -164,7 +184,7 @@ const ManageCategories = () => {
   const startEditingSub = (subIndex: number, sub: Subcategory) => {
       setEditingSubIndex(subIndex);
       setNewSubName(sub.name);
-      setNewSubImage(null); // Reset image input (user only sets this if they want to CHANGE it)
+      setNewSubImage(null); 
   };
 
   const cancelEditingSub = () => {
@@ -180,9 +200,8 @@ const ManageCategories = () => {
 
       try {
           const oldSub = currentSubs[editingSubIndex];
-          let finalImageUrl = oldSub.image_url; // Default to old image
+          let finalImageUrl = oldSub.image_url; 
 
-          // If user selected a new image, upload it
           if (newSubImage) {
               const fileExt = newSubImage.name.split('.').pop();
               const fileName = `sub_upd_${Date.now()}.${fileExt}`;
@@ -192,7 +211,6 @@ const ManageCategories = () => {
               finalImageUrl = data.publicUrl;
           }
 
-          // Create new array with updated item
           const updatedSubs = [...currentSubs];
           updatedSubs[editingSubIndex] = {
               name: newSubName.trim(),
@@ -201,6 +219,10 @@ const ManageCategories = () => {
 
           const { error } = await supabase.from('categories').update({ subcategories: updatedSubs }).eq('id', catId);
           if (error) throw error;
+
+          // --- LOGGING ---
+          const cat = categories.find(c => c.id === catId);
+          await logAction('Subcategory Update', `Updated subcategory "${oldSub.name}" to "${newSubName}" in "${cat?.name}"`);
 
           cancelEditingSub();
           fetchCategories();
@@ -215,11 +237,17 @@ const ManageCategories = () => {
   // ------------------------------------
 
   const removeSubcategory = async (catId: number, currentSubs: Subcategory[], subName: string) => {
-    // If we are currently editing the one being deleted, cancel edit
     if (editingSubIndex !== null) cancelEditingSub();
     
     const updatedSubs = currentSubs.filter(s => s.name !== subName);
-    await supabase.from('categories').update({ subcategories: updatedSubs }).eq('id', catId);
+    const { error } = await supabase.from('categories').update({ subcategories: updatedSubs }).eq('id', catId);
+    
+    if (!error) {
+        // --- LOGGING ---
+        const cat = categories.find(c => c.id === catId);
+        await logAction('Subcategory Delete', `Removed subcategory "${subName}" from "${cat?.name}"`);
+    }
+    
     fetchCategories();
   };
 
@@ -256,6 +284,9 @@ const ManageCategories = () => {
             .eq('id', editingCategory.id);
 
         if (error) throw error;
+
+        // --- LOGGING ---
+        await logAction('Category Update', `Updated category: "${editName}"`);
 
         setEditingCategory(null);
         fetchCategories();

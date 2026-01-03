@@ -270,7 +270,7 @@ const ProductDetails = () => {
                       className={`w-full h-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-105 ${isOutOfStock ? 'grayscale opacity-70' : ''}`}
                       loading="eager" // SEO: Prioritize loading main product image
                       // @ts-ignore
-                      fetchPriority="high"
+                      fetchpriority="high"
                     />
                 </div>
                 {/* Only show thumbnails if there are multiple images */}

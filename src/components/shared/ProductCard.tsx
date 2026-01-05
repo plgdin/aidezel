@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Heart, ShoppingBag } from 'lucide-react';
+import { Plus, Heart, ShoppingBag, Check } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { supabase } from '../../lib/supabase';
 
@@ -20,10 +20,30 @@ export interface Product {
   specs?: any;
 }
 
-const ProductCard = ({ product }: { product: Product }) => {
+interface ProductCardProps {
+  product: Product;
+  onQuickAdd?: () => void;
+}
+
+const ProductCard = ({ product, onQuickAdd }: ProductCardProps) => {
   const { addToCart } = useCart();
   const [isWishlisted, setIsWishlisted] = useState(false);
-  const [showToast, setShowToast] = useState(false); 
+  
+  // State for the "Pill" notification
+  const [notification, setNotification] = useState({ show: false, visible: false, message: '' });
+
+  const showNotification = (msg: string) => {
+    setNotification({ show: true, visible: false, message: msg });
+    
+    // Smooth entry
+    setTimeout(() => setNotification(prev => ({ ...prev, visible: true })), 10);
+
+    // Auto dismiss
+    setTimeout(() => {
+        setNotification(prev => ({ ...prev, visible: false }));
+        setTimeout(() => setNotification({ show: false, visible: false, message: '' }), 500);
+    }, 3000);
+  };
 
   const toggleWishlist = async (e: React.MouseEvent) => {
     e.preventDefault(); 
@@ -39,39 +59,35 @@ const ProductCard = ({ product }: { product: Product }) => {
         setIsWishlisted(false);
     } else {
         setIsWishlisted(true);
-        setShowToast(true);
-        setTimeout(() => setShowToast(false), 2000);
+        // We can reuse the pill style for wishlist too, or keep it simple. 
+        // For now, let's use the nice pill style!
+        showNotification("Saved to Wishlist");
 
         const { error } = await supabase.from('wishlist').insert({
             user_id: session.user.id,
             product_id: product.id
         });
-        if (error) {
-            console.error(error);
-            setIsWishlisted(false); 
-        }
+        if (error) setIsWishlisted(false); 
     }
   };
 
-  // Helper to handle add to cart logic safely
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
-    // We just pass the product; Context handles the parsing now
-    addToCart({ 
-        ...product, 
-        quantity: 1,
-        // Ensure ID is passed correctly
-        id: product.id 
-    });
+    addToCart({ ...product, quantity: 1, id: product.id });
+
+    // Show the "Added to Bag" message
+    showNotification("Added to Bag");
+
+    if (onQuickAdd) onQuickAdd();
   };
 
   return (
     <>
     <div className="group relative bg-white border border-slate-200 rounded-2xl overflow-hidden hover:shadow-[0_10px_30px_-10px_rgba(59,130,246,0.15)] transition-all duration-300 hover:-translate-y-1 hover:border-[#3b82f6]">
       
-      {/* 1. IMAGE LINK */}
+      {/* --- EXISTING CARD CONTENT --- */}
       <Link to={`/product/${product.id}`} className="block relative aspect-[4/5] overflow-hidden bg-slate-50">
         {product.image ? (
           <img 
@@ -80,12 +96,9 @@ const ProductCard = ({ product }: { product: Product }) => {
             className="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105 mix-blend-multiply"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-slate-300 text-xs uppercase tracking-widest">
-            No Image
-          </div>
+          <div className="w-full h-full flex items-center justify-center text-slate-300 text-xs uppercase tracking-widest">No Image</div>
         )}
         
-        {/* Quick Add Overlay */}
         <div className="absolute inset-x-0 bottom-0 p-4 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-4 group-hover:translate-y-0 hidden lg:block bg-gradient-to-t from-white/90 to-transparent">
            <button 
              onClick={handleAddToCart}
@@ -96,7 +109,6 @@ const ProductCard = ({ product }: { product: Product }) => {
         </div>
       </Link>
 
-      {/* 2. FLOATING ELEMENTS */}
       {product.tag && (
         <span className={`absolute top-3 left-3 z-10 text-[10px] font-bold px-2 py-1 uppercase tracking-wider rounded-sm shadow-sm pointer-events-none ${
           product.tag === 'Sold Out' ? 'bg-red-500 text-white' : 'bg-[#0f172a] text-white'
@@ -114,14 +126,12 @@ const ProductCard = ({ product }: { product: Product }) => {
         <Heart size={16} className={isWishlisted ? "fill-current" : ""} />
       </button>
 
-      {/* 3. PRODUCT INFO */}
       <div className="p-4">
         <Link to={`/product/${product.id}`}>
           <h3 className="font-bold text-slate-900 text-sm leading-tight mb-1 line-clamp-2 min-h-[2.5em] group-hover:text-[#2563eb] transition-colors">
             {product.name}
           </h3>
         </Link>
-        
         <div className="flex items-center justify-between mt-2">
           <div className="flex flex-col">
               <span className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">{product.category || 'Electronics'}</span>
@@ -129,8 +139,6 @@ const ProductCard = ({ product }: { product: Product }) => {
                 {typeof product.price === 'number' ? `£${product.price}` : product.price}
               </span>
           </div>
-          
-          {/* Mobile Quick Add */}
           <button 
             onClick={handleAddToCart}
             className="lg:hidden w-9 h-9 bg-[#0f172a] text-white rounded-full flex items-center justify-center active:scale-95 shadow-md"
@@ -141,10 +149,43 @@ const ProductCard = ({ product }: { product: Product }) => {
       </div>
     </div>
 
-    {showToast && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[100] bg-black/90 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 animate-in slide-in-from-bottom-5">
-            <Heart size={16} className="text-red-500 fill-red-500" />
-            <span className="text-sm font-bold">Added to Wishlist</span>
+    {/* --- NEW "PILL" NOTIFICATION (Royal Blue Style) --- */}
+    {notification.show && (
+        <div 
+          className={`
+            fixed left-1/2 -translate-x-1/2 z-[100] 
+            transition-all duration-500 ease-cubic-bezier(0.4, 0, 0.2, 1)
+            ${notification.visible 
+                ? 'top-8 opacity-100 translate-y-0' 
+                : '-top-20 opacity-0 -translate-y-full'
+            }
+          `}
+        >
+            <div className="bg-[#0f172a] text-white pl-2 pr-2 py-2 rounded-full flex items-center gap-4 shadow-2xl border border-white/10 min-w-[280px]">
+                
+                {/* Product Thumbnail with Royal Blue Border */}
+                <div className="relative">
+                   <img 
+                    src={product.image} 
+                    alt="product" 
+                    className="w-10 h-10 rounded-full object-cover border-2 border-[#4169E1]" 
+                   />
+                </div>
+
+                {/* Text Content */}
+                <div className="flex flex-col flex-1 mr-2">
+                   <span className="font-bold text-sm leading-none mb-0.5">{notification.message}</span>
+                   <span className="text-[10px] text-slate-400 max-w-[120px] truncate leading-none">
+                     {product.name}
+                   </span>
+                </div>
+
+                {/* Right Icon Button (Royal Blue Background) */}
+                <div className="bg-[#4169E1] w-10 h-10 rounded-full flex items-center justify-center shadow-lg animate-pulse-once">
+                   {/* We use ShoppingBag or Check based on context, but ShoppingBag matches your image */}
+                   <ShoppingBag size={16} className="text-white fill-white/20" />
+                </div>
+            </div>
         </div>
     )}
     </>

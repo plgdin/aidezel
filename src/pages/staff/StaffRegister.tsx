@@ -15,41 +15,33 @@ const StaffRegister = () => {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(null); // Clear previous errors
-    
-    // 1. Security Check
-    if (staffCode !== 'STAFF2025') {
-        setError("Invalid Staff Access Code");
-        setLoading(false);
-        return;
-    }
+    setError(null);
 
     try {
-      // 2. Create Auth User AND pass the access code in metadata
-      // The Database Trigger will read 'access_code', see it is correct, 
-      // and automatically set the role to 'admin'/'staff'.
+      // 1. Send the data to Supabase.
+      // We pass 'access_code' in the metadata. 
+      // The Postgres Trigger 'check_staff_access_code' will read this.
       const { data, error: upError } = await supabase.auth.signUp({ 
           email, 
           password,
           options: {
             data: {
-                access_code: staffCode, // <--- Passing code to the DB Trigger
+                access_code: staffCode, // Passed blindly to the DB
                 full_name: "Staff Member"
             }
           }
       });
       
+      // 2. If the code was wrong, the DB throws an error which appears here.
       if (upError) throw upError;
-      
-      // We do NOT run an upsert here anymore. 
-      // The database trigger handles the profile creation securely.
           
-      // 3. Success Message
+      // 3. Success
       alert("Registration Successful! Please check your email for confirmation.");
       navigate('/staff/login');
 
     } catch (err: any) {
       console.error(err);
+      // This displays the error message directly from the database (e.g., "Invalid Access Code")
       setError(err.message);
     } finally {
       setLoading(false);

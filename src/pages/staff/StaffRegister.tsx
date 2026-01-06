@@ -18,14 +18,14 @@ const StaffRegister = () => {
     setError(null);
 
     try {
-      // LOGIC FIX: Sending 'access_code' (snake_case) to match the Database Trigger
+      // Logic remains fixed (snake_case)
       const { data, error: upError } = await supabase.auth.signUp({ 
           email, 
           password,
           options: {
             data: {
                 access_code: staffCode, 
-                full_name: "Staff Member" // Hardcoded name per your UI requirements
+              full_name: "Staff Member"
             }
           }
       });
@@ -59,10 +59,11 @@ const StaffRegister = () => {
 
         <form onSubmit={handleRegister} className="space-y-4">
             <div>
-                <label className="text-xs font-bold text-gray-500 uppercase">Access Code</label>
+            <label className="text-xs font-bold text-gray-500 uppercase">ACCESS CODE</label>
                 <input 
                     type="text" 
                     className="w-full p-3 border rounded-lg" 
+              // UPDATED: Text changed as requested
                     placeholder="Ask manager for code" 
                     value={staffCode} 
                     onChange={e => setStaffCode(e.target.value)} 

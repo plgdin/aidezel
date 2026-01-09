@@ -377,7 +377,8 @@ const Shop = () => {
             <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full cursor-pointer" onClick={() => setSelectedSubcats([])}>Clear</span>
           )}
         </div>
-        <div className="flex gap-4 overflow-x-auto pb-6 pt-4 scrollbar-hide snap-x">
+        {/* ADDED px-6 to fix cutoff on hover/shadows */}
+        <div className="flex gap-4 overflow-x-auto pb-6 pt-4 px-6 scrollbar-hide snap-x">
           {availableSubcats.map((sub: any) => {
             const isSelected = selectedSubcats.includes(sub);
             return (

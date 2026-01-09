@@ -1,7 +1,8 @@
 // src/App.tsx
-import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import React, { useEffect } from 'react'; // <--- Added useEffect
+import { Routes, Route, useNavigate } from 'react-router-dom'; // <--- Added useNavigate
 import { HelmetProvider, Helmet } from 'react-helmet-async';
+import { supabase } from './lib/supabase'; // <--- Added supabase import
 
 // --- Layouts ---
 import ClientLayout from './components/layout/ClientLayout';
@@ -52,6 +53,23 @@ import AdminLogs from './pages/admin/AdminLogs';
 const AppHelmetProvider = HelmetProvider as any;
 
 function App() {
+  const navigate = useNavigate(); // <--- Initialize Hook
+
+  // --- STEP 3 FIX: Handle Password Recovery Event ---
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // This event fires specifically when a user clicks a "Reset Password" email link
+      if (event === 'PASSWORD_RECOVERY') {
+        navigate('/update-password');
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [navigate]);
+  // --------------------------------------------------
+
   return (
     <AppHelmetProvider>
       {/* GLOBAL SEO CONFIGURATION */}
@@ -145,6 +163,7 @@ function App() {
             ========================================= */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/update-password" element={<UpdatePassword />} /> {/* <--- Added this route */}
       </Routes>
     </AppHelmetProvider>
   );

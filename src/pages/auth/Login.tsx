@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Link, useNavigate } from 'react-router-dom';
-// Added Eye and EyeOff imports
 import { Lock, Mail, ArrowRight, Loader2, AlertCircle, ArrowLeft, CheckCircle, Eye, EyeOff } from 'lucide-react';
 
 const Login = () => {
@@ -55,7 +54,8 @@ const Login = () => {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/account/update-password`,
+        // FIX: Hardcoded to your live domain to prevent old domain redirects
+        redirectTo: 'https://www.aidezel.co.uk/update-password',
       });
 
       if (error) throw error;

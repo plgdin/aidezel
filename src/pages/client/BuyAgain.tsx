@@ -59,7 +59,13 @@ const BuyAgain: React.FC = () => {
     load();
   }, [orderId]);
 
-  const handleAddAllToCart = () => {
+  const handleAddAllToCart = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+        navigate('/login');
+        return;
+    }
+
     items.forEach((item) => {
       const product = item.products || {};
       const finalPrice = Number(product.price ?? item.price ?? 0);
@@ -167,8 +173,15 @@ const BuyAgain: React.FC = () => {
 
                   <button
                     disabled={isOutOfStock}
-                    onClick={() => {
+                    onClick={async () => {
                       if (isOutOfStock) return;
+                      
+                      const { data: { session } } = await supabase.auth.getSession();
+                      if (!session) {
+                          navigate('/login');
+                          return;
+                      }
+
                       addToCart({
                         id: product.id || item.product_id,
                         name: product.name || item.product_name,

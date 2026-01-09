@@ -162,7 +162,13 @@ const ProductDetails = () => {
     : 0;
 
   // --- HANDLE ADD TO CART WITH OPTIONS ---
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+          navigate('/login');
+          return false;
+      }
+
       // Create a string description of selected options (e.g., "Color: Red, Shape: Star")
       const optionString = Object.entries(selectedOptions).map(([key, val]) => `${key}: ${val}`).join(', ');
       
@@ -171,6 +177,7 @@ const ProductDetails = () => {
           quantity: qty,
           selectedVariant: optionString // Pass option string to cart context
       });
+      return true;
   };
   
   // SEO Helper: Create description snippet
@@ -385,10 +392,12 @@ const ProductDetails = () => {
                     
                     <button
                       disabled={isOutOfStock}
-                      onClick={() => {
+                      onClick={async () => {
                         if (isOutOfStock) return;
-                        handleAddToCart(); // Using new handler
-                        navigate('/checkout');                        
+                        const success = await handleAddToCart(); // Using new handler
+                        if (success) {
+                            navigate('/checkout');                        
+                        }
                       }}
                       className="w-full bg-black hover:bg-gray-900 text-white font-medium py-2.5 rounded-full text-sm shadow-sm transition-colors disabled:opacity-50"
                     >

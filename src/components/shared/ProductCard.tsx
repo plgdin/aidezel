@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Heart, ShoppingBag, Check } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { supabase } from '../../lib/supabase';
@@ -26,6 +26,7 @@ interface ProductCardProps {
 }
 
 const ProductCard = ({ product, onQuickAdd }: ProductCardProps) => {
+  const navigate = useNavigate();
   const { addToCart } = useCart();
   const [isWishlisted, setIsWishlisted] = useState(false);
   
@@ -71,9 +72,15 @@ const ProductCard = ({ product, onQuickAdd }: ProductCardProps) => {
     }
   };
 
-  const handleAddToCart = (e: React.MouseEvent) => {
+  const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+        navigate('/login');
+        return;
+    }
     
     addToCart({ ...product, quantity: 1, id: product.id });
 

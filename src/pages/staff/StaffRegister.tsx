@@ -15,42 +15,29 @@ const StaffRegister = () => {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(null); // Clear previous errors
-    
-    // 1. Security Check
-    if (staffCode !== 'STAFF2025') {
-        setError("Invalid Staff Access Code");
-        setLoading(false);
-        return;
-    }
+    setError(null);
 
     try {
-      // 2. Create Auth User AND pass the access code in metadata
-      // The Database Trigger will read 'access_code', see it is correct, 
-      // and automatically set the role to 'admin'/'staff'.
+      // Logic remains fixed (snake_case)
       const { data, error: upError } = await supabase.auth.signUp({ 
           email, 
           password,
           options: {
             data: {
-                access_code: staffCode, // <--- Passing code to the DB Trigger
-                full_name: "Staff Member"
+                access_code: staffCode, 
+              full_name: "Staff Member"
             }
           }
       });
       
       if (upError) throw upError;
-      
-      // We do NOT run an upsert here anymore. 
-      // The database trigger handles the profile creation securely.
           
-      // 3. Success Message
       alert("Registration Successful! Please check your email for confirmation.");
       navigate('/staff/login');
 
     } catch (err: any) {
       console.error(err);
-      setError(err.message);
+      setError(err.message || "Registration failed");
     } finally {
       setLoading(false);
     }
@@ -59,17 +46,24 @@ const StaffRegister = () => {
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-md rounded-2xl shadow-xl p-8">
-        <div className="flex justify-center mb-4 text-purple-600"><ShieldCheck size={40} /></div>
+        <div className="flex justify-center mb-4 text-purple-600">
+            <ShieldCheck size={40} />
+        </div>
         <h1 className="text-2xl font-bold text-center text-slate-900 mb-6">Staff Registration</h1>
         
-        {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm font-bold">{error}</div>}
+        {error && (
+            <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm font-bold">
+                {error}
+            </div>
+        )}
 
         <form onSubmit={handleRegister} className="space-y-4">
             <div>
-                <label className="text-xs font-bold text-gray-500 uppercase">Access Code</label>
+            <label className="text-xs font-bold text-gray-500 uppercase">ACCESS CODE</label>
                 <input 
                     type="text" 
                     className="w-full p-3 border rounded-lg" 
+              // UPDATED: Text changed as requested
                     placeholder="Ask manager for code" 
                     value={staffCode} 
                     onChange={e => setStaffCode(e.target.value)} 

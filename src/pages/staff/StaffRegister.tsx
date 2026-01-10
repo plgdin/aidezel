@@ -2,14 +2,23 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate, Link } from 'react-router-dom';
-import { ShieldCheck, Loader2 } from 'lucide-react';
+// NEW: Added Eye and EyeOff imports
+import { ShieldCheck, Loader2, User, CreditCard, Eye, EyeOff } from 'lucide-react'; 
 
 const StaffRegister = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  
+  const [fullName, setFullName] = useState('');
+  const [employeeId, setEmployeeId] = useState('');
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [staffCode, setStaffCode] = useState('');
+  
+  // NEW: State for password visibility
+  const [showPassword, setShowPassword] = useState(false);
+  
   const [error, setError] = useState<string | null>(null);
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -18,14 +27,14 @@ const StaffRegister = () => {
     setError(null);
 
     try {
-      // Logic remains fixed (snake_case)
       const { data, error: upError } = await supabase.auth.signUp({ 
           email, 
           password,
           options: {
             data: {
-                access_code: staffCode, 
-              full_name: "Staff Member"
+              access_code: staffCode, 
+              full_name: fullName,
+              employee_id: employeeId
             }
           }
       });
@@ -58,18 +67,49 @@ const StaffRegister = () => {
         )}
 
         <form onSubmit={handleRegister} className="space-y-4">
+            
+            {/* Full Name Field */}
+            <div>
+                <label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1">
+                    <User size={14}/> Full Name
+                </label>
+                <input 
+                    type="text" 
+                    className="w-full p-3 border rounded-lg" 
+                    value={fullName} 
+                    onChange={e => setFullName(e.target.value)} 
+                    required 
+                />
+            </div>
+
+            {/* Employee ID Field */}
+            <div>
+                <label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1">
+                    <CreditCard size={14}/> Employee ID
+                </label>
+                <input 
+                    type="text" 
+                    className="w-full p-3 border rounded-lg" 
+                    value={employeeId} 
+                    onChange={e => setEmployeeId(e.target.value)} 
+                    required 
+                />
+            </div>
+
+            {/* Access Code Field */}
             <div>
             <label className="text-xs font-bold text-gray-500 uppercase">ACCESS CODE</label>
                 <input 
                     type="text" 
                     className="w-full p-3 border rounded-lg" 
-              // UPDATED: Text changed as requested
                     placeholder="Ask manager for code" 
                     value={staffCode} 
                     onChange={e => setStaffCode(e.target.value)} 
                     required 
                 />
             </div>
+            
+            {/* Email Field */}
             <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">Email</label>
                 <input 
@@ -80,16 +120,28 @@ const StaffRegister = () => {
                     required 
                 />
             </div>
-            <div>
+
+            {/* Password Field with Toggle */}
+            <div className="relative">
                 <label className="text-xs font-bold text-gray-500 uppercase">Password</label>
-                <input 
-                    type="password" 
-                    className="w-full p-3 border rounded-lg" 
-                    value={password} 
-                    onChange={e => setPassword(e.target.value)} 
-                    required 
-                />
+                <div className="relative">
+                    <input 
+                        type={showPassword ? "text" : "password"} 
+                        className="w-full p-3 border rounded-lg pr-10" // added pr-10 for icon space
+                        value={password} 
+                        onChange={e => setPassword(e.target.value)} 
+                        required 
+                    />
+                    <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                    >
+                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                </div>
             </div>
+
             <button disabled={loading} className="w-full bg-purple-700 hover:bg-purple-800 text-white font-bold py-3 rounded-lg flex justify-center items-center gap-2">
                 {loading ? <Loader2 className="animate-spin" /> : "Create Account"}
             </button>

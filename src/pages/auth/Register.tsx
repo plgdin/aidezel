@@ -53,7 +53,7 @@ const Register = () => {
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // UPDATED: Now checks for 8 digits as seen in your logs
+    // Validates 8 digits to match the code sent to your email
     if (userOtp.length < 8) {
       return toast("Please enter the full 8-digit code", { className: 'bg-orange-600 text-white' });
     }
@@ -69,11 +69,13 @@ const Register = () => {
 
       if (error) throw error;
 
-      toast("Verified! Redirecting...", { className: 'bg-green-600 text-white' });
-      navigate('/dashboard'); 
+      // SUCCESS: User is automatically logged in
+      toast(`Welcome, ${formData.fullName}!`, { className: 'bg-green-600 text-white' });
+
+      // REDIRECT TO HOME PAGE (Replaces Dashboard/Welcome)
+      navigate('/'); 
 
     } catch (error: any) {
-      // 403 usually means the token expired or the type is wrong for this email
       toast("Invalid code. Ensure you used the latest 8-digit code.", { className: 'bg-red-900 text-white' });
     } finally {
       setLoading(false);
@@ -102,6 +104,7 @@ const Register = () => {
           {step === 'form' ? 'Start your journey with Aidezel' : `Enter the 8-digit code sent to ${formData.email}`}
         </p>
 
+        {/* SCREEN 1: REGISTRATION FORM */}
         {step === 'form' && (
           <form onSubmit={handleSignUp} className="space-y-4">
             <div>
@@ -148,21 +151,22 @@ const Register = () => {
           </form>
         )}
 
+        {/* SCREEN 2: OTP INPUT */}
         {step === 'otp' && (
           <form onSubmit={handleVerifyOTP} className="space-y-6 animate-in fade-in slide-in-from-right-8">
             <div className="relative">
               <input
                 required
                 type="text"
-                maxLength={8} // UPDATED: Changed from 6 to 8
-                placeholder="00000000" // UPDATED: 8 digits
+                maxLength={8} // Matches the 8-digit code in your logs
+                placeholder="00000000"
                 className="w-full text-center text-3xl tracking-[4px] font-bold p-4 border-2 border-gray-200 rounded-xl focus:border-black outline-none"
                 value={userOtp}
                 onChange={e => setUserOtp(e.target.value)}
               />
             </div>
 
-            <button disabled={loading} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold hover:bg-green-700 transition flex justify-center items-center gap-2">
+            <button disabled={loading} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold hover:bg-green-700 transition flex justify-center items-center gap-2 shadow-lg shadow-green-100">
               {loading ? <Loader2 className="animate-spin" /> : <><CheckCircle2 /> Verify & Register</>}
             </button>
 

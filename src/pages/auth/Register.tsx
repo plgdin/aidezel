@@ -25,7 +25,7 @@ const Register = () => {
     setLoading(true);
 
     try {
-      // This call triggers the official Supabase OTP via Resend SMTP
+      // Triggers the official Supabase OTP via your verified Resend SMTP
       const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -39,7 +39,6 @@ const Register = () => {
 
       if (error) throw error;
 
-      // If we reach here, the email has been handed to Resend for delivery
       toast("Verification code sent!", { className: 'bg-blue-900 text-white' });
       setStep('otp');
 
@@ -53,7 +52,12 @@ const Register = () => {
   // --- STEP 2: VERIFY OTP (COMPLETES REGISTRATION) ---
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (userOtp.length < 6) return;
+
+    // UPDATED: Now checks for 8 digits as seen in your logs
+    if (userOtp.length < 8) {
+      return toast("Please enter the full 8-digit code", { className: 'bg-orange-600 text-white' });
+    }
+
     setLoading(true);
 
     try {
@@ -69,13 +73,13 @@ const Register = () => {
       navigate('/dashboard'); 
 
     } catch (error: any) {
-      toast("Invalid code. Please check your email again.", { className: 'bg-red-900 text-white' });
+      // 403 usually means the token expired or the type is wrong for this email
+      toast("Invalid code. Ensure you used the latest 8-digit code.", { className: 'bg-red-900 text-white' });
     } finally {
       setLoading(false);
     }
   };
 
-  // --- OPTIONAL: RESEND CODE ---
   const handleResendCode = async () => {
     setResending(true);
     const { error } = await supabase.auth.resend({
@@ -95,10 +99,9 @@ const Register = () => {
           {step === 'form' ? 'Create Account' : 'Verify Email'}
         </h2>
         <p className="text-center text-gray-500 mb-6 text-sm">
-          {step === 'form' ? 'Start your journey with Aidezel' : `Enter the code sent to ${formData.email}`}
+          {step === 'form' ? 'Start your journey with Aidezel' : `Enter the 8-digit code sent to ${formData.email}`}
         </p>
 
-        {/* SCREEN 1: FORM */}
         {step === 'form' && (
           <form onSubmit={handleSignUp} className="space-y-4">
             <div>
@@ -145,16 +148,15 @@ const Register = () => {
           </form>
         )}
 
-        {/* SCREEN 2: OTP */}
         {step === 'otp' && (
           <form onSubmit={handleVerifyOTP} className="space-y-6 animate-in fade-in slide-in-from-right-8">
             <div className="relative">
               <input
                 required
                 type="text"
-                maxLength={6}
-                placeholder="000000"
-                className="w-full text-center text-3xl tracking-[8px] font-bold p-4 border-2 border-gray-200 rounded-xl focus:border-black outline-none"
+                maxLength={8} // UPDATED: Changed from 6 to 8
+                placeholder="00000000" // UPDATED: 8 digits
+                className="w-full text-center text-3xl tracking-[4px] font-bold p-4 border-2 border-gray-200 rounded-xl focus:border-black outline-none"
                 value={userOtp}
                 onChange={e => setUserOtp(e.target.value)}
               />
@@ -165,16 +167,10 @@ const Register = () => {
             </button>
 
             <div className="flex flex-col gap-3">
-              <button
-                type="button"
-                onClick={handleResendCode}
-                disabled={resending}
-                className="text-sm text-blue-600 hover:underline flex items-center justify-center gap-2"
-              >
+              <button type="button" onClick={handleResendCode} disabled={resending} className="text-sm text-blue-600 hover:underline flex items-center justify-center gap-2">
                 {resending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                 Didn't get a code? Resend
               </button>
-
               <button type="button" onClick={() => setStep('form')} className="text-gray-400 text-sm hover:text-black underline">
                 Back to registration
               </button>

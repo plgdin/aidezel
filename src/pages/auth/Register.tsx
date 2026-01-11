@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, ArrowRight, Loader2, CheckCircle2 } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Loader2, CheckCircle2, RefreshCw } from 'lucide-react';
 import { toast } from '../../components/ui/use-toast';
 
 const Register = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
 
   // --- STATE ---
   const [step, setStep] = useState<'form' | 'otp'>('form');
-  const [userOtp, setUserOtp] = useState('');     // The code they type from their email
+  const [userOtp, setUserOtp] = useState(''); 
 
   const [formData, setFormData] = useState({
     email: '',
@@ -18,13 +19,13 @@ const Register = () => {
     fullName: ''
   });
 
-  // --- STEP 1: INITIAL SIGN UP ---
-  // This triggers Supabase to send the REAL OTP via your Resend SMTP
+  // --- STEP 1: INITIAL SIGN UP (TRIGGERS EMAIL) ---
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      // This call triggers the official Supabase OTP via Resend SMTP
       const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -38,41 +39,52 @@ const Register = () => {
 
       if (error) throw error;
 
-      // If successful, Supabase has now sent the OTP automatically
-      toast("Verification code sent to your email!", { className: 'bg-blue-900 text-white' });
+      // If we reach here, the email has been handed to Resend for delivery
+      toast("Verification code sent!", { className: 'bg-blue-900 text-white' });
       setStep('otp');
 
     } catch (error: any) {
-      console.error(error);
-      toast(error.message, { className: 'bg-red-900 text-white' });
+      toast(error.message || "Registration failed", { className: 'bg-red-900 text-white' });
     } finally {
       setLoading(false);
     }
   };
 
-  // --- STEP 2: VERIFY OTP ---
-  // This tells Supabase "The user typed this code, now let them in"
+  // --- STEP 2: VERIFY OTP (COMPLETES REGISTRATION) ---
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (userOtp.length < 6) return;
     setLoading(true);
 
     try {
       const { data, error } = await supabase.auth.verifyOtp({
         email: formData.email,
         token: userOtp,
-        type: 'signup', // Crucial: tells Supabase this is a new registration
+        type: 'signup', 
       });
 
       if (error) throw error;
 
-      toast("Email verified! Welcome to Aidezel.", { className: 'bg-green-600 text-white' });
-      navigate('/dashboard'); // Go straight to the app
+      toast("Verified! Redirecting...", { className: 'bg-green-600 text-white' });
+      navigate('/dashboard'); 
 
     } catch (error: any) {
-      toast("Invalid or expired code. Please try again.", { className: 'bg-red-900 text-white' });
+      toast("Invalid code. Please check your email again.", { className: 'bg-red-900 text-white' });
     } finally {
       setLoading(false);
     }
+  };
+
+  // --- OPTIONAL: RESEND CODE ---
+  const handleResendCode = async () => {
+    setResending(true);
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: formData.email,
+    });
+    setResending(false);
+    if (error) toast(error.message);
+    else toast("New code sent!");
   };
 
   return (
@@ -83,10 +95,10 @@ const Register = () => {
           {step === 'form' ? 'Create Account' : 'Verify Email'}
         </h2>
         <p className="text-center text-gray-500 mb-6 text-sm">
-          {step === 'form' ? 'Start your journey with Aidezel' : `Enter the 6-digit code sent to ${formData.email}`}
+          {step === 'form' ? 'Start your journey with Aidezel' : `Enter the code sent to ${formData.email}`}
         </p>
 
-        {/* === SCREEN 1: REGISTRATION FORM === */}
+        {/* SCREEN 1: FORM */}
         {step === 'form' && (
           <form onSubmit={handleSignUp} className="space-y-4">
             <div>
@@ -133,35 +145,40 @@ const Register = () => {
           </form>
         )}
 
-        {/* === SCREEN 2: OTP INPUT === */}
+        {/* SCREEN 2: OTP */}
         {step === 'otp' && (
           <form onSubmit={handleVerifyOTP} className="space-y-6 animate-in fade-in slide-in-from-right-8">
-            <div className="flex justify-center">
-              <div className="bg-gray-100 p-4 rounded-full">
-                <Mail className="text-black" size={32} />
-              </div>
-            </div>
-
             <div className="relative">
-              <div className="text-center mb-2 text-xs text-gray-500 uppercase tracking-wider font-bold">Security Code</div>
               <input
                 required
                 type="text"
                 maxLength={6}
                 placeholder="000000"
-                className="w-full text-center text-3xl tracking-[8px] font-bold p-4 border-2 border-gray-200 rounded-xl focus:border-black outline-none transition-all"
+                className="w-full text-center text-3xl tracking-[8px] font-bold p-4 border-2 border-gray-200 rounded-xl focus:border-black outline-none"
                 value={userOtp}
                 onChange={e => setUserOtp(e.target.value)}
               />
             </div>
 
-            <button disabled={loading} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold hover:bg-green-700 transition flex justify-center items-center gap-2 shadow-lg shadow-green-100">
-              {loading ? <Loader2 className="animate-spin" /> : <><CheckCircle2 /> Verify & Login</>}
+            <button disabled={loading} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold hover:bg-green-700 transition flex justify-center items-center gap-2">
+              {loading ? <Loader2 className="animate-spin" /> : <><CheckCircle2 /> Verify & Register</>}
             </button>
 
-            <button type="button" onClick={() => setStep('form')} className="w-full text-gray-400 text-sm hover:text-black underline">
-              Back to registration
-            </button>
+            <div className="flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={handleResendCode}
+                disabled={resending}
+                className="text-sm text-blue-600 hover:underline flex items-center justify-center gap-2"
+              >
+                {resending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                Didn't get a code? Resend
+              </button>
+
+              <button type="button" onClick={() => setStep('form')} className="text-gray-400 text-sm hover:text-black underline">
+                Back to registration
+              </button>
+            </div>
           </form>
         )}
 

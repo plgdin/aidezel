@@ -5,6 +5,8 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: true, // <--- This is the magic line that exposes it to your Wi-Fi
+    host: true,       // Exposes app to IPv4/IPv6 (Required for Vercel)
+    strictPort: true, // Prevents Vite from switching ports unexpectedly
+    port: 5173,       // Locks the internal port
   }
 })

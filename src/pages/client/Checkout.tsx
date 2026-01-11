@@ -6,9 +6,9 @@ import { ShieldCheck, Loader2, Lock } from 'lucide-react';
 import { toast } from '../../components/ui/use-toast';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { generateInvoiceBase64 } from '../../utils/invoiceGenerator';
 
 // --- 1. INITIALIZE STRIPE ---
-// REPLACE THIS WITH YOUR ACTUAL PUBLISHABLE KEY (Starts with pk_test_...)
 const stripePromise = loadStripe('pk_test_51Sglkr4oJa5N3YQp50I51KNbXYnq0Carqr1e7TYcCYMsanyfFBxW9aOt2wdQ5xkNDeDcRTfpomZAjRl3G9Wmvotf00wXuzGGbW');
 
 // --- 2. INNER PAYMENT FORM COMPONENT ---
@@ -26,14 +26,14 @@ const PaymentForm = ({ totalAmount, onSuccess }: { totalAmount: number, onSucces
 
     const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
-      redirect: "if_required", // Important: Prevents redirect if payment succeeds immediately
+      redirect: "if_required",
     });
 
     if (error) {
       setMessage(error.message || "An unexpected error occurred.");
       setIsProcessing(false);
     } else if (paymentIntent && paymentIntent.status === "succeeded") {
-      onSuccess(paymentIntent.id); // Pass Stripe Payment ID to parent
+      onSuccess(paymentIntent.id);
     } else {
       setMessage("Payment processing...");
       setIsProcessing(false);
@@ -74,8 +74,8 @@ const Checkout: React.FC = () => {
   
   // State
   const [loading, setLoading] = useState(false);
-  const [clientSecret, setClientSecret] = useState(''); // Stores the Stripe Secret
-  const [paymentStep, setPaymentStep] = useState(false); // Controls UI toggle
+  const [clientSecret, setClientSecret] = useState('');
+  const [paymentStep, setPaymentStep] = useState(false);
   
   const [formData, setFormData] = useState({
     firstName: '',
@@ -83,11 +83,10 @@ const Checkout: React.FC = () => {
     address: '',
     city: '',
     postcode: '',
-    phone: '', // Added Phone field to state
+    phone: '',
     email: '',
   });
 
-  // Calculate Total with VAT
   const totalAmount = cartTotal * 1.2; 
 
   // --- Pre-fill data from Profile ---
@@ -99,7 +98,7 @@ const Checkout: React.FC = () => {
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
-          .single();
+          .maybeSingle();
 
         if (profile) {
           const names = (profile.full_name || '').split(' ');
@@ -110,7 +109,7 @@ const Checkout: React.FC = () => {
             address: profile.address || '',
             city: profile.city || '',
             postcode: profile.postcode || '',
-            phone: profile.phone || '', // Check if your profile has phone
+            phone: profile.phone || '',
           });
         }
       }
@@ -118,19 +117,19 @@ const Checkout: React.FC = () => {
     fetchUserProfile();
   }, []);
 
-  // --- STEP 1: INITIALIZE PAYMENT (Talk to Supabase Edge Function) ---
+  // --- STEP 1: INITIALIZE PAYMENT ---
   const initializePayment = async (e: React.FormEvent) => {
-    e.preventDefault(); // Prevent form submission
+    e.preventDefault();
 
+    // FIX: Reverted to (string, object) syntax
     if (cartItems.length === 0) return toast('Cart is empty', { className: 'bg-red-900 text-white' });
-    if (!formData.firstName || !formData.address || !formData.email) return toast('Please fill in all details', { className: 'bg-red-900 text-white' });
+    if (!formData.firstName || !formData.address || !formData.email) return toast('Missing Details', { description: 'Please fill in all details', className: 'bg-red-900 text-white' });
 
     setLoading(true);
 
     try {
         const { data: { session } } = await supabase.auth.getSession();
-        
-        // Call your Supabase Edge Function
+
         const { data, error } = await supabase.functions.invoke('bright-responder', {
             body: { 
                 amount: totalAmount, 
@@ -144,10 +143,11 @@ const Checkout: React.FC = () => {
         if (error) throw error;
         if (data?.clientSecret) {
             setClientSecret(data.clientSecret);
-            setPaymentStep(true); // Switch UI to Payment Mode
+          setPaymentStep(true);
         }
     } catch (err: any) {
         console.error("Payment setup failed:", err);
+      // FIX: Reverted syntax
         toast('Payment Error', { 
             description: 'Could not connect to payment server. Please try again.',
             className: 'bg-red-900 text-white'
@@ -157,7 +157,7 @@ const Checkout: React.FC = () => {
     }
   };
 
-  // --- STEP 2: HANDLE ORDER SUCCESS (Called after Stripe confirms payment) ---
+  // --- STEP 2: HANDLE ORDER SUCCESS ---
   const handleOrderSuccess = async (paymentId: string) => {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -175,8 +175,8 @@ const Checkout: React.FC = () => {
           city: formData.city,
           postcode: formData.postcode,
           total_amount: totalAmount,
-          status: 'Paid', // DIRECTLY PAID
-          payment_id: paymentId, // STORE STRIPE ID
+          status: 'Paid',
+          payment_id: paymentId,
         }])
         .select()
         .single();
@@ -184,6 +184,8 @@ const Checkout: React.FC = () => {
       if (orderError || !orderData) throw orderError || new Error('Failed to create order');
 
       // 2. Insert Order Items & Reduce Stock
+      const invoiceItems = [];
+
       for (const item of cartItems) {
         await supabase.from('order_items').insert({
             order_id: orderData.id,
@@ -193,27 +195,72 @@ const Checkout: React.FC = () => {
             selected_variant: (item as any).selectedVariant || ''
         });
 
-        // Atomic Stock Decrement
         await supabase.rpc('decrement_stock', { 
             product_id: item.id, 
             quantity: item.quantity 
         });
+
+        invoiceItems.push({
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price
+        });
       }
 
-      // 3. Cleanup
+      // --- 3. GENERATE INVOICE & SEND EMAIL ---
+      try {
+        // Safe PDF Generation
+        const pdfBase64 = generateInvoiceBase64(
+          {
+            id: orderData.id,
+            customer_name: `${formData.firstName} ${formData.lastName}`,
+          },
+          invoiceItems || []
+        );
+
+        console.log("PDF generated successfully, length:", pdfBase64.length);
+
+        await fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: accountEmail,
+            type: 'invoice',
+            data: {
+              orderId: orderData.id.slice(0, 8).toUpperCase(),
+              name: `${formData.firstName} ${formData.lastName}`,
+              total: totalAmount,
+            },
+            attachments: [
+              {
+                content: pdfBase64,
+                filename: `Invoice-${orderData.id.slice(0, 8)}.pdf`,
+              }
+            ]
+          })
+        });
+
+        console.log("Invoice sent successfully");
+      } catch (emailErr) {
+        console.error("Failed to send invoice email:", emailErr);
+      }
+
+      // 4. Cleanup
       clearCart();
 
-      toast('Order Paid Successfully ✔', {
-        description: 'Thank you for shopping with Aidezel.',
-        className: 'bg-slate-950 text-white border border-slate-800',
+      // FIX: Reverted syntax
+      toast('Order Paid Successfully', {
+        description: 'Check your email for the invoice.',
+        className: 'bg-green-600 text-white border-none',
       });
 
-      setTimeout(() => navigate('/orders'), 1500);
+      setTimeout(() => navigate('/orders'), 2000);
 
     } catch (error: any) {
       console.error(error);
+      // FIX: Reverted syntax and fixed missing brace
       toast('Order Creation Failed', {
-        description: 'Payment was taken but order creation failed. Please contact support.',
+        description: 'Please contact support.',
         className: 'bg-red-900 text-white',
       });
     }
@@ -255,8 +302,7 @@ const Checkout: React.FC = () => {
               <input placeholder="Phone (Optional)" className="md:col-span-2 p-3 border rounded-lg"
                 value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
             </div>
-            
-            {/* If we are NOT in payment mode yet, show the "Next" button here */}
+
             {!paymentStep && (
                 <button
                     onClick={initializePayment}
@@ -271,7 +317,6 @@ const Checkout: React.FC = () => {
 
         {/* RIGHT COLUMN: Summary & Payment */}
         <div className="lg:col-span-1 space-y-6">
-            {/* Order Summary */}
             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
                 <h3 className="font-bold text-lg mb-4">Order Summary</h3>
                 <div className="space-y-2 mb-4 text-sm text-gray-600">
@@ -289,7 +334,6 @@ const Checkout: React.FC = () => {
                 )}
             </div>
 
-            {/* STRIPE PAYMENT SECTION (Only Visible after "Proceed to Payment") */}
             {paymentStep && clientSecret && (
                 <div className="bg-white p-6 rounded-2xl border border-blue-500 shadow-xl ring-4 ring-blue-50/50">
                     <h2 className="text-xl font-bold mb-4 flex items-center gap-2">

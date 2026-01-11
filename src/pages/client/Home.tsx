@@ -1,14 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-// FIX: Imported AnimatePresence to allow exit animations (fading out)
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, ChevronLeft, Zap, Star, ShoppingBag, Loader2, ArrowRight } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom'; 
 import { supabase } from '../../lib/supabase';
 import ProductCard, { Product } from '../../components/shared/ProductCard';
-// SEO: Import Helmet
 import { Helmet } from 'react-helmet-async';
 
-// FIX: Cast Helmet to 'any' to resolve the "cannot be used as a JSX component" TypeScript error
+// FIX: Cast Helmet to 'any' to resolve TypeScript error
 const SeoHelmet = Helmet as any;
 
 // --- HELPER: Extract Dominant Color from Image ---
@@ -41,7 +39,7 @@ const getAverageColor = (imageUrl: string): Promise<string> => {
   });
 };
 
-// --- HERO BANNER ---
+// --- HERO BANNER COMPONENT ---
 interface HeroBannerProps {
   heroProduct: any;
   heroCount: number;
@@ -53,12 +51,12 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [dominantColor, setDominantColor] = useState<string>('rgb(255,255,255)'); 
-  const navigate = useNavigate(); // Hook for navigation
+  const navigate = useNavigate();
 
   // --- SWIPE LOGIC STATE ---
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
-  const minSwipeDistance = 50; // Threshold for a valid swipe
+  const minSwipeDistance = 50;
 
   // 1. Detect Color when heroProduct changes
   useEffect(() => {
@@ -191,13 +189,9 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
 
   return (
     <div className="w-full bg-transparent pt-0 pb-4 lg:py-12">
-      {/* ================================================================
-        MOBILE HERO (Amazon Style - Taller Card with SWIPE) - md:hidden
-        ================================================================
-      */}
+      {/* MOBILE HERO */}
       <div 
         className="md:hidden px-4"
-        // Attach Swipe Handlers to the container
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
@@ -205,17 +199,13 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
         <div 
           className="relative w-full rounded-2xl overflow-hidden shadow-md border border-white/20 min-h-[520px] flex flex-col"
           style={{
-            // The gradient magic: Matches the Amazon feel of blending into the page
             background: `linear-gradient(180deg, ${dominantColor} 0%, rgba(229, 237, 247, 0.9) 85%, #e5edf7 100%)`
           }}
         >
-          {/* Top Content: Text First (Like Amazon) */}
           <div className="p-6 pb-2 z-10 flex flex-col items-start w-full">
              <span className="bg-black/90 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-3 shadow-sm">
                 {heroProduct ? 'Highlights' : 'Featured'}
              </span>
-             
-             {/* FIX: Wrapped text content in AnimatePresence with exit prop for fading out */}
              <AnimatePresence mode="wait">
                <motion.div
                  key={heroProduct ? `txt-${heroProduct.id}` : 'mob-txt'}
@@ -225,7 +215,6 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
                  transition={{ duration: 0.3 }}
                  className="text-left"
                >
-                  {/* SEO: Changed h2 to h1 for mobile SEO hierarchy */}
                   <h1 className="text-3xl font-black text-slate-900 leading-[1.1] mb-2 drop-shadow-sm">
                       {heroProduct ? heroProduct.name : 'Loading...'}
                   </h1>
@@ -236,13 +225,11 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
              </AnimatePresence>
           </div>
 
-          {/* Middle: Big Image - FIXED WITH ROUNDED CONTAINER */}
           <div className="flex-1 relative flex items-center justify-center p-4">
-             {/* FIX: Wrapped image in AnimatePresence with exit prop for fading out */}
              <AnimatePresence mode="wait">
                {heroProduct ? (
                  <motion.div 
-                   key={heroProduct.id} // Important: key must change to trigger animation
+                   key={heroProduct.id} 
                    className="relative rounded-[32px] overflow-hidden shadow-2xl border-4 border-white/20 cursor-pointer" 
                    initial={{ opacity: 0, scale: 0.9 }}
                    animate={{ opacity: 1, scale: 1 }}
@@ -250,15 +237,14 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
                    transition={{ duration: 0.3 }}
                    onClick={handleHeroClick} 
                  >
-                   {/* SEO: Added fetchPriority="high" for Core Web Vitals (LCP) */}
                    <img 
                      src={heroProduct.image_url} 
                      alt={heroProduct.name} 
                      className="w-full h-auto max-h-[300px] object-cover"
                      draggable={false} 
                      loading="eager"
-                     // @ts-ignore - React type definition fix for fetchPriority
-                     fetchPriority="high"
+                     // @ts-ignore
+                     fetchpriority="high"
                    />
                  </motion.div>
                ) : (
@@ -267,7 +253,6 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
              </AnimatePresence>
           </div>
 
-          {/* Bottom: CTA */}
           <div className="p-4 z-10">
               <Link 
                 to={heroProduct ? `/product/${heroProduct.id}` : '#'} 
@@ -278,20 +263,13 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
                 <ArrowRight size={18} />
               </Link>
           </div>
-
-          {/* NO ARROWS HERE - Swipe Enabled */}
         </div>
       </div>
 
-      {/* ================================================================
-        DESKTOP HERO (Original Glassmorphism) - hidden md:flex
-        ================================================================
-      */}
+      {/* DESKTOP HERO */}
       <div className="hidden md:block container mx-auto px-4">
         <div ref={containerRef} className="relative w-full rounded-[2.5rem] overflow-hidden bg-gradient-to-br from-[#0f172a] via-[#1e3a8a] to-[#172554] min-h-[500px] flex items-center shadow-2xl group/hero">
-          
           <canvas ref={canvasRef} className="absolute inset-0 z-0" />
-
           {heroCount > 1 && (
             <button 
               onClick={onPrev}
@@ -301,7 +279,6 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
               <ChevronLeft size={28} />
             </button>
           )}
-
           {heroCount > 1 && (
             <button 
               onClick={onNext}
@@ -311,7 +288,6 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
               <ChevronRight size={28} />
             </button>
           )}
-          
           <div className="relative z-10 w-full px-8 lg:px-24 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <motion.div 
               key={heroProduct ? heroProduct.id : 'loading'} 
@@ -324,7 +300,6 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
                     {heroProduct ? 'Curated Collection' : 'Limited Time Only'}
                 </span>
               </div>
-              
               <h1 className="text-6xl lg:text-7xl font-black italic uppercase tracking-tighter leading-[0.9] mb-6 text-white">
                 {heroProduct ? (
                     <>
@@ -338,11 +313,9 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
                    </>
                 )}
               </h1>
-              
               <p className="text-blue-100 text-sm lg:text-base mb-8 font-medium max-w-md line-clamp-2">
                 {heroProduct ? heroProduct.description : 'Elevate your space with our premium lighting and furniture collections.'}
               </p>
-              
               <Link 
                 to={heroProduct ? `/product/${heroProduct.id}` : '/shop'} 
                 className="inline-flex bg-[#3b82f6] text-white px-8 py-3 rounded-full font-bold items-center gap-2 hover:bg-[#2563eb] transition-colors shadow-[0_0_20px_rgba(59,130,246,0.4)] hover:shadow-[0_0_30px_rgba(59,130,246,0.6)]"
@@ -351,24 +324,22 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
                 Shop Now <ChevronRight size={18} strokeWidth={3}/>
               </Link>
             </motion.div>
-
             <motion.div 
               key={`img-${heroProduct ? heroProduct.id : 'load'}`}
               initial={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }} 
               transition={{ duration: 0.8 }} 
-              className="relative w-full aspect-[16/10] rounded-3xl flex items-center justify-center overflow-hidden shadow-2xl bg-white/5 backdrop-blur-sm border border-white/10 cursor-pointer" // Add cursor-pointer
-              onClick={handleHeroClick} // Add onClick handler
+              className="relative w-full aspect-[16/10] rounded-3xl flex items-center justify-center overflow-hidden shadow-2xl bg-white/5 backdrop-blur-sm border border-white/10 cursor-pointer"
+              onClick={handleHeroClick}
             >
               {heroProduct ? (
                  <img 
                    src={heroProduct.image_url} 
                    alt={heroProduct.name} 
                    className="max-h-[90%] max-w-[90%] object-contain rounded-[2rem] transition-transform scale-[1.005] hover:scale-[1.05] duration-700 drop-shadow-2xl" 
-                   // SEO: Added fetchPriority="high" for Core Web Vitals (LCP)
                    loading="eager"
                    // @ts-ignore
-                   fetchPriority="high"
+                   fetchpriority="high"
                  />
                ) : (
                  <div className="w-full h-full bg-white/5 flex items-center justify-center border border-white/10 rounded-3xl">
@@ -383,7 +354,7 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
   );
 };
 
-// --- MAIN HOME PAGE ---
+// --- MAIN HOME PAGE COMPONENT ---
 const HomePage: React.FC = () => {
   const [heroProducts, setHeroProducts] = useState<Product[]>([]);
   const [latestProducts, setLatestProducts] = useState<Product[]>([]);
@@ -394,6 +365,7 @@ const HomePage: React.FC = () => {
 
   const showArrows = categories.length > 5;
 
+  // --- FETCH DATA ---
   useEffect(() => {
     const fetchCats = async () => {
         const { data } = await supabase.from('categories').select('*').order('id');
@@ -402,7 +374,6 @@ const HomePage: React.FC = () => {
     fetchCats();
   }, []);
 
-  // --- FETCH HERO PRODUCTS (STARRED IN ADMIN) ---
   useEffect(() => {
     const fetchHeroItems = async () => {
       const { data } = await supabase
@@ -423,13 +394,11 @@ const HomePage: React.FC = () => {
           stock_quantity: item.stock_quantity
         })));
       } else {
-        // Fallback
         const { data: fallback } = await supabase
             .from('products')
             .select('*')
             .order('created_at', { ascending: false })
             .limit(1);
-        
         if (fallback) {
             setHeroProducts(fallback.map((item: any) => ({
                 id: item.id, 
@@ -447,7 +416,6 @@ const HomePage: React.FC = () => {
     fetchHeroItems();
   }, []);
 
-  // --- FETCH LATEST PRODUCTS (FOR THE GRID BELOW) ---
   useEffect(() => {
     const fetchLatestGrid = async () => {
         const { data } = await supabase
@@ -455,7 +423,6 @@ const HomePage: React.FC = () => {
             .select('*')
             .order('created_at', { ascending: false })
             .limit(8); 
-        
         if (data) {
             setLatestProducts(data.map((item: any) => ({
                 id: item.id, 
@@ -470,25 +437,18 @@ const HomePage: React.FC = () => {
     fetchLatestGrid();
   }, []);
 
-  // Cycle Hero Logic (15 seconds)
   useEffect(() => {
-    if (heroProducts.length <= 1) return; // Don't auto-scroll if only 1 item
+    if (heroProducts.length <= 1) return;
     const timer = setInterval(() => {
         setCurrentHeroIndex(prev => (prev + 1) % heroProducts.length);
     }, 15000); 
     return () => clearInterval(timer);
   }, [heroProducts]);
 
-  // --- MANUAL HERO NAVIGATION ---
-  const nextHero = () => {
-    setCurrentHeroIndex(prev => (prev + 1) % heroProducts.length);
-  };
+  const nextHero = () => setCurrentHeroIndex(prev => (prev + 1) % heroProducts.length);
+  const prevHero = () => setCurrentHeroIndex(prev => (prev - 1 + heroProducts.length) % heroProducts.length);
 
-  const prevHero = () => {
-    setCurrentHeroIndex(prev => (prev - 1 + heroProducts.length) % heroProducts.length);
-  };
-
-  // --- SCROLL FUNCTION ---
+  // --- SCROLL FUNCTION (DEFINED INSIDE COMPONENT) ---
   const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {
       const container = scrollRef.current;
@@ -506,26 +466,20 @@ const HomePage: React.FC = () => {
     }
   };
 
+  // --- RENDER (RETURN) ---
   return (
     <div className="min-h-screen bg-transparent font-sans text-slate-900 overflow-x-hidden">
-      {/* SEO: Metadata and Structured Data Injection */}
       <SeoHelmet>
         <title>Aidezel Ltd | Premium Lighting, Fashion & Home Living</title>
         <meta name="description" content="Discover premium lighting solutions, stylish fashion, modern furniture, and home appliances at Aidezel. Elevate your living space with our curated collections. Fast UK delivery." />
         <meta name="keywords" content="lighting, fashion, home appliances, furniture, home decor, modern living, aidezel, uk shop" />
         <link rel="canonical" href="https://aidezel.co.uk/" />
-        
-        {/* Open Graph / Facebook */}
         <meta property="og:type" content="website" />
         <meta property="og:title" content="Aidezel Ltd | Lighting, Fashion & Home" />
         <meta property="og:description" content="Elevate your lifestyle with premium lighting, fashion, and home decor from Aidezel." />
         <meta property="og:image" content="https://aidezel.co.uk/social-preview.jpg" />
         <meta property="og:url" content="https://aidezel.co.uk/" />
-        
-        {/* Twitter */}
         <meta name="twitter:card" content="summary_large_image" />
-        
-        {/* Schema.org JSON-LD for Store */}
         <script type="application/ld+json">
           {JSON.stringify({
             "@context": "https://schema.org",
@@ -546,7 +500,6 @@ const HomePage: React.FC = () => {
         </script>
       </SeoHelmet>
       
-      {/* Pass Hero Data + Navigation Functions */}
       <HeroBanner 
         heroProduct={heroProducts[currentHeroIndex]} 
         heroCount={heroProducts.length}
@@ -554,20 +507,15 @@ const HomePage: React.FC = () => {
         onPrev={prevHero}
       />
       
-      {/* --- NEW PREMIUM CATEGORIES SECTION --- */}
+      {/* CATEGORIES SECTION */}
       <div className="w-full py-16 bg-gray-50/50">
         <div className="max-w-7xl mx-auto px-4">
-            
-            {/* Header */}
             <div className="mb-8">
                 <h2 className="text-3xl font-bold text-slate-900">Shop by Category</h2>
                 <p className="text-slate-500 text-sm mt-1">Explore our wide range of collections</p>
             </div>
 
-            {/* Flex Container for List + Arrows */}
             <div className="flex items-center gap-4">
-            
-                {/* LEFT ARROW (Conditionally Rendered) */}
                 {showArrows && (
                   <button 
                       onClick={() => scroll('left')} 
@@ -578,7 +526,6 @@ const HomePage: React.FC = () => {
                   </button>
                 )}
 
-                {/* SCROLL AREA */}
                 <div 
                   ref={scrollRef}
                   className="flex gap-4 overflow-x-auto flex-1 snap-x snap-mandatory scrollbar-hide scroll-smooth pt-0 pb-4"
@@ -595,7 +542,7 @@ const HomePage: React.FC = () => {
                                     <img 
                                         src={cat.image_url} 
                                         alt={cat.name} 
-                                        loading="lazy" // SEO: Lazy load below-fold images
+                                        loading="lazy"
                                         className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110"
                                     />
                                 ) : (
@@ -605,9 +552,7 @@ const HomePage: React.FC = () => {
                                         </span>
                                     </div>
                                 )}
-
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 transition-opacity group-hover/card:opacity-70" />
-
                                 <div className="absolute bottom-0 inset-x-0 p-4">
                                     <div className="bg-white/10 backdrop-blur-md border border-white/20 py-2.5 rounded-xl text-center shadow-sm group-hover/card:bg-white/20 transition-colors">
                                         <span className="text-xs font-bold text-white tracking-widest uppercase truncate block px-2">
@@ -619,8 +564,6 @@ const HomePage: React.FC = () => {
                         </Link>
                     </div>
                     ))}
-
-                    {/* Loader */}
                     {categories.length === 0 && (
                         <div className="w-full py-12 flex items-center justify-center gap-2 text-slate-400">
                             <Loader2 className="animate-spin" /> Loading Collections...
@@ -628,7 +571,6 @@ const HomePage: React.FC = () => {
                     )}
                 </div>
 
-                {/* RIGHT ARROW (Conditionally Rendered) */}
                 {showArrows && (
                   <button 
                       onClick={() => scroll('right')} 
@@ -638,13 +580,12 @@ const HomePage: React.FC = () => {
                       <ChevronRight size={24} strokeWidth={2} />
                   </button>
                 )}
-
             </div>
         </div>
       </div>
       
       <main className="container mx-auto px-4 py-12 space-y-24">
-        {/* NEW ARRIVALS */}
+        {/* LATEST LAUNCHES */}
         <section>
           <div className="flex items-end justify-between mb-10">
             <div>
@@ -655,7 +596,6 @@ const HomePage: React.FC = () => {
               View All <ChevronRight size={14}/>
             </Link>
           </div>
-
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
             {latestProducts.length > 0 ? (
               latestProducts.map((product) => <ProductCard key={product.id} product={product} />)

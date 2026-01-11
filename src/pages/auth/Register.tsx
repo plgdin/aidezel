@@ -9,9 +9,8 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
 
   // --- STATE ---
-  const [step, setStep] = useState<'form' | 'otp'>('form'); // Controls which screen to show
-  const [serverOtp, setServerOtp] = useState(''); // The code we sent
-  const [userOtp, setUserOtp] = useState('');     // The code they typed
+  const [step, setStep] = useState<'form' | 'otp'>('form');
+  const [userOtp, setUserOtp] = useState('');     // The code they type from their email
 
   const [formData, setFormData] = useState({
     email: '',
@@ -19,75 +18,58 @@ const Register = () => {
     fullName: ''
   });
 
-  // --- STEP 1: SEND OTP ---
-  const handleSendOtp = async (e: React.FormEvent) => {
+  // --- STEP 1: INITIAL SIGN UP ---
+  // This triggers Supabase to send the REAL OTP via your Resend SMTP
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // 1. Generate a random 6-digit code
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      setServerOtp(code); // Save it to compare later
-
-      // 2. Send it via your API
-      await fetch('/api/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          type: 'otp', // Uses the "Amazon Style" template
-          data: { code: code }
-        })
-      });
-
-      // 3. Switch to OTP Screen
-      // FIX: specific string first, then options
-      toast("OTP Sent! Check your email.", { className: 'bg-blue-900 text-white' });
-      setStep('otp');
-
-    } catch (error: any) {
-      console.error(error);
-      toast("Failed to send OTP", { className: 'bg-red-900 text-white' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // --- STEP 2: VERIFY & REGISTER ---
-  const handleVerifyAndRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    // 1. Check the code
-    if (userOtp !== serverOtp) {
-      setLoading(false);
-      // FIX: specific string first
-      return toast("Incorrect OTP. Please try again.", { className: 'bg-red-900 text-white' });
-    }
-
-    try {
-  // 2. Sign up with Supabase Auth AND pass metadata
       const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
           data: {
             full_name: formData.fullName,
-            role: 'client' // Ensure they get the client role
+            role: 'client'
           },
         },
       });
 
       if (error) throw error;
 
-      // 3. Success
-      // FIX: specific string first
-      toast("Registration successful! Please log in.", { className: 'bg-green-600 text-white' });
-      navigate('/login');
+      // If successful, Supabase has now sent the OTP automatically
+      toast("Verification code sent to your email!", { className: 'bg-blue-900 text-white' });
+      setStep('otp');
 
     } catch (error: any) {
-      // FIX: specific string first
+      console.error(error);
       toast(error.message, { className: 'bg-red-900 text-white' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- STEP 2: VERIFY OTP ---
+  // This tells Supabase "The user typed this code, now let them in"
+  const handleVerifyOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: formData.email,
+        token: userOtp,
+        type: 'signup', // Crucial: tells Supabase this is a new registration
+      });
+
+      if (error) throw error;
+
+      toast("Email verified! Welcome to Aidezel.", { className: 'bg-green-600 text-white' });
+      navigate('/dashboard'); // Go straight to the app
+
+    } catch (error: any) {
+      toast("Invalid or expired code. Please try again.", { className: 'bg-red-900 text-white' });
     } finally {
       setLoading(false);
     }
@@ -101,12 +83,12 @@ const Register = () => {
           {step === 'form' ? 'Create Account' : 'Verify Email'}
         </h2>
         <p className="text-center text-gray-500 mb-6 text-sm">
-          {step === 'form' ? 'Start your journey with Aidezel' : `Enter the code sent to ${formData.email}`}
+          {step === 'form' ? 'Start your journey with Aidezel' : `Enter the 6-digit code sent to ${formData.email}`}
         </p>
 
         {/* === SCREEN 1: REGISTRATION FORM === */}
         {step === 'form' && (
-          <form onSubmit={handleSendOtp} className="space-y-4">
+          <form onSubmit={handleSignUp} className="space-y-4">
             <div>
               <label className="block text-sm font-bold mb-1">Full Name</label>
               <div className="relative">
@@ -114,6 +96,7 @@ const Register = () => {
                 <input
                   className="w-full pl-10 p-3 border rounded-xl focus:outline-none focus:border-black"
                   required
+                  placeholder="John Doe"
                   onChange={e => setFormData({ ...formData, fullName: e.target.value })}
                 />
               </div>
@@ -126,6 +109,7 @@ const Register = () => {
                   type="email"
                   className="w-full pl-10 p-3 border rounded-xl focus:outline-none focus:border-black"
                   required
+                  placeholder="email@example.com"
                   onChange={e => setFormData({ ...formData, email: e.target.value })}
                 />
               </div>
@@ -138,6 +122,7 @@ const Register = () => {
                   type="password"
                   className="w-full pl-10 p-3 border rounded-xl focus:outline-none focus:border-black"
                   required
+                  placeholder="••••••••"
                   onChange={e => setFormData({ ...formData, password: e.target.value })}
                 />
               </div>
@@ -150,7 +135,7 @@ const Register = () => {
 
         {/* === SCREEN 2: OTP INPUT === */}
         {step === 'otp' && (
-          <form onSubmit={handleVerifyAndRegister} className="space-y-6 animate-in fade-in slide-in-from-right-8">
+          <form onSubmit={handleVerifyOTP} className="space-y-6 animate-in fade-in slide-in-from-right-8">
             <div className="flex justify-center">
               <div className="bg-gray-100 p-4 rounded-full">
                 <Mail className="text-black" size={32} />
@@ -158,12 +143,12 @@ const Register = () => {
             </div>
 
             <div className="relative">
-              <div className="text-center mb-2 text-xs text-gray-500 uppercase tracking-wider font-bold">One Time Password</div>
+              <div className="text-center mb-2 text-xs text-gray-500 uppercase tracking-wider font-bold">Security Code</div>
               <input
                 required
                 type="text"
                 maxLength={6}
-                placeholder="123456"
+                placeholder="000000"
                 className="w-full text-center text-3xl tracking-[8px] font-bold p-4 border-2 border-gray-200 rounded-xl focus:border-black outline-none transition-all"
                 value={userOtp}
                 onChange={e => setUserOtp(e.target.value)}
@@ -171,16 +156,15 @@ const Register = () => {
             </div>
 
             <button disabled={loading} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold hover:bg-green-700 transition flex justify-center items-center gap-2 shadow-lg shadow-green-100">
-              {loading ? <Loader2 className="animate-spin" /> : <><CheckCircle2 /> Verify & Register</>}
+              {loading ? <Loader2 className="animate-spin" /> : <><CheckCircle2 /> Verify & Login</>}
             </button>
 
             <button type="button" onClick={() => setStep('form')} className="w-full text-gray-400 text-sm hover:text-black underline">
-              Incorrect email? Go Back
+              Back to registration
             </button>
           </form>
         )}
 
-        {/* FOOTER (Only show on first step) */}
         {step === 'form' && (
           <p className="text-center mt-6 text-sm">Already have an account? <Link to="/login" className="font-bold underline">Login</Link></p>
         )}
@@ -188,4 +172,5 @@ const Register = () => {
     </div>
   );
 };
+
 export default Register;

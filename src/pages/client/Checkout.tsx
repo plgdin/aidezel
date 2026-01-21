@@ -65,11 +65,8 @@ const isValidUKPostcode = (postcode: string) => {
   return regex.test(postcode.trim());
 };
 
-// NEW: Validates standard UK mobile and landline formats (07..., +44..., 01..., 02...)
 const isValidUKPhone = (phone: string) => {
-  // Remove spaces and dashes for check
   const cleanPhone = phone.replace(/\s+/g, '').replace(/-/g, '');
-  // Regex allows +44 or 0 start, followed by valid UK area/mobile codes
   const regex = /^(?:(?:\+44)|(?:0))(?:(?:(?:1\d{8,9})|(?:7[1-9]\d{8})|(?:70\d{8})|(?:2\d{9})|(?:3\d{9})|(?:800\d{6,7})|(?:845\d{6,7})|(?:870\d{6,7})|(?:871\d{6,7})|(?:9\d{9})))$/;
   return regex.test(cleanPhone);
 };
@@ -118,6 +115,7 @@ const PaymentForm = ({
     } else if (paymentIntent && paymentIntent.status === "succeeded") {
       onSuccess(paymentIntent.id);
     } else {
+      // This happens if actions (like 3DS or Redirect) are still pending
       setMessage("Redirecting...");
     }
   };
@@ -149,7 +147,7 @@ const PaymentForm = ({
 // --- MAIN CHECKOUT PAGE ---
 const Checkout: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation(); 
+  const location = useLocation();
   const { cartTotal, cartItems, clearCart } = useCart();
   
   const [loading, setLoading] = useState(false);
@@ -183,6 +181,7 @@ const Checkout: React.FC = () => {
   
   const finalTotal = Math.max(0, grossTotal - discountAmount);
 
+  // --- FIX: HANDLE REDIRECT STATUS (Success OR Failure) ---
   useEffect(() => {
     const checkRedirectStatus = async () => {
       const clientSecretParam = new URLSearchParams(window.location.search).get(
@@ -196,18 +195,36 @@ const Checkout: React.FC = () => {
 
       const { paymentIntent } = await stripe.retrievePaymentIntent(clientSecretParam);
 
-      if (paymentIntent && paymentIntent.status === "succeeded") {
-        const storedData = localStorage.getItem('pendingOrder');
-        if (storedData) {
-            const parsedData = JSON.parse(storedData);
-            await handleOrderSuccess(paymentIntent.id, parsedData);
-            localStorage.removeItem('pendingOrder');
-        } else {
-            notify("Order Processed", "Please check your email for confirmation.");
-            navigate('/orders');
+      if (paymentIntent) {
+        // CASE 1: SUCCESS
+        if (paymentIntent.status === "succeeded") {
+            const storedData = localStorage.getItem('pendingOrder');
+            
+            if (storedData) {
+                const parsedData = JSON.parse(storedData);
+                await handleOrderSuccess(paymentIntent.id, parsedData);
+                localStorage.removeItem('pendingOrder');
+            } else {
+                notify("Order Processed", "Please check your email for confirmation.");
+                navigate('/orders');
+            }
+        } 
+        // CASE 2: PROCESSING (Still waiting on bank)
+        else if (paymentIntent.status === "processing") {
+            notify("Processing Payment", "Your payment is currently processing. We'll update you shortly.");
+        } 
+        // CASE 3: FAILED (Requires new payment method)
+        else if (paymentIntent.status === "requires_payment_method") {
+            notify("Payment Failed", "Your payment was not successful. Please try again.", "error");
+            // Stay on page, allow user to retry
+        }
+        // CASE 4: CANCELLED
+        else if (paymentIntent.status === "canceled") {
+            notify("Payment Cancelled", "You cancelled the payment.", "error");
         }
       }
     };
+
     checkRedirectStatus();
   }, [location]);
 
@@ -264,10 +281,9 @@ const Checkout: React.FC = () => {
          }
 
          if (!isValidUKPostcode(formData.postcode)) {
-             return notify('Invalid Postcode', 'Please enter a valid UK postcode (e.g. SW1A 1AA).', 'error');
+             return notify('Invalid Postcode', 'Please enter a valid UK postcode.', 'error');
          }
 
-         // NEW VALIDATION: UK Phone Check
          if (!isValidUKPhone(formData.phone)) {
              return notify('Invalid Phone', 'Please enter a valid UK phone number.', 'error');
          }
@@ -330,10 +346,8 @@ const Checkout: React.FC = () => {
         if (data?.clientSecret) {
             setClientSecret(data.clientSecret);
             setPaymentStep(true);
-            
-            // Auto-scroll to the payment section
             setTimeout(() => {
-                document.getElementById('payment-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                document.getElementById('payment-step-container')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }, 100);
         }
     } catch (err: any) {
@@ -501,12 +515,11 @@ const Checkout: React.FC = () => {
 
           {/* STEP 2: PAYMENT (MOVED HERE TO FIX OVERLAP) */}
           {paymentStep && clientSecret && (
-            <div id="payment-section" className="bg-white p-6 rounded-2xl border border-blue-500 shadow-xl ring-4 ring-blue-50/50 animate-in fade-in slide-in-from-bottom-4 duration-500 scroll-mt-24">
+            <div id="payment-step-container" className="bg-white p-6 rounded-2xl border border-blue-500 shadow-xl ring-4 ring-blue-50/50 animate-in fade-in slide-in-from-bottom-4 duration-500 scroll-mt-24">
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                     <span className="bg-black text-white w-8 h-8 rounded-full flex items-center justify-center text-sm">2</span>
                     Secure Payment
                 </h2>
-                {/* STRIPE PAYMENT ELEMENT - HANDLES CARD, APPLE PAY, GOOGLE PAY, AND REVOLUT PAY AUTOMATICALLY */}
                 <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
                     <PaymentForm 
                         totalAmount={finalTotal} 

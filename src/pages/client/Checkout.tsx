@@ -94,6 +94,7 @@ const PaymentForm = ({
 
     setIsProcessing(true);
 
+    // Save state before potential redirect
     localStorage.setItem('pendingOrder', JSON.stringify({
         formData,
         cartItems,
@@ -124,20 +125,17 @@ const PaymentForm = ({
       <div className="p-4 border border-gray-200 rounded-xl bg-white">
           <PaymentElement />
       </div>
-      
       {message && (
         <div className="text-red-600 text-sm font-bold bg-red-50 p-4 rounded-xl flex items-center gap-2 border border-red-100">
             <AlertCircle size={16} /> {message}
         </div>
       )}
-      
       <button 
         disabled={isProcessing || !stripe || !elements} 
         className="w-full bg-black text-white py-4 rounded-xl font-bold text-lg hover:bg-gray-800 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl active:scale-[0.99] duration-200"
       >
         {isProcessing ? <><Loader2 className="animate-spin" /> Processing...</> : <><Lock size={18} /> Pay £{totalAmount.toLocaleString()}</>}
       </button>
-      
       <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mt-4">
         <ShieldCheck size={14} className="text-green-600"/>
         <span>Payments processed securely by Stripe</span>
@@ -197,16 +195,26 @@ const Checkout: React.FC = () => {
 
       const { paymentIntent } = await stripe.retrievePaymentIntent(clientSecretParam);
 
-      if (paymentIntent && paymentIntent.status === "succeeded") {
-        const storedData = localStorage.getItem('pendingOrder');
-        
-        if (storedData) {
+      if (paymentIntent) {
+        if (paymentIntent.status === "succeeded") {
+          const storedData = localStorage.getItem('pendingOrder');
+          if (storedData) {
             const parsedData = JSON.parse(storedData);
             await handleOrderSuccess(paymentIntent.id, parsedData);
             localStorage.removeItem('pendingOrder');
-        } else {
+          } else {
             notify("Order Processed", "Please check your email for confirmation.");
             navigate('/orders');
+          }
+        } 
+        else if (paymentIntent.status === "processing") {
+          notify("Processing Payment", "Your payment is currently processing. We'll update you shortly.");
+        }
+        else if (paymentIntent.status === "requires_payment_method") {
+          notify("Payment Failed", "Your payment was not successful. Please try again.", "error");
+        }
+        else if (paymentIntent.status === "canceled") {
+          notify("Payment Cancelled", "You cancelled the payment.", "error");
         }
       }
     };
@@ -220,7 +228,6 @@ const Checkout: React.FC = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setFormData(prev => ({ ...prev, email: session.user.email || '' }));
-
         const { data: addresses } = await supabase
           .from('user_addresses')
           .select('*')
@@ -264,8 +271,8 @@ const Checkout: React.FC = () => {
     
     let shippingDetails;
     if (selectedAddressId === 'new') {
-         if (!formData.firstName || !formData.address_line1 || !formData.city || !formData.postcode || !formData.phone) {
-             return notify('Missing Details', 'Please fill in all address fields, including your phone number.', 'error');
+      if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.email.trim() || !formData.address_line1.trim() || !formData.city.trim() || !formData.postcode.trim() || !formData.country.trim() || !formData.phone.trim()) {
+        return notify('Missing Details', 'Please fill in ALL address fields to continue.', 'error');
          }
 
          if (!isValidUKPostcode(formData.postcode)) {
@@ -418,21 +425,21 @@ const Checkout: React.FC = () => {
         const pdfBase64 = await generateInvoiceBase64(
             { 
                 id: orderData.id, 
-                customer_name: orderData.customer_name, // Use DB Data
-                address: orderData.address,             // Use DB Data (Fixes missing address)
-                city: orderData.city,                   // Use DB Data
-                postcode: orderData.postcode,           // Use DB Data
-                total_amount: orderData.total_amount    // Use DB Data
+            customer_name: orderData.customer_name,
+            address: orderData.address,             // FIX: Uses DB Address
+            city: orderData.city,                   // FIX: Uses DB City
+            postcode: orderData.postcode,           // FIX: Uses DB Postcode
+            total_amount: orderData.total_amount    // FIX: Uses DB Total
             }, 
             invoiceItems, 
-            { skipLogo: true }
+          { skipLogo: true } // FIX: Skips logo for email to prevent 413 error
         );
         
         const emailResponse = await fetch('/api/send-email', {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify({
-                 email: orderData.email, // Use DB Email
+               email: orderData.email,
                  type: 'invoice',
                  data: { orderId: orderData.id, name: orderData.customer_name, total: formatCurrency(currentTotal) },
                  attachments: [{ content: pdfBase64, filename: `Invoice-${orderData.id}.pdf` }]
@@ -467,7 +474,7 @@ const Checkout: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         
-        {/* --- LEFT COLUMN: SHIPPING + PAYMENT (LINEAR LAYOUT) --- */}
+        {/* --- LEFT COLUMN: ADDRESS & PAYMENT (LINEAR FLOW RESTORED) --- */}
         <div className="lg:col-span-2 space-y-8">
             
           {/* STEP 1: ADDRESS */}
@@ -562,7 +569,7 @@ const Checkout: React.FC = () => {
             )}
           </div>
 
-          {/* STEP 2: PAYMENT (MOVED BACK HERE - LEFT COLUMN) */}
+          {/* STEP 2: PAYMENT (STATIC BLOCK - LEFT COLUMN) */}
           {paymentStep && clientSecret && (
             <div id="payment-step-container" className="bg-white p-6 rounded-2xl border border-blue-500 shadow-xl ring-4 ring-blue-50/50 animate-in fade-in slide-in-from-bottom-4 duration-500 scroll-mt-24">
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2">

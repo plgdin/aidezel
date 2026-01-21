@@ -13,12 +13,14 @@ const getBase64ImageFromURL = (url: string): Promise<string> => {
     img.src = url;
     img.onload = () => {
       const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = img.height;
+      // Keep logo small (max 300px width)
+      const scale = Math.min(1, 300 / img.width);
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
       const ctx = canvas.getContext("2d");
       if (ctx) {
-        ctx.drawImage(img, 0, 0);
-        resolve(canvas.toDataURL("image/png"));
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.7));
       } else {
         reject(new Error("Canvas context is null"));
       }
@@ -27,19 +29,28 @@ const getBase64ImageFromURL = (url: string): Promise<string> => {
   });
 };
 
-export const generateInvoiceBase64 = async (order: any, items: any[]) => {
+// NEW: 'options' parameter controls if we include the logo
+export const generateInvoiceBase64 = async (order: any, items: any[], options: { skipLogo?: boolean } = {}) => {
   try {
-    const doc = new jsPDF();
+    const doc = new jsPDF({ compress: true });
 
-    // --- LOGO ---
-    try {
-      const logoBase64 = await getBase64ImageFromURL(logo);
-      const imgProps = doc.getImageProperties(logoBase64);
-      const pdfWidth = 40;
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      doc.addImage(logoBase64, "PNG", 14, 10, pdfWidth, pdfHeight);
-    } catch (err) {
-      console.error("Could not load logo image", err);
+    // --- LOGO LOGIC ---
+    if (!options.skipLogo) {
+      // Standard Mode: Try to add the logo
+      try {
+        const logoBase64 = await getBase64ImageFromURL(logo);
+        const imgProps = doc.getImageProperties(logoBase64);
+        const pdfWidth = 40;
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        doc.addImage(logoBase64, "JPEG", 14, 10, pdfWidth, pdfHeight);
+      } catch (err) {
+        // Fallback if image fails
+        doc.setFontSize(22);
+        doc.setFont("helvetica", "bold");
+        doc.text("AIDEZEL", 14, 25);
+      }
+    } else {
+      // Email Mode: TEXT ONLY (Result: Tiny file size, ~5KB)
       doc.setFontSize(22);
       doc.setFont("helvetica", "bold");
       doc.text("AIDEZEL", 14, 25);
@@ -48,7 +59,8 @@ export const generateInvoiceBase64 = async (order: any, items: any[]) => {
     const safeItems = Array.isArray(items) ? items : []; 
     const safeOrder = order || {};
     const safeId = safeOrder.id || "PENDING";
-    const safeDate = new Date(safeOrder.created_at || new Date()).toLocaleDateString('en-GB');
+    const displayId = String(safeId).toUpperCase();
+    const safeDate = new Date().toLocaleDateString('en-GB');
 
     // --- HEADER ---
     doc.setFontSize(18);
@@ -62,7 +74,6 @@ export const generateInvoiceBase64 = async (order: any, items: any[]) => {
     const startY = 50;
 
     doc.setFontSize(10);
-    // Seller
     doc.text("Sold By:", 14, startY);
     doc.setFont("helvetica", "bold");
     doc.text("Aidezel Ltd.", 14, startY + 5);
@@ -70,19 +81,18 @@ export const generateInvoiceBase64 = async (order: any, items: any[]) => {
     doc.text("Unit 42, Innovation Tech Park", 14, startY + 10);
     doc.text("123 Commerce Way, London", 14, startY + 15);
     doc.text("United Kingdom, EC1A 1BB", 14, startY + 20);
-    doc.setFontSize(8);
-    doc.text("VAT Reg No: GB 987 654 321", 14, startY + 30);
 
     // Customer
     const rightColX = 130;
-    doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.text("Billing/Shipping Address:", rightColX, startY);
-    doc.setFont("helvetica", "bold");
     doc.text(String(safeOrder.customer_name || "Valued Customer").toUpperCase(), rightColX, startY + 5);
     doc.setFont("helvetica", "normal");
-    doc.text(safeOrder.address || "", rightColX, startY + 10);
-    doc.text(`${safeOrder.city || ""} ${safeOrder.postcode || ""}`, rightColX, startY + 15);
+
+    const addressLines = doc.splitTextToSize(safeOrder.address || "", 60);
+    doc.text(addressLines, rightColX, startY + 10);
+    const cityY = startY + 10 + (addressLines.length * 4);
+    doc.text(`${safeOrder.city || ""} ${safeOrder.postcode || ""}`, rightColX, cityY);
 
     // --- ORDER BAR ---
     const barY = startY + 40;
@@ -91,19 +101,17 @@ export const generateInvoiceBase64 = async (order: any, items: any[]) => {
     doc.setFontSize(9);
     doc.text(`Order Number:`, 14, barY + 6);
     doc.setFont("helvetica", "bold");
-    doc.text(`${safeId}`, 40, barY + 6);
+    doc.text(`${displayId}`, 40, barY + 6);
     doc.setFont("helvetica", "normal");
     doc.text(`Order Date:`, 110, barY + 6);
     doc.setFont("helvetica", "bold");
     doc.text(`${safeDate}`, 130, barY + 6);
     doc.line(14, barY + 10, 196, barY + 10);
 
-    // --- TABLE (AMAZON STYLE) ---
+    // --- TABLE ---
     const tableData = safeItems.map((item: any) => {
-      // 1. Explicitly use the product name
       const name = item.product_name || item.name || "Item";
       const quantity = Number(item.quantity || 1);
-
       const rawPrice = item.price !== undefined ? item.price : item.price_at_purchase;
       const unitPriceGross = Number(rawPrice || 0);
 
@@ -125,74 +133,48 @@ export const generateInvoiceBase64 = async (order: any, items: any[]) => {
 
     autoTable(doc, {
       startY: barY + 15,
-      theme: 'grid', // 'grid' gives nice professional borders
-      headStyles: { 
-        fillColor: [35, 47, 62], // Amazon-ish Dark Blue/Grey Header
-        textColor: [255, 255, 255],
-        fontStyle: 'bold', 
-        fontSize: 8,
-        halign: 'center',
-        cellPadding: 3
-      },
-      bodyStyles: {
-        textColor: [50, 50, 50],
-        fontSize: 9,
-        cellPadding: 5,
-        valign: 'middle'
-      },
-      alternateRowStyles: {
-        fillColor: [249, 250, 251] // Very subtle alternation
-      },
+      theme: 'grid',
+      headStyles: { fillColor: [35, 47, 62], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+      bodyStyles: { textColor: 50, fontSize: 9 },
       head: [["Description", "Unit Price (Net)", "Qty", "Net Amount", "Tax Rate", "Tax Amount", "Total"]],
       body: tableData,
       columnStyles: {
-        0: { cellWidth: 70, halign: 'left' }, // Description
-        1: { halign: 'right' },
-        2: { halign: 'center' },
-        3: { halign: 'right' },
-        4: { halign: 'right' },
-        5: { halign: 'right' },
-        6: { halign: 'right', fontStyle: 'bold' } // Bold Total
+        0: { cellWidth: 70 },
+        6: { fontStyle: 'bold', halign: 'right' }
       }
     });
 
     // --- TOTALS ---
     const finalY = (doc as any).lastAutoTable.finalY + 10;
-    const totalAmount = Number(safeOrder.total_amount || 0);
+
+    let totalAmount = 0;
+    if (typeof safeOrder.total_amount === 'string') {
+      totalAmount = parseFloat(safeOrder.total_amount.replace(/[^0-9.-]+/g, ""));
+    } else {
+      totalAmount = Number(safeOrder.total_amount || 0);
+    }
+
     const totalNet = totalAmount / 1.2;
     const totalTax = totalAmount - totalNet;
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
 
-    // Aligned breakdown
     doc.text("Total Net Amount:", 130, finalY);
     doc.text(formatCurrency(totalNet), 196, finalY, { align: "right" });
 
     doc.text("Total Tax (20%):", 130, finalY + 6);
     doc.text(formatCurrency(totalTax), 196, finalY + 6, { align: "right" });
 
-    doc.text("Shipping:", 130, finalY + 12);
-    doc.setTextColor(22, 163, 74);
-    doc.text("FREE", 196, finalY + 12, { align: "right" });
-
-    doc.setTextColor(0);
-    doc.setLineWidth(0.5);
-    doc.line(130, finalY + 16, 196, finalY + 16);
-
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
-    doc.text("Grand Total:", 130, finalY + 24);
-    doc.text(formatCurrency(totalAmount), 196, finalY + 24, { align: "right" });
-
-    // --- FOOTER ---
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text("For Aidezel Ltd.", 150, finalY + 50);
+    doc.text("Grand Total:", 130, finalY + 18);
+    doc.text(formatCurrency(totalAmount), 196, finalY + 18, { align: "right" });
 
     doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
     doc.setTextColor(100);
-    doc.text("This is a computer generated invoice.", 14, finalY + 60);
+    doc.text("This is a computer generated invoice.", 14, finalY + 30);
 
     const pdfOutput = doc.output("datauristring");
     return pdfOutput.split(",")[1];

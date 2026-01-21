@@ -2,8 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase'; 
-// Added 'History' icon for the logs
-import { LayoutDashboard, Package, ShoppingCart, LogOut, Tags, ClipboardList, Loader2, FileText, History } from 'lucide-react';
+// Added 'Ticket' icon for coupons
+import { LayoutDashboard, Package, ShoppingCart, LogOut, Tags, ClipboardList, Loader2, FileText, History, Ticket } from 'lucide-react';
 import { Toaster } from '../ui/toaster';
 
 const AdminLayout = () => {
@@ -77,15 +77,20 @@ const AdminLayout = () => {
           <Link to="/admin/orders" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive('/admin/orders')}`}>
             <ShoppingCart size={20} /> Orders
           </Link>
+
+          {/* --- NEW COUPONS LINK --- */}
+          <Link to="/admin/coupons" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive('/admin/coupons')}`}>
+            <Ticket size={20} /> Coupons
+          </Link>
+          {/* ------------------------- */}
+
           <Link to="/admin/content" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive('/admin/content')}`}>
             <FileText size={20} /> Legal Content
           </Link>
           
-          {/* --- NEW LOGS LINK --- */}
           <Link to="/admin/logs" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive('/admin/logs')}`}>
             <History size={20} /> Activity Logs
           </Link>
-          {/* --------------------- */}
 
         </nav>
 

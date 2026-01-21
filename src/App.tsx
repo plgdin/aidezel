@@ -41,6 +41,7 @@ const Inventory = lazy(() => import('./pages/admin/Inventory'));
 const ManageLegal = lazy(() => import('./pages/admin/ManageLegal'));
 const OrderInvoiceAdmin = lazy(() => import('./pages/admin/OrderInvoiceAdmin'));
 const AdminLogs = lazy(() => import('./pages/admin/AdminLogs'));
+const AdminCoupons = lazy(() => import('./pages/admin/AdminCoupons'));
 
 const AppHelmetProvider = HelmetProvider as any;
 
@@ -91,6 +92,7 @@ function App() {
             <Route path="orders/:id" element={<OrderInvoiceAdmin />} />
             <Route path="content" element={<ManageLegal />} />
             <Route path="logs" element={<AdminLogs />} />
+            <Route path="coupons" element={<AdminCoupons />} />
           </Route>
 
           {/* STAFF ROUTES (Unprotected) */}

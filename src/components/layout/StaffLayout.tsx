@@ -29,8 +29,6 @@ const StaffLayout = () => {
         .single();
 
       // 3. ALLOW STAFF OR ADMIN
-      // This is the key logic: Staff can enter, Admins can also enter (to supervise).
-      // Clients/Public are blocked.
       if (!profile || (profile.role !== 'staff' && profile.role !== 'admin')) {
         alert("Unauthorized: Staff Access Only");
         navigate('/'); 
@@ -48,9 +46,51 @@ const StaffLayout = () => {
     'bg-purple-900 text-white' : 'text-gray-300 hover:bg-purple-800 hover:text-white';
   };
 
+  // --- UPDATED LOGOUT LOGIC (CLOCK OUT) ---
   const handleLogout = async () => {
-      await supabase.auth.signOut();
-      navigate('/staff/login');
+      try {
+        // 1. Get current user
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          // 2. Find the most recent open session for this user
+          const { data: lastSession } = await supabase
+            .from('staff_sessions')
+            .select('id, login_at')
+            .eq('user_id', user.id)
+            .is('logout_at', null) // Find sessions that haven't ended (Clocked In but not Out)
+            .order('login_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          // 3. Close the session (Clock Out)
+          if (lastSession) {
+             const now = new Date();
+             const loginTime = new Date(lastSession.login_at);
+             
+             // Calculate duration in minutes
+             const duration = Math.round((now.getTime() - loginTime.getTime()) / 60000); 
+
+             await supabase
+               .from('staff_sessions')
+               .update({ 
+                   logout_at: now.toISOString(),
+                   duration_minutes: duration 
+               })
+               .eq('id', lastSession.id);
+          }
+        }
+
+        // 4. Actual Sign Out
+        await supabase.auth.signOut();
+        navigate('/staff/login');
+
+      } catch (error) {
+        console.error("Logout error:", error);
+        // Force redirect even if DB update fails so user isn't stuck
+        await supabase.auth.signOut();
+        navigate('/staff/login');
+      }
   };
 
   if (loading) return (

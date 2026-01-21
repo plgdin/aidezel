@@ -1,17 +1,41 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Trash2, Plus, Minus, ArrowRight, ArrowLeft, ShoppingBag } from 'lucide-react';
+import { Trash2, Plus, Minus, ArrowRight, ArrowLeft, ShoppingBag, Check } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
+import { toast } from '../../components/ui/use-toast'; // Import Toast
 
 const Cart = () => {
   const { cartItems, removeFromCart, addToCart, cartTotal } = useCart();
   const navigate = useNavigate();
+
+  // --- HELPER: PILL NOTIFICATION ---
+  const notify = (title: string) => {
+    toast(
+      <div className="flex items-center gap-3 w-full">
+        <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
+           <Trash2 size={16} className="text-red-500" />
+        </div>
+        <div className="flex flex-col">
+          <span className="font-bold text-white text-sm">{title}</span>
+        </div>
+      </div>, 
+      {
+        className: `bg-[#0f172a] border border-slate-800 shadow-2xl rounded-full px-4 py-3 min-w-[200px] flex items-center animate-in slide-in-from-bottom-5 fade-in duration-300`,
+      }
+    );
+  };
 
   // Helper to decrease quantity
   const decreaseQuantity = (item: any) => {
     if (item.quantity > 1) {
       addToCart({ ...item, quantity: -1 });
     }
+  };
+
+  // FIX: Allow id to be string or number
+  const handleRemove = (id: string | number, name: string) => {
+      removeFromCart(String(id)); // Convert to string to satisfy Context type
+      notify(`${name} removed`);
   };
 
   if (cartItems.length === 0) {
@@ -96,7 +120,9 @@ const Cart = () => {
                         <Plus size={14} />
                     </button>
                   </div>
-                  <button onClick={() => removeFromCart(item.id)} className="p-2 lg:p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
+                  
+                  {/* DELETE BUTTON WITH NOTIFICATION */}
+                  <button onClick={() => handleRemove(item.id, item.name)} className="p-2 lg:p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
                     <Trash2 size={18} />
                   </button>
                 </div>

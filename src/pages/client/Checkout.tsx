@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useCart } from '../../context/CartContext';
 import { supabase } from '../../lib/supabase';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ShieldCheck, Loader2, Lock, MapPin, Plus, Tag, Check, Trash2, X, AlertCircle } from 'lucide-react';
 import { toast } from '../../components/ui/use-toast';
 import { loadStripe } from '@stripe/stripe-js';
@@ -12,7 +12,6 @@ import { generateInvoiceBase64 } from '../../utils/invoiceGenerator';
 const stripePromise = loadStripe('pk_test_51Sglkr4oJa5N3YQp50I51KNbXYnq0Carqr1e7TYcCYMsanyfFBxW9aOt2wdQ5xkNDeDcRTfpomZAjRl3G9Wmvotf00wXuzGGbW');
 
 // --- HELPER: GENERATE STRICTLY DIGITS (9 Digits) ---
-// Guarantees a number between 100,000,000 and 999,999,999.
 const generateOrderId = () => {
   return Math.floor(100000000 + Math.random() * 900000000).toString();
 };
@@ -42,19 +41,14 @@ const notify = (title: string, description: string, type: 'success' | 'error' = 
   toast(
     <div className="flex items-center justify-between w-full gap-3">
       <div className="flex items-center gap-3">
-        {/* Left Icon Container */}
         <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isError ? 'bg-red-500/20' : 'bg-white/10'}`}>
            {isError ? <AlertCircle size={20} className="text-red-500" /> : <Check size={20} className="text-green-400" />}
         </div>
-        
-        {/* Text Content */}
         <div className="flex flex-col">
           <h4 className="font-bold text-white text-sm leading-tight">{title}</h4>
           <p className="text-slate-400 text-xs mt-0.5 leading-tight">{description}</p>
         </div>
       </div>
-
-      {/* Right Action Button */}
       <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg ${isError ? 'bg-red-600' : 'bg-blue-600'}`}>
         {isError ? <X size={18} className="text-white" /> : <ShieldCheck size={18} className="text-white" />}
       </div>
@@ -72,7 +66,17 @@ const isValidUKPostcode = (postcode: string) => {
 };
 
 // --- PAYMENT FORM COMPONENT ---
-const PaymentForm = ({ totalAmount, onSuccess }: { totalAmount: number, onSuccess: (id: string) => void }) => {
+const PaymentForm = ({ 
+  totalAmount, 
+  onSuccess, 
+  formData, 
+  cartItems 
+}: { 
+  totalAmount: number, 
+  onSuccess: (id: string) => void,
+  formData: any,
+  cartItems: any[]
+}) => {
   const stripe = useStripe();
   const elements = useElements();
   const [message, setMessage] = useState<string | null>(null);
@@ -84,10 +88,17 @@ const PaymentForm = ({ totalAmount, onSuccess }: { totalAmount: number, onSucces
 
     setIsProcessing(true);
 
+    // SAVE STATE BEFORE REDIRECT (Handles 3DS / Amazon Pay / Apple Pay Redirects)
+    localStorage.setItem('pendingOrder', JSON.stringify({
+        formData,
+        cartItems,
+        totalAmount
+    }));
+
     const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        return_url: window.location.origin + "/orders",
+        return_url: window.location.href, // Returns to this page to finish order
       },
       redirect: "if_required",
     });
@@ -133,29 +144,25 @@ const PaymentForm = ({ totalAmount, onSuccess }: { totalAmount: number, onSucces
 // --- MAIN CHECKOUT PAGE ---
 const Checkout: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation(); 
   const { cartTotal, cartItems, clearCart } = useCart();
   
-  // -- STATE --
   const [loading, setLoading] = useState(false);
   const [clientSecret, setClientSecret] = useState('');
   const [paymentStep, setPaymentStep] = useState(false);
   
-  // Address State
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | 'new'>('new');
   const [shouldSaveNewAddress, setShouldSaveNewAddress] = useState(false);
   
-  // Coupon State
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [couponLoading, setCouponLoading] = useState(false);
 
-  // New Address Form Data
   const [formData, setFormData] = useState({
     firstName: '', lastName: '', address_line1: '', address_line2: '', city: '', postcode: '', country: '', phone: '', email: '',
   });
 
-  // -- CALCULATIONS --
   const subTotal = cartTotal;
   const tax = cartTotal * 0.2;
   const grossTotal = subTotal + tax;
@@ -171,7 +178,38 @@ const Checkout: React.FC = () => {
   
   const finalTotal = Math.max(0, grossTotal - discountAmount);
 
-  // -- 1. FETCH SAVED ADDRESSES --
+  // --- HANDLE REDIRECT RETURN (e.g. from 3D Secure or Amazon Pay) ---
+  useEffect(() => {
+    const checkRedirectStatus = async () => {
+      const clientSecretParam = new URLSearchParams(window.location.search).get(
+        "payment_intent_client_secret"
+      );
+
+      if (!clientSecretParam) return;
+
+      const stripe = await stripePromise;
+      if (!stripe) return;
+
+      const { paymentIntent } = await stripe.retrievePaymentIntent(clientSecretParam);
+
+      if (paymentIntent && paymentIntent.status === "succeeded") {
+        const storedData = localStorage.getItem('pendingOrder');
+        
+        if (storedData) {
+            const parsedData = JSON.parse(storedData);
+            await handleOrderSuccess(paymentIntent.id, parsedData);
+            localStorage.removeItem('pendingOrder');
+        } else {
+            notify("Order Processed", "Please check your email for confirmation.");
+            navigate('/orders');
+        }
+      }
+    };
+
+    checkRedirectStatus();
+  }, [location]);
+
+  // -- FETCH SAVED ADDRESSES --
   useEffect(() => {
     const loadData = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -193,7 +231,6 @@ const Checkout: React.FC = () => {
     loadData();
   }, []);
 
-  // -- 2. HANDLE COUPON --
   const handleApplyCoupon = async () => {
     if (!couponCode) return;
     setCouponLoading(true);
@@ -217,19 +254,15 @@ const Checkout: React.FC = () => {
     }
   };
 
-  // -- 3. INITIALIZE PAYMENT --
   const initializePayment = async () => {
     if (cartItems.length === 0) return notify('Cart is empty', 'Add items to proceed.', 'error');
     
-    // Resolve Shipping Details
     let shippingDetails;
     if (selectedAddressId === 'new') {
-         // 1. Check for Missing Fields (Including Phone)
          if (!formData.firstName || !formData.address_line1 || !formData.city || !formData.postcode || !formData.phone) {
              return notify('Missing Details', 'Please fill in all address fields, including your phone number.', 'error');
          }
 
-         // 2. Validate Postcode
          if (!isValidUKPostcode(formData.postcode)) {
              return notify('Invalid Postcode', 'Please enter a valid UK postcode (e.g. SW1A 1AA).', 'error');
          }
@@ -264,7 +297,6 @@ const Checkout: React.FC = () => {
     try {
         const { data: { session } } = await supabase.auth.getSession();
 
-        // Save New Address Logic
         if (selectedAddressId === 'new' && shouldSaveNewAddress && session) {
             await supabase.from('user_addresses').insert({
                 user_id: session.user.id,
@@ -278,7 +310,6 @@ const Checkout: React.FC = () => {
             });
         }
 
-        // Call Backend
         const { data, error } = await supabase.functions.invoke('bright-responder', {
             body: { 
                 amount: Math.round(finalTotal * 100), 
@@ -303,18 +334,23 @@ const Checkout: React.FC = () => {
     }
   };
 
-  // -- 4. HANDLE SUCCESS (Updated with Numeric ID + Async Invoice) --
-  const handleOrderSuccess = async (paymentId: string) => {
+  // --- HANDLE SUCCESS AND SEND INVOICE ---
+  const handleOrderSuccess = async (paymentId: string, storedData: any = null) => {
     try {
         const { data: { session } } = await supabase.auth.getSession();
         
+        // Use stored data (from redirect) or current state (standard flow)
+        const currentFormData = storedData ? storedData.formData : formData;
+        const currentCartItems = storedData ? storedData.cartItems : cartItems;
+        const currentTotal = storedData ? storedData.totalAmount : finalTotal;
+
         let finalShipping;
-        if (selectedAddressId === 'new') {
+        if (selectedAddressId === 'new' || storedData) {
             finalShipping = {
-                name: `${formData.firstName} ${formData.lastName}`,
-                address: formData.address_line1 + (formData.address_line2 ? `, ${formData.address_line2}` : ''),
-                city: formData.city,
-                postcode: formData.postcode,
+                name: `${currentFormData.firstName} ${currentFormData.lastName}`,
+                address: currentFormData.address_line1 + (currentFormData.address_line2 ? `, ${currentFormData.address_line2}` : ''),
+                city: currentFormData.city,
+                postcode: currentFormData.postcode,
             };
         } else {
             const addr = savedAddresses.find(a => a.id === selectedAddressId);
@@ -326,20 +362,21 @@ const Checkout: React.FC = () => {
             };
         }
 
-        // FIX 1: Generate Short Numeric ID
+        // GENERATE 9-DIGIT NUMERIC ID
         const customOrderId = generateOrderId();
 
+        // 1. CREATE ORDER
         const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert([{
-            id: customOrderId, // Insert 9-digit numeric ID
+            id: customOrderId, // TEXT (e.g. "839102938")
             user_id: session?.user?.id || null,
             customer_name: finalShipping.name,
-            email: formData.email,
+            email: currentFormData.email,
             address: finalShipping.address,
             city: finalShipping.city,
             postcode: finalShipping.postcode,
-            total_amount: finalTotal,
+            total_amount: currentTotal,
             status: 'Paid',
             payment_id: paymentId,
         }])
@@ -347,9 +384,10 @@ const Checkout: React.FC = () => {
 
         if (orderError) throw orderError;
 
+        // 2. ADD ITEMS & REDUCE STOCK
         const invoiceItems = [];
-        for (const item of cartItems) {
-            // FIX 2: Store Gross Price (Price * 1.2) for proper invoice calculation
+        for (const item of currentCartItems) {
+            // Store Gross Price (Price * 1.2) for invoice math
             const priceIncTax = item.price * 1.2;
 
             await supabase.from('order_items').insert({
@@ -364,16 +402,17 @@ const Checkout: React.FC = () => {
             invoiceItems.push({ name: item.name, quantity: item.quantity, price: priceIncTax });
         }
 
-        // FIX 3: Await the Async Invoice Generator (to load logo)
+        // 3. GENERATE PDF & SEND EMAIL
+        // We AWAIT here so the logic waits for the Logo to load inside the generator
         const pdfBase64 = await generateInvoiceBase64({ id: orderData.id, customer_name: finalShipping.name || '' }, invoiceItems);
         
         await fetch('/api/send-email', {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify({
-                 email: formData.email,
+                 email: currentFormData.email,
                  type: 'invoice',
-                 data: { orderId: orderData.id, name: finalShipping.name, total: formatCurrency(finalTotal) },
+                 data: { orderId: orderData.id, name: finalShipping.name, total: formatCurrency(currentTotal) },
                  attachments: [{ content: pdfBase64, filename: `Invoice-${orderData.id}.pdf` }]
              })
         });
@@ -457,7 +496,6 @@ const Checkout: React.FC = () => {
                         <input required placeholder="City" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all"
                             value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} />
                         
-                        {/* POSTCODE VALIDATION UI HINT */}
                         <div className="relative">
                             <input required placeholder="Post Code (e.g. SW1A 1AA)" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all uppercase"
                                 value={formData.postcode} onChange={(e) => setFormData({ ...formData, postcode: e.target.value })} />
@@ -466,7 +504,6 @@ const Checkout: React.FC = () => {
                         <input placeholder="Country" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all"
                             value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} />
                         
-                        {/* PHONE IS NOW REQUIRED */}
                         <input required placeholder="Phone Number" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all"
                             value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
                     </div>
@@ -569,7 +606,13 @@ const Checkout: React.FC = () => {
                         Secure Payment
                     </h2>
                     <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
-                        <PaymentForm totalAmount={finalTotal} onSuccess={handleOrderSuccess} />
+                        {/* PASSING DATA TO PAYMENT FORM FOR REDIRECT SAVE */}
+                        <PaymentForm 
+                            totalAmount={finalTotal} 
+                            onSuccess={(id) => handleOrderSuccess(id)} 
+                            formData={formData} 
+                            cartItems={cartItems}
+                        />
                     </Elements>
                     <button onClick={() => setPaymentStep(false)} className="text-xs text-gray-400 underline mt-4 text-center w-full hover:text-gray-600">
                         Edit details or Coupon

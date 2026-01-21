@@ -1,22 +1,21 @@
 import { Resend } from 'resend';
 
-// FIX: Check for both standard and Vite-prefixed keys
-const apiKey = process.env.RESEND_API_KEY || process.env.VITE_RESEND_API_KEY;
+// CRITICAL: Check all possible key names used by Vercel/Netlify/Vite
+const apiKey = process.env.RESEND_API_KEY || process.env.VITE_RESEND_API_KEY || process.env.NEXT_PUBLIC_RESEND_API_KEY;
 
-// Initialize Resend only if key exists
 const resend = apiKey ? new Resend(apiKey) : null;
 
 export default async function handler(req, res) {
-  // 1. Debugging: Check if API Key is loaded
+  // 1. Debugging: Check if API Key exists (Don't log the actual key for security)
   if (!resend) {
-    console.error("CRITICAL ERROR: RESEND_API_KEY is missing in environment variables.");
-    return res.status(500).json({ error: 'Server configuration error: Missing Email API Key' });
+    console.error("❌ CRITICAL: No 'RESEND_API_KEY' found in environment variables.");
+    return res.status(500).json({ error: 'Server Config Error: API Key Missing' });
   }
 
   try {
     const { email, type, data, attachments } = req.body;
 
-    console.log(`[Email API] Attempting to send '${type}' email to: ${email}`);
+    console.log(`📩 [Email API] Request received for type: '${type}' to: ${email}`);
 
     // === SAFETY CHECK (OTP) ===
     if (type === 'otp') {
@@ -26,7 +25,6 @@ export default async function handler(req, res) {
     // === INVOICE HANDLING ===
     if (type === 'invoice') {
       const subject = `Invoice #${data.orderId} from Aidezel`;
-
       const htmlContent = `
         <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
           <h2 style="color: #000;">Thank you for your order!</h2>
@@ -41,9 +39,9 @@ export default async function handler(req, res) {
         </div>
       `;
 
-      // Send the Invoice
+      // Attempt Send
       const response = await resend.emails.send({
-        from: 'Aidezel Orders <orders@aidezel.co.uk>',
+        from: 'Aidezel Orders <orders@aidezel.co.uk>', // Ensure this domain is verified in Resend dashboard
         to: [email],
         subject: subject,
         html: htmlContent,
@@ -51,18 +49,18 @@ export default async function handler(req, res) {
       });
 
       if (response.error) {
-        console.error("[Resend API Error]:", response.error);
+        console.error("❌ [Resend API Error]:", response.error);
         return res.status(500).json({ error: response.error.message });
       }
 
-      console.log(`[Email API] Success! Email ID: ${response.data?.id}`);
+      console.log(`✅ [Email API] Success! Email ID: ${response.data?.id}`);
       return res.status(200).json(response);
     }
 
     return res.status(400).json({ error: 'Invalid email type requested' });
 
   } catch (error) {
-    console.error('[Email API] Critical Failure:', error);
+    console.error('💥 [Email API] Critical Failure:', error);
     return res.status(500).json({ error: error.message });
   }
 }

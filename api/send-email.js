@@ -1,22 +1,32 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.VITE_RESEND_API_KEY);
+// FIX: Check for both standard and Vite-prefixed keys
+const apiKey = process.env.RESEND_API_KEY || process.env.VITE_RESEND_API_KEY;
+
+// Initialize Resend only if key exists
+const resend = apiKey ? new Resend(apiKey) : null;
 
 export default async function handler(req, res) {
+  // 1. Debugging: Check if API Key is loaded
+  if (!resend) {
+    console.error("CRITICAL ERROR: RESEND_API_KEY is missing in environment variables.");
+    return res.status(500).json({ error: 'Server configuration error: Missing Email API Key' });
+  }
+
   try {
     const { email, type, data, attachments } = req.body;
 
-    // === SAFETY CHECK ===
-    // If the frontend tries to send an OTP, we BLOCK it here.
-    // This prevents the "Double Email" issue immediately.
+    console.log(`[Email API] Attempting to send '${type}' email to: ${email}`);
+
+    // === SAFETY CHECK (OTP) ===
     if (type === 'otp') {
-      console.log('Blocked manual OTP email. Supabase handles this automatically now.');
       return res.status(200).json({ message: 'Skipped: OTP handled by Supabase SMTP' });
     }
 
-    // === INVOICE HANDLING ONLY ===
+    // === INVOICE HANDLING ===
     if (type === 'invoice') {
       const subject = `Invoice #${data.orderId} from Aidezel`;
+
       const htmlContent = `
         <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
           <h2 style="color: #000;">Thank you for your order!</h2>
@@ -40,14 +50,19 @@ export default async function handler(req, res) {
         attachments: attachments,
       });
 
+      if (response.error) {
+        console.error("[Resend API Error]:", response.error);
+        return res.status(500).json({ error: response.error.message });
+      }
+
+      console.log(`[Email API] Success! Email ID: ${response.data?.id}`);
       return res.status(200).json(response);
     }
 
-    // Handle unknown types
     return res.status(400).json({ error: 'Invalid email type requested' });
 
   } catch (error) {
-    console.error('Email Error:', error);
+    console.error('[Email API] Critical Failure:', error);
     return res.status(500).json({ error: error.message });
   }
 }

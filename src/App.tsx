@@ -3,22 +3,18 @@ import { Routes, Route } from 'react-router-dom';
 import { HelmetProvider, Helmet } from 'react-helmet-async';
 import { Loader2 } from 'lucide-react';
 
-// --- Static Shell Imports (Keep these for instant load) ---
+// --- Static Shell Imports ---
 import ClientLayout from './components/layout/ClientLayout';
-import ProtectedRoute from './components/auth/ProtectedRoute';
 
-// --- Lazy-Loaded Components (Slashes bundle size) ---
-// Auth
+// --- Lazy-Loaded Components ---
 const Login = lazy(() => import('./pages/auth/Login'));
 const Register = lazy(() => import('./pages/auth/Register'));
 const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'));
 
-// Admin & Staff Auth
 const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
 const StaffLogin = lazy(() => import('./pages/staff/StaffLogin'));
 const StaffRegister = lazy(() => import('./pages/staff/StaffRegister'));
 
-// Client Pages
 const HomePage = lazy(() => import('./pages/client/Home'));
 const ShopPage = lazy(() => import('./pages/client/Shop'));
 const ProductDetails = lazy(() => import('./pages/client/ProductDetails'));
@@ -34,11 +30,9 @@ const Privacy = lazy(() => import('./pages/client/Privacy'));
 const OrderInvoice = lazy(() => import('./pages/client/OrderInvoice'));
 const BuyAgain = lazy(() => import('./pages/client/BuyAgain'));
 
-// Layouts (Lazy load internal layouts for maximum speed)
 const AdminLayout = lazy(() => import('./components/layout/AdminLayout'));
 const StaffLayout = lazy(() => import('./components/layout/StaffLayout'));
 
-// Admin & Staff Management
 const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
 const ManageProducts = lazy(() => import('./pages/admin/ManageProducts'));
 const ManageOrders = lazy(() => import('./pages/admin/ManageOrders'));
@@ -50,11 +44,10 @@ const AdminLogs = lazy(() => import('./pages/admin/AdminLogs'));
 
 const AppHelmetProvider = HelmetProvider as any;
 
-// A simple loading fallback for lazy-loaded routes
 const LoadingFallback = () => (
   <div className="h-screen w-full flex flex-col items-center justify-center bg-white">
     <Loader2 className="animate-spin text-black mb-4" size={40} />
-    <p className="text-sm font-bold tracking-tighter uppercase">Aidezel</p>
+    <p className="text-sm font-bold tracking-tighter uppercase font-mono">Aidezel</p>
   </div>
 );
 
@@ -69,67 +62,53 @@ function App() {
 
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
-          {/* =========================================
-              CLIENT ROUTES (Public)
-              ========================================= */}
+          {/* CLIENT ROUTES */}
           <Route path="/" element={<ClientLayout />}>
             <Route index element={<HomePage />} />
             <Route path="shop" element={<ShopPage />} />
             <Route path="product/:id" element={<ProductDetails />} />
             <Route path="cart" element={<Cart />} />
-            <Route path="about" element={<About />} />
-            <Route path="contact" element={<Contact />} />
-            <Route path="terms" element={<Terms />} />
-            <Route path="privacy" element={<Privacy />} />
-
-            {/* These could also be wrapped in ProtectedRoute for 'client' role */}
             <Route path="checkout" element={<Checkout />} />
             <Route path="account" element={<UserAccount />} />
             <Route path="orders" element={<OrderHistory />} />
             <Route path="orders/:id" element={<OrderInvoice />} />
             <Route path="buy-again/:orderId" element={<BuyAgain />} />
             <Route path="wishlist" element={<Wishlist />} />
+            <Route path="about" element={<About />} />
+            <Route path="contact" element={<Contact />} />
+            <Route path="terms" element={<Terms />} />
+            <Route path="privacy" element={<Privacy />} />
           </Route>
 
-          {/* =========================================
-              ADMIN ROUTES (Protected)
-              ========================================= */}
+          {/* ADMIN ROUTES (Unprotected) */}
           <Route path="/admin/login" element={<AdminLogin />} />
-          <Route element={<ProtectedRoute allowedRole="admin" />}>
-            <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={<AdminDashboard />} />
-              <Route path="products" element={<ManageProducts />} />
-              <Route path="inventory" element={<Inventory />} />
-              <Route path="categories" element={<ManageCategories />} />
-              <Route path="orders" element={<ManageOrders />} />
-              <Route path="orders/:id" element={<OrderInvoiceAdmin />} />
-              <Route path="content" element={<ManageLegal />} />
-              <Route path="logs" element={<AdminLogs />} />
-            </Route>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="products" element={<ManageProducts />} />
+            <Route path="inventory" element={<Inventory />} />
+            <Route path="categories" element={<ManageCategories />} />
+            <Route path="orders" element={<ManageOrders />} />
+            <Route path="orders/:id" element={<OrderInvoiceAdmin />} />
+            <Route path="content" element={<ManageLegal />} />
+            <Route path="logs" element={<AdminLogs />} />
           </Route>
 
-          {/* =========================================
-              STAFF ROUTES (Protected)
-              ========================================= */}
+          {/* STAFF ROUTES (Unprotected) */}
           <Route path="/staff/login" element={<StaffLogin />} />
           <Route path="/staff/register" element={<StaffRegister />} />
-          <Route element={<ProtectedRoute allowedRole="staff" />}>
-            <Route path="/staff" element={<StaffLayout />}>
-              <Route index element={<AdminDashboard />} />
-              <Route path="inventory" element={<Inventory />} />
-              <Route path="products" element={<ManageProducts />} />
-              <Route path="categories" element={<ManageCategories />} />
-              <Route path="orders" element={<ManageOrders />} />
-              <Route path="orders/:id" element={<OrderInvoiceAdmin />} />
-            </Route>
+          <Route path="/staff" element={<StaffLayout />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="inventory" element={<Inventory />} />
+            <Route path="products" element={<ManageProducts />} />
+            <Route path="categories" element={<ManageCategories />} />
+            <Route path="orders" element={<ManageOrders />} />
+            <Route path="orders/:id" element={<OrderInvoiceAdmin />} />
           </Route>
 
-          {/* =========================================
-              AUTH ROUTES (Standalone)
-              ========================================= */}
+          {/* AUTH ROUTES */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} /> 
         </Routes>
       </Suspense>
     </AppHelmetProvider>

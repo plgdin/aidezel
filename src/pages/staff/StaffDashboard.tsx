@@ -1,13 +1,14 @@
 // src/pages/staff/StaffDashboard.tsx
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Loader2, Download, Package, AlertTriangle, CalendarDays } from 'lucide-react';
+import { Loader2, Download, Package, AlertTriangle, CalendarDays, ShoppingBag } from 'lucide-react';
 
 const StaffDashboard = () => {
   const [loading, setLoading] = useState(true);
 
   // Stats State
   const [ordersThisMonth, setOrdersThisMonth] = useState(0);
+  const [totalOrders, setTotalOrders] = useState(0); // NEW: Total Orders State
 
   // Data Lists State
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
@@ -45,6 +46,7 @@ const StaffDashboard = () => {
         if (ordersData) {
           setAllOrdersForReport(ordersData);
           setRecentOrders(ordersData.slice(0, 5));
+          setTotalOrders(ordersData.length); // NEW: Set Total Orders Count
 
           // --- CALCULATE ORDERS THIS MONTH ---
           const now = new Date();
@@ -152,8 +154,10 @@ const StaffDashboard = () => {
         </button>
       </div>
 
-      {/* --- NEW: Monthly Orders Card --- */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* --- STATS GRID --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        
+        {/* CARD 1: Monthly Orders */}
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
             <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
                 <CalendarDays size={28} />
@@ -163,6 +167,18 @@ const StaffDashboard = () => {
                 <h3 className="text-3xl font-black text-gray-900">{ordersThisMonth}</h3>
             </div>
         </div>
+
+        {/* CARD 2: Total Orders (NEW) */}
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
+            <div className="w-14 h-14 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center">
+                <ShoppingBag size={28} />
+            </div>
+            <div>
+                <p className="text-gray-500 text-sm font-bold">Total Lifetime Orders</p>
+                <h3 className="text-3xl font-black text-gray-900">{totalOrders}</h3>
+            </div>
+        </div>
+
       </div>
       {/* ------------------------------- */}
 

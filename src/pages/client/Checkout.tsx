@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useCart } from '../../context/CartContext';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, Loader2, Lock, MapPin, Plus, Tag, Check, Trash2 } from 'lucide-react';
+import { ShieldCheck, Loader2, Lock, MapPin, Plus, Tag, Check, Trash2, X, AlertCircle } from 'lucide-react';
 import { toast } from '../../components/ui/use-toast';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -11,7 +11,7 @@ import { generateInvoiceBase64 } from '../../utils/invoiceGenerator';
 // --- INITIALIZE STRIPE ---
 const stripePromise = loadStripe('pk_test_51Sglkr4oJa5N3YQp50I51KNbXYnq0Carqr1e7TYcCYMsanyfFBxW9aOt2wdQ5xkNDeDcRTfpomZAjRl3G9Wmvotf00wXuzGGbW');
 
-// --- TYPES (Updated to match your DB) ---
+// --- TYPES ---
 interface Address {
   id: string;
   full_name: string;
@@ -28,6 +28,33 @@ interface Coupon {
   discount_type: 'percent' | 'fixed';
   value: number;
 }
+
+// --- HELPER: CUSTOM TOAST NOTIFICATION ---
+const notify = (title: string, description: string, type: 'success' | 'error' = 'success') => {
+  const isError = type === 'error';
+  
+  toast(
+    <div className={`flex items-start gap-4`}>
+      <div className={`p-2 rounded-full flex-shrink-0 ${isError ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+        {isError ? <AlertCircle size={20} /> : <Check size={20} />}
+      </div>
+      <div className="flex-1">
+        <h4 className="font-bold text-gray-900 text-sm">{title}</h4>
+        <p className="text-gray-500 text-xs mt-1 leading-relaxed">{description}</p>
+      </div>
+    </div>, 
+    {
+      className: `bg-white border border-gray-100 shadow-2xl rounded-2xl p-4 min-w-[320px] flex items-center animate-in slide-in-from-bottom-5 fade-in duration-300 ${isError ? 'border-l-[6px] border-l-red-500' : 'border-l-[6px] border-l-green-500'}`,
+    }
+  );
+};
+
+// --- VALIDATION HELPERS ---
+const isValidUKPostcode = (postcode: string) => {
+  // Robust Regex for UK Postcodes
+  const regex = /^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$/i;
+  return regex.test(postcode.trim());
+};
 
 // --- PAYMENT FORM COMPONENT ---
 const PaymentForm = ({ totalAmount, onSuccess }: { totalAmount: number, onSuccess: (id: string) => void }) => {
@@ -52,6 +79,7 @@ const PaymentForm = ({ totalAmount, onSuccess }: { totalAmount: number, onSucces
 
     if (error) {
       setMessage(error.message || "An unexpected error occurred.");
+      notify("Payment Failed", error.message || "Please check your card details.", "error");
       setIsProcessing(false);
     } else if (paymentIntent && paymentIntent.status === "succeeded") {
       onSuccess(paymentIntent.id);
@@ -65,13 +93,20 @@ const PaymentForm = ({ totalAmount, onSuccess }: { totalAmount: number, onSucces
       <div className="p-4 border border-gray-200 rounded-xl bg-white">
           <PaymentElement />
       </div>
-      {message && <div className="text-red-500 text-sm font-bold bg-red-50 p-3 rounded">{message}</div>}
+      
+      {message && (
+        <div className="text-red-600 text-sm font-bold bg-red-50 p-4 rounded-xl flex items-center gap-2 border border-red-100">
+            <AlertCircle size={16} /> {message}
+        </div>
+      )}
+      
       <button 
         disabled={isProcessing || !stripe || !elements} 
-        className="w-full bg-black text-white py-4 rounded-xl font-bold text-lg hover:bg-gray-800 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg"
+        className="w-full bg-black text-white py-4 rounded-xl font-bold text-lg hover:bg-gray-800 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl active:scale-[0.99] duration-200"
       >
         {isProcessing ? <><Loader2 className="animate-spin" /> Processing...</> : <><Lock size={18} /> Pay £{totalAmount.toLocaleString()}</>}
       </button>
+      
       <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mt-4">
         <ShieldCheck size={14} className="text-green-600"/>
         <span>Payments processed securely by Stripe</span>
@@ -158,24 +193,32 @@ const Checkout: React.FC = () => {
     setCouponLoading(false);
 
     if (error || !data) {
-        toast('Invalid Coupon', { description: 'This code does not exist or is expired.', className: 'bg-red-900 text-white' });
+        notify('Invalid Coupon', 'This code does not exist or is expired.', 'error');
         setAppliedCoupon(null);
     } else {
         setAppliedCoupon(data);
-        toast('Coupon Applied!', { description: `Saved ${data.discount_type === 'percent' ? data.value + '%' : '£' + data.value}`, className: 'bg-green-600 text-white' });
+        const savedVal = data.discount_type === 'percent' ? `${data.value}%` : `£${data.value}`;
+        notify('Coupon Applied!', `You saved ${savedVal} on this order.`);
     }
   };
 
   // -- 3. INITIALIZE PAYMENT --
   const initializePayment = async () => {
-    if (cartItems.length === 0) return toast('Cart is empty', { className: 'bg-red-900 text-white' });
+    if (cartItems.length === 0) return notify('Cart is empty', 'Add items to proceed.', 'error');
     
     // Resolve Shipping Details
     let shippingDetails;
     if (selectedAddressId === 'new') {
-         if (!formData.firstName || !formData.address_line1 || !formData.city || !formData.postcode) {
-             return toast('Missing Details', { description: 'Please fill in all address fields', className: 'bg-red-900 text-white' });
+         // 1. Check for Missing Fields (Including Phone)
+         if (!formData.firstName || !formData.address_line1 || !formData.city || !formData.postcode || !formData.phone) {
+             return notify('Missing Details', 'Please fill in all address fields, including your phone number.', 'error');
          }
+
+         // 2. Validate Postcode
+         if (!isValidUKPostcode(formData.postcode)) {
+             return notify('Invalid Postcode', 'Please enter a valid UK postcode (e.g. SW1A 1AA).', 'error');
+         }
+
          shippingDetails = {
              full_name: `${formData.firstName} ${formData.lastName}`,
              address_line1: formData.address_line1,
@@ -206,7 +249,7 @@ const Checkout: React.FC = () => {
     try {
         const { data: { session } } = await supabase.auth.getSession();
 
-        // Save New Address Logic (Matches your DB columns)
+        // Save New Address Logic
         if (selectedAddressId === 'new' && shouldSaveNewAddress && session) {
             await supabase.from('user_addresses').insert({
                 user_id: session.user.id,
@@ -239,7 +282,7 @@ const Checkout: React.FC = () => {
         }
     } catch (err: any) {
         console.error(err);
-        toast('Payment Error', { description: 'Could not connect to server.', className: 'bg-red-900 text-white' });
+        notify('Connection Error', 'Could not connect to payment server. Please try again.', 'error');
     } finally {
         setLoading(false);
     }
@@ -250,7 +293,6 @@ const Checkout: React.FC = () => {
     try {
         const { data: { session } } = await supabase.auth.getSession();
         
-        // Resolve Final Details for Order Record
         let finalShipping;
         if (selectedAddressId === 'new') {
             finalShipping = {
@@ -269,14 +311,13 @@ const Checkout: React.FC = () => {
             };
         }
 
-        // Insert Order
         const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert([{
             user_id: session?.user?.id || null,
             customer_name: finalShipping.name,
             email: formData.email,
-            address: finalShipping.address, // Maps address_line1 to 'address' column in orders
+            address: finalShipping.address,
             city: finalShipping.city,
             postcode: finalShipping.postcode,
             total_amount: finalTotal,
@@ -287,7 +328,6 @@ const Checkout: React.FC = () => {
 
         if (orderError) throw orderError;
 
-        // Insert Items
         const invoiceItems = [];
         for (const item of cartItems) {
             await supabase.from('order_items').insert({
@@ -302,7 +342,6 @@ const Checkout: React.FC = () => {
             invoiceItems.push({ name: item.name, quantity: item.quantity, price: item.price });
         }
 
-        // Generate Invoice
         const pdfBase64 = generateInvoiceBase64({ id: orderData.id, customer_name: finalShipping.name || '' }, invoiceItems);
         await fetch('/api/send-email', {
              method: 'POST',
@@ -316,12 +355,12 @@ const Checkout: React.FC = () => {
         });
 
         clearCart();
-        toast('Order Successful', { className: 'bg-green-600 text-white' });
+        notify('Order Successful!', 'Thank you for your purchase. Invoice sent.');
         setTimeout(() => navigate('/orders'), 2000);
 
     } catch (error) {
         console.error(error);
-        toast('Order Creation Failed', { description: 'Please contact support', className: 'bg-red-900 text-white' });
+        notify('Order Creation Failed', 'Payment taken but order failed. Please contact support.', 'error');
     }
   };
 
@@ -347,7 +386,7 @@ const Checkout: React.FC = () => {
                         <div 
                             key={addr.id}
                             onClick={() => setSelectedAddressId(addr.id)}
-                            className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedAddressId === addr.id ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
+                            className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedAddressId === addr.id ? 'border-blue-600 bg-blue-50 shadow-md ring-2 ring-blue-100' : 'border-gray-200 hover:border-blue-300 hover:shadow-sm'}`}
                         >
                             <div className="flex justify-between items-start">
                                 <div className="flex items-center gap-2 font-bold text-gray-900 truncate">
@@ -374,25 +413,32 @@ const Checkout: React.FC = () => {
             {(selectedAddressId === 'new' || savedAddresses.length === 0) && (
                 <div className="animate-in fade-in slide-in-from-top-2 space-y-4 pt-4 border-t">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <input required placeholder="First Name" className="p-3 border rounded-lg"
+                        <input required placeholder="First Name" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all"
                             value={formData.firstName} onChange={(e) => setFormData({ ...formData, firstName: e.target.value })} />
-                        <input required placeholder="Last Name" className="p-3 border rounded-lg"
+                        <input required placeholder="Last Name" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all"
                             value={formData.lastName} onChange={(e) => setFormData({ ...formData, lastName: e.target.value })} />
-                        <input required type="email" placeholder="Email Address" className="md:col-span-2 p-3 border rounded-lg"
+                        <input required type="email" placeholder="Email Address" className="md:col-span-2 p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all"
                             value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
                         
-                        <input required placeholder="Address Line 1" className="md:col-span-2 p-3 border rounded-lg"
+                        <input required placeholder="Address Line 1" className="md:col-span-2 p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all"
                             value={formData.address_line1} onChange={(e) => setFormData({ ...formData, address_line1: e.target.value })} />
-                        <input placeholder="Address Line 2 (Optional)" className="md:col-span-2 p-3 border rounded-lg"
+                        <input placeholder="Address Line 2 (Optional)" className="md:col-span-2 p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all"
                             value={formData.address_line2} onChange={(e) => setFormData({ ...formData, address_line2: e.target.value })} />
 
-                        <input required placeholder="City" className="p-3 border rounded-lg"
+                        <input required placeholder="City" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all"
                             value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} />
-                        <input required placeholder="Post Code" className="p-3 border rounded-lg"
-                            value={formData.postcode} onChange={(e) => setFormData({ ...formData, postcode: e.target.value })} />
-                        <input placeholder="Country" className="p-3 border rounded-lg"
+                        
+                        {/* POSTCODE VALIDATION UI HINT */}
+                        <div className="relative">
+                            <input required placeholder="Post Code (e.g. SW1A 1AA)" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all uppercase"
+                                value={formData.postcode} onChange={(e) => setFormData({ ...formData, postcode: e.target.value })} />
+                        </div>
+
+                        <input placeholder="Country" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all"
                             value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} />
-                        <input placeholder="Phone" className="p-3 border rounded-lg"
+                        
+                        {/* PHONE IS NOW REQUIRED */}
+                        <input required placeholder="Phone Number" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all"
                             value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
                     </div>
                     
@@ -402,9 +448,9 @@ const Checkout: React.FC = () => {
                             id="saveAddr" 
                             checked={shouldSaveNewAddress} 
                             onChange={(e) => setShouldSaveNewAddress(e.target.checked)}
-                            className="w-4 h-4 text-blue-600 rounded"
+                            className="w-4 h-4 text-blue-600 rounded cursor-pointer"
                         />
-                        <label htmlFor="saveAddr" className="text-sm text-gray-700 cursor-pointer">Save this address for future orders</label>
+                        <label htmlFor="saveAddr" className="text-sm text-gray-700 cursor-pointer select-none">Save this address for future orders</label>
                     </div>
                 </div>
             )}
@@ -413,7 +459,7 @@ const Checkout: React.FC = () => {
                 <button
                     onClick={initializePayment}
                     disabled={loading}
-                    className="w-full mt-6 bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition-colors flex justify-center items-center gap-2 disabled:opacity-50"
+                    className="w-full mt-6 bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition-colors flex justify-center items-center gap-2 disabled:opacity-50 shadow-lg hover:shadow-xl active:scale-[0.99] duration-200"
                 >
                     {loading ? <Loader2 className="animate-spin" /> : 'Proceed to Payment'}
                 </button>
@@ -444,20 +490,20 @@ const Checkout: React.FC = () => {
                                 value={couponCode}
                                 onChange={(e) => setCouponCode(e.target.value)}
                                 disabled={!!appliedCoupon}
-                                className="flex-1 p-2 text-sm border rounded-lg uppercase"
+                                className="flex-1 p-2 text-sm border rounded-lg uppercase outline-none focus:border-black transition-colors"
                             />
                             {appliedCoupon ? (
-                                <button onClick={() => { setAppliedCoupon(null); setCouponCode(''); }} className="bg-red-100 text-red-600 px-3 rounded-lg hover:bg-red-200">
+                                <button onClick={() => { setAppliedCoupon(null); setCouponCode(''); }} className="bg-red-100 text-red-600 px-3 rounded-lg hover:bg-red-200 transition-colors">
                                     <Trash2 size={16} />
                                 </button>
                             ) : (
-                                <button onClick={handleApplyCoupon} disabled={couponLoading || !couponCode} className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-800 disabled:opacity-50">
+                                <button onClick={handleApplyCoupon} disabled={couponLoading || !couponCode} className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-800 disabled:opacity-50 transition-colors">
                                     {couponLoading ? <Loader2 size={16} className="animate-spin"/> : 'Apply'}
                                 </button>
                             )}
                         </div>
                         {appliedCoupon && (
-                            <div className="mt-2 text-xs text-green-600 flex items-center gap-1 font-bold bg-green-50 p-2 rounded">
+                            <div className="mt-2 text-xs text-green-600 flex items-center gap-1 font-bold bg-green-50 p-2 rounded animate-in fade-in slide-in-from-top-1">
                                 <Tag size={12} /> Coupon "{appliedCoupon.code}" applied!
                             </div>
                         )}
@@ -488,7 +534,7 @@ const Checkout: React.FC = () => {
             </div>
 
             {paymentStep && clientSecret && (
-                <div className="bg-white p-6 rounded-2xl border border-blue-500 shadow-xl ring-4 ring-blue-50/50 animate-in zoom-in-95">
+                <div className="bg-white p-6 rounded-2xl border border-blue-500 shadow-xl ring-4 ring-blue-50/50 animate-in zoom-in-95 duration-300">
                     <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                         <span className="bg-black text-white w-8 h-8 rounded-full flex items-center justify-center text-sm">2</span>
                         Secure Payment

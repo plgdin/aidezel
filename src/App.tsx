@@ -35,10 +35,9 @@ const StaffLayout = lazy(() => import('./components/layout/StaffLayout'));
 
 // --- DASHBOARDS ---
 const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
-
-// ✅ FIXED: Importing from 'pages/staff' instead of 'components/staff'
 const StaffDashboard = lazy(() => import('./pages/staff/StaffDashboard'));
 
+// --- ADMIN PAGES ---
 const ManageProducts = lazy(() => import('./pages/admin/ManageProducts'));
 const ManageOrders = lazy(() => import('./pages/admin/ManageOrders'));
 const ManageCategories = lazy(() => import('./pages/admin/ManageCategories'));
@@ -47,6 +46,8 @@ const ManageLegal = lazy(() => import('./pages/admin/ManageLegal'));
 const OrderInvoiceAdmin = lazy(() => import('./pages/admin/OrderInvoiceAdmin'));
 const AdminLogs = lazy(() => import('./pages/admin/AdminLogs'));
 const AdminCoupons = lazy(() => import('./pages/admin/AdminCoupons'));
+// NEW: Import the Staff Management Page
+const ManageStaff = lazy(() => import('./pages/admin/ManageStaff'));
 
 const AppHelmetProvider = HelmetProvider as any;
 
@@ -98,6 +99,8 @@ function App() {
             <Route path="content" element={<ManageLegal />} />
             <Route path="logs" element={<AdminLogs />} />
             <Route path="coupons" element={<AdminCoupons />} />
+            {/* NEW: Route for Staff Approval & Management */}
+            <Route path="staff-manage" element={<ManageStaff />} />
           </Route>
 
           {/* STAFF ROUTES */}

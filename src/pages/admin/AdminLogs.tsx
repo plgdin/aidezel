@@ -1,14 +1,14 @@
+// src/pages/admin/AdminLogs.tsx
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { History, Loader2, User } from 'lucide-react';
+import { History, Loader2, User, CreditCard } from 'lucide-react';
 
 interface LogEntry {
   id: string;
-  admin_email: string; // Kept for historical reference or fallback
+  admin_email: string; 
   action: string;
   details: string;
   created_at: string;
-  // These are now expected to be direct columns in the 'admin_logs' table
   full_name?: string; 
   employee_id?: string;
 }
@@ -24,9 +24,8 @@ const AdminLogs = () => {
   const fetchLogs = async () => {
     setLoading(true);
     
-    // 1. Fetch logs directly. 
-    // We assume 'full_name' and 'employee_id' are now columns in this table.
-    // This avoids the issue where deleting a user deletes their history details.
+    // We fetch directly from admin_logs. 
+    // Thanks to the SQL Trigger, 'full_name' will be populated automatically.
     const { data: logsData, error } = await supabase
       .from('admin_logs')
       .select('*')
@@ -61,8 +60,8 @@ const AdminLogs = () => {
           <table className="w-full text-left">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="p-4 text-sm font-semibold text-slate-600">Name</th>
-                <th className="p-4 text-sm font-semibold text-slate-600">EMP ID</th>
+                <th className="p-4 text-sm font-semibold text-slate-600">Staff Member</th>
+                <th className="p-4 text-sm font-semibold text-slate-600">ID</th>
                 <th className="p-4 text-sm font-semibold text-slate-600">Action</th>
                 <th className="p-4 text-sm font-semibold text-slate-600">Details</th>
                 <th className="p-4 text-sm font-semibold text-slate-600">Time</th>
@@ -71,33 +70,52 @@ const AdminLogs = () => {
             <tbody className="divide-y divide-slate-100">
               {logs.map((log) => (
                 <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                  {/* Name Column: Uses the snapshot value from the log */}
+                  
+                  {/* NAME COLUMN (Prioritizes Full Name) */}
                   <td className="p-4 text-sm text-slate-900 font-medium">
                     <div className="flex items-center gap-2">
                         <User size={16} className="text-slate-400"/>
-                        {log.full_name || log.admin_email || 'Unknown User'}
+                        <div className="flex flex-col">
+                            {/* Show Name if it exists, otherwise show Email */}
+                            <span className="text-slate-900 font-bold">
+                                {log.full_name || log.admin_email}
+                            </span>
+                            {/* If we are showing Name, show Email smaller below it */}
+                            {log.full_name && (
+                                <span className="text-xs text-slate-400 font-normal">
+                                    {log.admin_email}
+                                </span>
+                            )}
+                        </div>
                     </div>
                   </td>
 
-                  {/* EMP ID Column: Uses the snapshot value from the log */}
+                  {/* EMP ID Column */}
                   <td className="p-4 text-sm text-slate-600 font-mono">
                       {log.employee_id ? (
-                          <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded text-xs">
-                             {log.employee_id}
-                          </span>
+                          <div className="flex items-center gap-1 text-slate-500">
+                             <CreditCard size={12} />
+                             <span className="bg-gray-100 px-2 py-0.5 rounded text-xs">
+                                {log.employee_id}
+                             </span>
+                          </div>
                       ) : (
                           <span className="text-gray-300">-</span>
                       )}
                   </td>
 
                   <td className="p-4 text-sm text-blue-700 font-semibold bg-blue-50/50">
-                    <span className="bg-blue-100 text-blue-800 py-1 px-2 rounded-md text-xs whitespace-nowrap">
+                    <span className="bg-blue-100 text-blue-800 py-1 px-2 rounded-md text-xs whitespace-nowrap border border-blue-200">
                       {log.action}
                     </span>
                   </td>
+                  
                   <td className="p-4 text-sm text-slate-600">{log.details}</td>
+                  
                   <td className="p-4 text-sm text-slate-400 whitespace-nowrap">
-                    {new Date(log.created_at).toLocaleString()}
+                    {new Date(log.created_at).toLocaleString('en-GB', { 
+                        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' 
+                    })}
                   </td>
                 </tr>
               ))}

@@ -1,8 +1,8 @@
 // src/components/ui/toaster.tsx
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle2, AlertCircle, Info, Loader2 } from 'lucide-react';
+import { X, Check, AlertTriangle, Info, Loader2, Ban } from 'lucide-react';
 
-// --- EVENT BUS FOR TOASTS ---
+// --- TYPES ---
 type ToastType = 'success' | 'error' | 'loading' | 'info';
 
 interface Toast {
@@ -10,10 +10,9 @@ interface Toast {
   message: string;
   description?: string;
   type: ToastType;
-  duration?: number;
 }
 
-// Simple event emitter state
+// --- EVENT BUS ---
 const listeners: Set<(toasts: Toast[]) => void> = new Set();
 let memoryToasts: Toast[] = [];
 
@@ -22,7 +21,6 @@ const emitChange = () => {
 };
 
 // --- PUBLIC API ---
-// Import this 'toast' object in your pages to trigger notifications
 export const toast = {
   success: (message: string, description?: string) => addToast(message, 'success', description),
   error: (message: string, description?: string) => addToast(message, 'error', description),
@@ -33,14 +31,15 @@ export const toast = {
 
 const addToast = (message: string, type: ToastType, description?: string) => {
   const id = Math.random().toString(36).substring(2, 9);
-  const newToast: Toast = { id, message, description, type, duration: 4000 };
+  const newToast = { id, message, description, type };
   
-  // Add to start of array (stacking context)
-  memoryToasts = [newToast, ...memoryToasts].slice(0, 5); // Limit to 5 visible
+  // Stack: Newest on top
+  memoryToasts = [newToast, ...memoryToasts].slice(0, 3); // Keep max 3 visible
   emitChange();
 
+  // Auto-dismiss (except loading)
   if (type !== 'loading') {
-    setTimeout(() => removeToast(id), 4000);
+    setTimeout(() => removeToast(id), 5000);
   }
   return id;
 };
@@ -51,64 +50,65 @@ const removeToast = (id: string) => {
 };
 
 // --- UI COMPONENT ---
-// Place this <Toaster /> in your App.tsx or Layout
 export const Toaster = () => {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   useEffect(() => {
     listeners.add(setToasts);
+    // ✅ FIX: Wrapped in curly braces to return 'void' instead of 'boolean'
     return () => {
-      listeners.delete(setToasts);
+        listeners.delete(setToasts);
     };
   }, []);
 
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[9999] flex flex-col gap-2 w-full max-w-[380px] pointer-events-none px-4 md:px-0">
+    <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 w-full max-w-sm pointer-events-none p-4 md:p-0">
       {toasts.map((t, i) => (
         <div
           key={t.id}
           className={`
             pointer-events-auto relative overflow-hidden
-            bg-white/95 backdrop-blur-sm border shadow-xl rounded-2xl p-4
-            transform transition-all duration-500 ease-in-out
-            ${i === 0 ? 'scale-100 opacity-100 translate-y-0' : ''}
-            ${i > 0 ? 'scale-95 opacity-80 -translate-y-2 absolute bottom-0 w-full z-[-1]' : ''}
-            ${i > 1 ? 'scale-90 opacity-0 -translate-y-4' : ''}
-            animate-in slide-in-from-bottom-8 fade-in
+            bg-white/95 backdrop-blur-md 
+            border border-white/20 shadow-2xl rounded-2xl p-4
             flex items-start gap-4
+            transform transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1)
+            ${i === 0 ? 'opacity-100 translate-y-0 scale-100' : ''}
+            ${i === 1 ? 'opacity-90 translate-y-2 scale-[0.98] absolute bottom-0 w-full -z-10' : ''}
+            ${i === 2 ? 'opacity-0 translate-y-4 scale-[0.95] absolute bottom-0 w-full -z-20' : ''}
+            animate-in slide-in-from-bottom-full fade-in zoom-in-95
           `}
-          style={{ 
-            zIndex: 100 - i,
-          }}
         >
-          {/* Status Indicator Bar */}
-          <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
-             t.type === 'success' ? 'bg-green-500' : 
-             t.type === 'error' ? 'bg-red-500' : 
-             t.type === 'loading' ? 'bg-blue-500' : 'bg-gray-500'
-          }`} />
+          {/* Progress Bar Animation */}
+          {t.type !== 'loading' && (
+            <div className={`absolute bottom-0 left-0 h-1 w-full origin-left animate-shrink-width ${
+                t.type === 'success' ? 'bg-green-500' :
+                t.type === 'error' ? 'bg-red-500' :
+                'bg-blue-500'
+            }`} style={{ animationDuration: '5s', animationTimingFunction: 'linear' }} />
+          )}
 
-          {/* Icon Section */}
-          <div className={`mt-0.5 shrink-0 ${
-             t.type === 'success' ? 'text-green-600' : 
-             t.type === 'error' ? 'text-red-600' : 
-             t.type === 'loading' ? 'text-blue-600' : 'text-gray-600'
+          {/* Icon Bubble */}
+          <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
+            t.type === 'success' ? 'bg-green-100 text-green-600' :
+            t.type === 'error' ? 'bg-red-100 text-red-600' :
+            t.type === 'loading' ? 'bg-blue-100 text-blue-600' :
+            'bg-gray-100 text-gray-600'
           }`}>
-            {t.type === 'success' && <CheckCircle2 size={22} strokeWidth={2.5} />}
-            {t.type === 'error' && <AlertCircle size={22} strokeWidth={2.5} />}
-            {t.type === 'info' && <Info size={22} strokeWidth={2.5} />}
-            {t.type === 'loading' && <Loader2 size={22} className="animate-spin" />}
+            {t.type === 'success' && <Check size={20} strokeWidth={3} />}
+            {t.type === 'error' && <Ban size={20} strokeWidth={3} />}
+            {t.type === 'info' && <Info size={20} strokeWidth={3} />}
+            {t.type === 'loading' && <Loader2 size={20} className="animate-spin" />}
           </div>
 
-          {/* Text Section */}
-          <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-bold text-gray-900 leading-snug">
+          {/* Content */}
+          <div className="flex-1 pt-0.5">
+            <h3 className="font-bold text-gray-900 text-[15px] leading-tight">
               {t.message}
             </h3>
             {t.description && (
-              <p className="text-xs text-gray-500 mt-1 leading-relaxed line-clamp-2">
+              <p className="text-sm text-gray-500 mt-1 leading-snug">
                 {t.description}
               </p>
             )}
@@ -117,12 +117,23 @@ export const Toaster = () => {
           {/* Close Button */}
           <button 
             onClick={() => removeToast(t.id)}
-            className="text-gray-400 hover:text-gray-800 transition-colors p-1 hover:bg-gray-100 rounded-full"
+            className="text-gray-400 hover:text-gray-900 hover:bg-gray-100 p-1.5 rounded-lg transition-colors -mt-1 -mr-1"
           >
             <X size={16} />
           </button>
         </div>
       ))}
+      
+      {/* Inline styles for the progress bar animation */}
+      <style>{`
+        @keyframes shrink-width {
+          from { transform: scaleX(1); }
+          to { transform: scaleX(0); }
+        }
+        .animate-shrink-width {
+          animation-name: shrink-width;
+        }
+      `}</style>
     </div>
   );
 };

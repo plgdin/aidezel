@@ -94,6 +94,7 @@ const PaymentForm = ({
 
     setIsProcessing(true);
 
+    // Save state before potential redirect
     localStorage.setItem('pendingOrder', JSON.stringify({
         formData,
         cartItems,
@@ -197,7 +198,6 @@ const Checkout: React.FC = () => {
       if (paymentIntent) {
         if (paymentIntent.status === "succeeded") {
             const storedData = localStorage.getItem('pendingOrder');
-            
             if (storedData) {
                 const parsedData = JSON.parse(storedData);
                 await handleOrderSuccess(paymentIntent.id, parsedData);
@@ -270,12 +270,22 @@ const Checkout: React.FC = () => {
     
     let shippingDetails;
     if (selectedAddressId === 'new') {
-         if (!formData.firstName || !formData.address_line1 || !formData.city || !formData.postcode || !formData.phone) {
-             return notify('Missing Details', 'Please fill in all address fields.', 'error');
+         // --- STRICT VALIDATION: ALL FIELDS MUST BE FILLED ---
+         if (
+             !formData.firstName.trim() || 
+             !formData.lastName.trim() || 
+             !formData.email.trim() || 
+             !formData.address_line1.trim() || 
+             !formData.city.trim() || 
+             !formData.postcode.trim() || 
+             !formData.country.trim() || 
+             !formData.phone.trim()
+         ) {
+             return notify('Missing Details', 'Please fill in ALL address fields to continue.', 'error');
          }
 
          if (!isValidUKPostcode(formData.postcode)) {
-             return notify('Invalid Postcode', 'Please enter a valid UK postcode.', 'error');
+             return notify('Invalid Postcode', 'Please enter a valid UK postcode (e.g. SW1A 1AA).', 'error');
          }
 
          if (!isValidUKPhone(formData.phone)) {
@@ -352,7 +362,6 @@ const Checkout: React.FC = () => {
     }
   };
 
-  // --- HANDLE ORDER SUCCESS ---
   const handleOrderSuccess = async (paymentId: string, storedData: any = null) => {
     try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -381,7 +390,6 @@ const Checkout: React.FC = () => {
 
         const customOrderId = generateOrderId();
 
-        // 1. Create Order
         const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert([{
@@ -400,7 +408,6 @@ const Checkout: React.FC = () => {
 
         if (orderError) throw orderError;
 
-        // 2. Add Items
         const invoiceItems = [];
         for (const item of currentCartItems) {
             const priceIncTax = item.price * 1.2; 
@@ -416,12 +423,9 @@ const Checkout: React.FC = () => {
             invoiceItems.push({ name: item.name, quantity: item.quantity, price: priceIncTax });
         }
 
-        // --- CRITICAL FIX: CLEAR CART IMMEDIATELY AFTER DB SUCCESS ---
         clearCart(); 
 
-        // 3. Generate Invoice & Send Email
         const pdfBase64 = await generateInvoiceBase64({ id: orderData.id, customer_name: finalShipping.name || '' }, invoiceItems);
-        
         const emailResponse = await fetch('/api/send-email', {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
@@ -435,7 +439,6 @@ const Checkout: React.FC = () => {
 
         if (!emailResponse.ok) {
             console.error("Invoice email failed to send.");
-            // Don't error out, order is safe. Just notify.
         }
 
         notify('Order Successful!', 'Thank you for your purchase. Invoice sent.');
@@ -458,7 +461,7 @@ const Checkout: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         
-        {/* --- LEFT COLUMN: ADDRESS & PAYMENT (STATIC) --- */}
+        {/* --- LEFT COLUMN: ADDRESS & PAYMENT (NOW STATIC IN FLOW) --- */}
         <div className="lg:col-span-2 space-y-8">
             
           {/* STEP 1: ADDRESS */}
@@ -502,7 +505,7 @@ const Checkout: React.FC = () => {
                         <input placeholder="Address Line 2 (Optional)" className="md:col-span-2 p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all" value={formData.address_line2} onChange={(e) => setFormData({ ...formData, address_line2: e.target.value })} />
                         <input required placeholder="City" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} />
                         <input required placeholder="Post Code (e.g. SW1A 1AA)" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all uppercase" value={formData.postcode} onChange={(e) => setFormData({ ...formData, postcode: e.target.value })} />
-                        <input placeholder="Country" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all" value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} />
+                        <input required placeholder="Country" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all" value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} />
                         <input required placeholder="Phone Number" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
                     </div>
                     <div className="flex items-center gap-2 mt-4">

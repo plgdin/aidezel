@@ -124,17 +124,20 @@ const PaymentForm = ({
       <div className="p-4 border border-gray-200 rounded-xl bg-white">
           <PaymentElement />
       </div>
+      
       {message && (
         <div className="text-red-600 text-sm font-bold bg-red-50 p-4 rounded-xl flex items-center gap-2 border border-red-100">
             <AlertCircle size={16} /> {message}
         </div>
       )}
+      
       <button 
         disabled={isProcessing || !stripe || !elements} 
         className="w-full bg-black text-white py-4 rounded-xl font-bold text-lg hover:bg-gray-800 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl active:scale-[0.99] duration-200"
       >
         {isProcessing ? <><Loader2 className="animate-spin" /> Processing...</> : <><Lock size={18} /> Pay £{totalAmount.toLocaleString()}</>}
       </button>
+      
       <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mt-4">
         <ShieldCheck size={14} className="text-green-600"/>
         <span>Payments processed securely by Stripe</span>
@@ -194,26 +197,16 @@ const Checkout: React.FC = () => {
 
       const { paymentIntent } = await stripe.retrievePaymentIntent(clientSecretParam);
 
-      if (paymentIntent) {
-        if (paymentIntent.status === "succeeded") {
-            const storedData = localStorage.getItem('pendingOrder');
-            if (storedData) {
-                const parsedData = JSON.parse(storedData);
-                await handleOrderSuccess(paymentIntent.id, parsedData);
-                localStorage.removeItem('pendingOrder');
-            } else {
-                notify("Order Processed", "Please check your email for confirmation.");
-                navigate('/orders');
-            }
-        } 
-        else if (paymentIntent.status === "processing") {
-            notify("Processing Payment", "Your payment is currently processing. We'll update you shortly.");
-        } 
-        else if (paymentIntent.status === "requires_payment_method") {
-            notify("Payment Failed", "Your payment was not successful. Please try again.", "error");
-        }
-        else if (paymentIntent.status === "canceled") {
-            notify("Payment Cancelled", "You cancelled the payment.", "error");
+      if (paymentIntent && paymentIntent.status === "succeeded") {
+        const storedData = localStorage.getItem('pendingOrder');
+        
+        if (storedData) {
+            const parsedData = JSON.parse(storedData);
+            await handleOrderSuccess(paymentIntent.id, parsedData);
+            localStorage.removeItem('pendingOrder');
+        } else {
+            notify("Order Processed", "Please check your email for confirmation.");
+            navigate('/orders');
         }
       }
     };
@@ -227,6 +220,7 @@ const Checkout: React.FC = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setFormData(prev => ({ ...prev, email: session.user.email || '' }));
+
         const { data: addresses } = await supabase
           .from('user_addresses')
           .select('*')
@@ -270,8 +264,8 @@ const Checkout: React.FC = () => {
     
     let shippingDetails;
     if (selectedAddressId === 'new') {
-         if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.email.trim() || !formData.address_line1.trim() || !formData.city.trim() || !formData.postcode.trim() || !formData.country.trim() || !formData.phone.trim()) {
-             return notify('Missing Details', 'Please fill in ALL address fields to continue.', 'error');
+         if (!formData.firstName || !formData.address_line1 || !formData.city || !formData.postcode || !formData.phone) {
+             return notify('Missing Details', 'Please fill in all address fields, including your phone number.', 'error');
          }
 
          if (!isValidUKPostcode(formData.postcode)) {
@@ -419,27 +413,28 @@ const Checkout: React.FC = () => {
 
         clearCart(); 
 
-      // 3. Generate Invoice & Send Email (SKIP LOGO TO FIX SIZE ERROR)
-      const pdfBase64 = await generateInvoiceBase64(
-  {
-    id: orderData.id,
-    customer_name: finalShipping.name || '',
-    address: finalShipping.address,   // Added
-    city: finalShipping.city,         // Added
-    postcode: finalShipping.postcode, // Added
-    total_amount: currentTotal        // Added to ensure total matches exactly
-  },
-  invoiceItems,
-  { skipLogo: true }
-);
+        // 3. Generate Invoice & Send Email (FIX: Use Database Order Data)
+        // We use 'orderData' here because it guarantees we use exactly what was saved to the database.
+        const pdfBase64 = await generateInvoiceBase64(
+            { 
+                id: orderData.id, 
+                customer_name: orderData.customer_name, // Use DB Data
+                address: orderData.address,             // Use DB Data (Fixes missing address)
+                city: orderData.city,                   // Use DB Data
+                postcode: orderData.postcode,           // Use DB Data
+                total_amount: orderData.total_amount    // Use DB Data
+            }, 
+            invoiceItems, 
+            { skipLogo: true }
+        );
         
         const emailResponse = await fetch('/api/send-email', {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify({
-                 email: currentFormData.email,
+                 email: orderData.email, // Use DB Email
                  type: 'invoice',
-                 data: { orderId: orderData.id, name: finalShipping.name, total: formatCurrency(currentTotal) },
+                 data: { orderId: orderData.id, name: orderData.customer_name, total: formatCurrency(currentTotal) },
                  attachments: [{ content: pdfBase64, filename: `Invoice-${orderData.id}.pdf` }]
              })
         });
@@ -449,6 +444,7 @@ const Checkout: React.FC = () => {
             console.error("Email failed to send:", errorData);
             notify('Invoice Error', 'Order paid, but invoice email failed to send. Check logs.', 'error');
         } else {
+            console.log("Invoice email sent successfully");
             notify('Order Successful!', 'Thank you for your purchase. Invoice sent.');
         }
 
@@ -471,9 +467,10 @@ const Checkout: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         
-        {/* --- LEFT COLUMN: ADDRESS & PAYMENT (NOW STATIC IN FLOW) --- */}
+        {/* --- LEFT COLUMN: SHIPPING + PAYMENT (LINEAR LAYOUT) --- */}
         <div className="lg:col-span-2 space-y-8">
             
+          {/* STEP 1: ADDRESS */}
           <div className={`p-6 rounded-2xl border bg-white transition-all duration-300 ${paymentStep ? 'opacity-60 pointer-events-none' : 'shadow-md border-blue-200'}`}>
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <span className="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm">1</span>
@@ -564,6 +561,27 @@ const Checkout: React.FC = () => {
                 </button>
             )}
           </div>
+
+          {/* STEP 2: PAYMENT (MOVED BACK HERE - LEFT COLUMN) */}
+          {paymentStep && clientSecret && (
+            <div id="payment-step-container" className="bg-white p-6 rounded-2xl border border-blue-500 shadow-xl ring-4 ring-blue-50/50 animate-in fade-in slide-in-from-bottom-4 duration-500 scroll-mt-24">
+                <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                    <span className="bg-black text-white w-8 h-8 rounded-full flex items-center justify-center text-sm">2</span>
+                    Secure Payment
+                </h2>
+                <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
+                    <PaymentForm 
+                        totalAmount={finalTotal} 
+                        onSuccess={(id) => handleOrderSuccess(id)} 
+                        formData={formData} 
+                        cartItems={cartItems} 
+                    />
+                </Elements>
+                <button onClick={() => setPaymentStep(false)} className="text-xs text-gray-400 underline mt-4 text-center w-full hover:text-gray-600">
+                    Edit details or Coupon
+                </button>
+            </div>
+          )}
         </div>
 
         {/* --- RIGHT COLUMN: SUMMARY & COUPONS --- */}
@@ -628,26 +646,6 @@ const Checkout: React.FC = () => {
                     </div>
                 )}
             </div>
-
-            {paymentStep && clientSecret && (
-                <div id="payment-step-container" className="bg-white p-6 rounded-2xl border border-blue-500 shadow-xl ring-4 ring-blue-50/50 animate-in fade-in slide-in-from-bottom-4 duration-500 scroll-mt-24">
-                    <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                        <span className="bg-black text-white w-8 h-8 rounded-full flex items-center justify-center text-sm">2</span>
-                        Secure Payment
-                    </h2>
-                    <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
-                        <PaymentForm 
-                            totalAmount={finalTotal} 
-                            onSuccess={(id) => handleOrderSuccess(id)} 
-                            formData={formData} 
-                            cartItems={cartItems} 
-                        />
-                    </Elements>
-                    <button onClick={() => setPaymentStep(false)} className="text-xs text-gray-400 underline mt-4 text-center w-full hover:text-gray-600">
-                        Edit details or Coupon
-                    </button>
-                </div>
-            )}
         </div>
       </div>
     </div>

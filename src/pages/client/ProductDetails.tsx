@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Star, ShieldCheck, User, MapPin, Heart, Truck, RefreshCw, ChevronDown } from 'lucide-react';
+import { Star, ShieldCheck, User, MapPin, Heart, Truck, RefreshCw, ChevronDown, CheckCircle, ShoppingBag } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useCart } from '../../context/CartContext';
 import { Session } from '@supabase/supabase-js';
@@ -30,7 +30,13 @@ const ProductDetails = () => {
   
   // STATE: Wishlist & Toast
   const [isWishlisted, setIsWishlisted] = useState(false);
-  const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
+  
+  // UPDATED: Toast state now includes a 'type' to distinguish between Wishlist and Cart
+  const [toast, setToast] = useState<{ show: boolean; message: string; type: 'wishlist' | 'cart' }>({ 
+    show: false, 
+    message: '', 
+    type: 'wishlist' 
+  });
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
@@ -85,9 +91,9 @@ const ProductDetails = () => {
   }, [id]);
 
   // HELPER: Trigger Toast
-  const triggerToast = (message: string) => {
-    setToast({ show: true, message });
-    setTimeout(() => setToast({ show: false, message: '' }), 2000);
+  const triggerToast = (message: string, type: 'wishlist' | 'cart' = 'wishlist') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ show: false, message: '', type: 'wishlist' }), 2000);
   };
 
   // FUNCTION: Toggle Wishlist
@@ -98,7 +104,7 @@ const ProductDetails = () => {
     setIsWishlisted(!previousState);
 
     if (previousState) {
-        triggerToast("Removed from Wishlist");
+        triggerToast("Removed from Wishlist", 'wishlist');
         const { error } = await supabase
             .from('wishlist')
             .delete()
@@ -106,7 +112,7 @@ const ProductDetails = () => {
             .eq('product_id', id);
         if (error) setIsWishlisted(true);
     } else {
-        triggerToast("Added to Wishlist");
+        triggerToast("Added to Wishlist", 'wishlist');
         const { error } = await supabase
             .from('wishlist')
             .insert([{ user_id: session.user.id, product_id: id }]);
@@ -175,12 +181,15 @@ const ProductDetails = () => {
       addToCart({ 
           ...product, 
           quantity: qty,
-          selectedVariant: optionString // Pass option string to cart context
+          selectedVariant: optionString 
       });
+
+      // TRIGGER TOAST HERE
+      triggerToast("Added to Bag", 'cart');
       return true;
   };
   
-  // SEO Helper: Create description snippet
+  // SEO Helper
   const metaDescription = product.description 
       ? product.description.substring(0, 160).replace(/(\r\n|\n|\r)/gm, " ") + "..." 
       : `Buy ${product.name} at Aidezel UK. Best price, fast delivery, and official warranty.`;
@@ -193,8 +202,6 @@ const ProductDetails = () => {
         <title>{`${product.name} | Buy Online at Aidezel UK`}</title>
         <meta name="description" content={metaDescription} />
         <link rel="canonical" href={`https://aidezel.com/product/${product.id}`} />
-        
-        {/* Open Graph (Facebook/WhatsApp) */}
         <meta property="og:type" content="product" />
         <meta property="og:title" content={product.name} />
         <meta property="og:description" content={metaDescription} />
@@ -204,14 +211,10 @@ const ProductDetails = () => {
         <meta property="product:price:currency" content="GBP" />
         <meta property="product:brand" content={product.brand || 'Aidezel'} />
         <meta property="product:availability" content={isOutOfStock ? 'out of stock' : 'in stock'} />
-
-        {/* Twitter */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={product.name} />
         <meta name="twitter:description" content={metaDescription} />
         <meta name="twitter:image" content={product.image_url} />
-
-        {/* Rich Snippet (JSON-LD) for Google Product Results */}
         <script type="application/ld+json">
           {JSON.stringify({
             "@context": "https://schema.org/",
@@ -219,10 +222,7 @@ const ProductDetails = () => {
             "name": product.name,
             "image": galleryImages,
             "description": product.description,
-            "brand": {
-              "@type": "Brand",
-              "name": product.brand || "Aidezel"
-            },
+            "brand": { "@type": "Brand", "name": product.brand || "Aidezel" },
             "sku": product.id,
             "offers": {
               "@type": "Offer",
@@ -232,10 +232,7 @@ const ProductDetails = () => {
               "priceValidUntil": "2025-12-31",
               "itemCondition": "https://schema.org/NewCondition",
               "availability": isOutOfStock ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
-              "seller": {
-                "@type": "Organization",
-                "name": "Aidezel Ltd"
-              }
+              "seller": { "@type": "Organization", "name": "Aidezel Ltd" }
             },
             "aggregateRating": realReviews.length > 0 ? {
               "@type": "AggregateRating",
@@ -275,7 +272,7 @@ const ProductDetails = () => {
                       src={galleryImages[activeImage]} 
                       alt={`${product.name} - View ${activeImage + 1}`} 
                       className={`w-full h-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-105 ${isOutOfStock ? 'grayscale opacity-70' : ''}`}
-                      loading="eager" // SEO: Prioritize loading main product image
+                      loading="eager" 
                       // @ts-ignore
                       fetchpriority="high"
                     />
@@ -300,7 +297,6 @@ const ProductDetails = () => {
             
             <div className="flex items-center gap-2 text-sm border-b border-gray-100 pb-4">
                 <div className="flex text-yellow-400">
-                    {/* Dynamic Stars based on average rating */}
                     {[1,2,3,4,5].map(i => (
                         <Star key={i} size={16} fill={i <= Number(averageRating) ? "currentColor" : "none"} className={i <= Number(averageRating) ? "text-yellow-400" : "text-gray-300"} />
                     ))}
@@ -383,18 +379,18 @@ const ProductDetails = () => {
                     </div>
 
                     <button 
-                        onClick={handleAddToCart} // Using new handler
+                        onClick={handleAddToCart}
                         disabled={isOutOfStock} 
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-full text-sm shadow-sm transition-colors disabled:opacity-50"
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-full text-sm shadow-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                        Add to Cart
+                        <ShoppingBag size={16} /> Add to Cart
                     </button>
                     
                     <button
                       disabled={isOutOfStock}
                       onClick={async () => {
                         if (isOutOfStock) return;
-                        const success = await handleAddToCart(); // Using new handler
+                        const success = await handleAddToCart();
                         if (success) {
                             navigate('/checkout');                        
                         }
@@ -470,10 +466,16 @@ const ProductDetails = () => {
         </div>
       </div>
 
-      {/* CUSTOM TOAST NOTIFICATION */}
+      {/* CUSTOM TOAST NOTIFICATION (Wishlist + Cart) */}
       {toast.show && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] bg-black/90 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 animate-in slide-in-from-bottom-5">
-            <Heart size={16} className="text-red-500 fill-red-500" />
+        <div className={`fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 ${
+            toast.type === 'cart' ? 'bg-green-600 text-white' : 'bg-black/90 text-white'
+        }`}>
+            {toast.type === 'wishlist' ? (
+                <Heart size={18} className="text-red-500 fill-red-500" />
+            ) : (
+                <CheckCircle size={18} className="text-white" />
+            )}
             <span className="text-sm font-bold">{toast.message}</span>
         </div>
       )}

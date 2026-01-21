@@ -17,6 +17,7 @@ const OrderInvoice: React.FC = () => {
       if (!id) return;
       try {
         setLoading(true);
+        // 1. Fetch Order Details
         const { data: orderData, error: orderError } = await supabase
           .from('orders')
           .select('*')
@@ -25,16 +26,26 @@ const OrderInvoice: React.FC = () => {
 
         if (orderError) throw orderError;
 
+        // 2. Fetch Items WITH Product Name (The Fix)
         const { data: itemsData, error: itemsError } = await supabase
           .from('order_items')
-          .select('*')
+          .select('*, products(name)') // <--- JOIN performed here
           .eq('order_id', id);
 
         if (itemsError) throw itemsError;
 
         setOrder(orderData);
-        setItems(itemsData || []);
+
+        // 3. Map the result to flatten "products.name" into "product_name"
+        const formattedItems = itemsData?.map((item: any) => ({
+            ...item,
+            product_name: item.products?.name || 'Product Item' // Fallback if product deleted
+        })) || [];
+
+        setItems(formattedItems);
+
       } catch (err: any) {
+        console.error(err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -165,6 +176,7 @@ const OrderInvoice: React.FC = () => {
               return (
                 <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                   <td className="py-3 px-4 font-medium text-gray-800 border-r border-gray-200">
+                    {/* THIS NOW WORKS BECAUSE WE FETCHED IT */}
                     {item.product_name}
                     <div className="text-[10px] text-gray-500 mt-0.5">HSN: 851762</div>
                   </td>

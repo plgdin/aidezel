@@ -11,6 +11,11 @@ import { generateInvoiceBase64 } from '../../utils/invoiceGenerator';
 // --- INITIALIZE STRIPE ---
 const stripePromise = loadStripe('pk_test_51Sglkr4oJa5N3YQp50I51KNbXYnq0Carqr1e7TYcCYMsanyfFBxW9aOt2wdQ5xkNDeDcRTfpomZAjRl3G9Wmvotf00wXuzGGbW');
 
+// --- HELPER: GENERATE STRICTLY DIGITS (9 Digits) ---
+const generateOrderId = () => {
+  return Math.floor(100000000 + Math.random() * 900000000).toString();
+};
+
 // --- TYPES ---
 interface Address {
   id: string;
@@ -29,7 +34,7 @@ interface Coupon {
   value: number;
 }
 
-// --- HELPER: CUSTOM DARK PILL TOAST ---
+// --- HELPER: CUSTOM TOAST NOTIFICATION ---
 const notify = (title: string, description: string, type: 'success' | 'error' = 'success') => {
   const isError = type === 'error';
   
@@ -83,7 +88,7 @@ const PaymentForm = ({
 
     setIsProcessing(true);
 
-    // Save state for Amazon Pay redirect
+    // Save state before potential redirect (Amazon Pay / 3DS)
     localStorage.setItem('pendingOrder', JSON.stringify({
         formData,
         cartItems,
@@ -93,7 +98,7 @@ const PaymentForm = ({
     const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        return_url: window.location.href, // Return to this page to handle success
+        return_url: window.location.href, // Returns here to finish processing
       },
       redirect: "if_required",
     });
@@ -139,7 +144,7 @@ const PaymentForm = ({
 // --- MAIN CHECKOUT PAGE ---
 const Checkout: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation();
+  const location = useLocation(); 
   const { cartTotal, cartItems, clearCart } = useCart();
   
   const [loading, setLoading] = useState(false);
@@ -173,7 +178,7 @@ const Checkout: React.FC = () => {
   
   const finalTotal = Math.max(0, grossTotal - discountAmount);
 
-  // --- DETECT RETURN FROM AMAZON PAY ---
+  // --- HANDLE REDIRECT RETURN ---
   useEffect(() => {
     const checkRedirectStatus = async () => {
       const clientSecretParam = new URLSearchParams(window.location.search).get(
@@ -255,11 +260,11 @@ const Checkout: React.FC = () => {
     let shippingDetails;
     if (selectedAddressId === 'new') {
          if (!formData.firstName || !formData.address_line1 || !formData.city || !formData.postcode || !formData.phone) {
-             return notify('Missing Details', 'Please fill in all address fields.', 'error');
+             return notify('Missing Details', 'Please fill in all address fields, including your phone number.', 'error');
          }
 
          if (!isValidUKPostcode(formData.postcode)) {
-             return notify('Invalid Postcode', 'Please enter a valid UK postcode.', 'error');
+             return notify('Invalid Postcode', 'Please enter a valid UK postcode (e.g. SW1A 1AA).', 'error');
          }
 
          shippingDetails = {
@@ -320,19 +325,19 @@ const Checkout: React.FC = () => {
         if (data?.clientSecret) {
             setClientSecret(data.clientSecret);
             setPaymentStep(true);
-            // Scroll to payment section
             setTimeout(() => {
                 document.getElementById('payment-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }, 100);
         }
     } catch (err: any) {
         console.error(err);
-        notify('Connection Error', 'Could not connect to payment server.', 'error');
+        notify('Connection Error', 'Could not connect to payment server. Please try again.', 'error');
     } finally {
         setLoading(false);
     }
   };
 
+  // --- HANDLE ORDER SUCCESS ---
   const handleOrderSuccess = async (paymentId: string, storedData: any = null) => {
     try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -359,9 +364,14 @@ const Checkout: React.FC = () => {
             };
         }
 
+        // Generate Numeric ID
+        const customOrderId = generateOrderId();
+
+        // 1. Create Order
         const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert([{
+            id: customOrderId, // Numeric String ID
             user_id: session?.user?.id || null,
             customer_name: finalShipping.name,
             email: currentFormData.email,
@@ -376,29 +386,34 @@ const Checkout: React.FC = () => {
 
         if (orderError) throw orderError;
 
+        // 2. Add Items & Reduce Stock
         const invoiceItems = [];
         for (const item of currentCartItems) {
+            const priceIncTax = item.price * 1.2; // Store Gross Price
+
             await supabase.from('order_items').insert({
                 order_id: orderData.id,
                 product_id: item.id,
                 quantity: item.quantity,
-                price_at_purchase: item.price,
+                price_at_purchase: priceIncTax, 
                 selected_variant: (item as any).selectedVariant || ''
             });
 
             await supabase.rpc('decrement_stock', { product_id: item.id, quantity: item.quantity });
-            invoiceItems.push({ name: item.name, quantity: item.quantity, price: item.price });
+            invoiceItems.push({ name: item.name, quantity: item.quantity, price: priceIncTax });
         }
 
-        const pdfBase64 = generateInvoiceBase64({ id: orderData.id, customer_name: finalShipping.name || '' }, invoiceItems);
+        // 3. Generate Invoice & Send Email (Async/Await for Logo)
+        const pdfBase64 = await generateInvoiceBase64({ id: orderData.id, customer_name: finalShipping.name || '' }, invoiceItems);
+        
         await fetch('/api/send-email', {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify({
                  email: currentFormData.email,
                  type: 'invoice',
-                 data: { orderId: orderData.id.slice(0, 8).toUpperCase(), name: finalShipping.name, total: currentTotal },
-                 attachments: [{ content: pdfBase64, filename: `Invoice.pdf` }]
+                 data: { orderId: orderData.id, name: finalShipping.name, total: formatCurrency(currentTotal) },
+                 attachments: [{ content: pdfBase64, filename: `Invoice-${orderData.id}.pdf` }]
              })
         });
 
@@ -406,11 +421,16 @@ const Checkout: React.FC = () => {
         notify('Order Successful!', 'Thank you for your purchase. Invoice sent.');
         setTimeout(() => navigate('/orders'), 2000);
 
-    } catch (error) {
+    } catch (error: any) {
         console.error(error);
-        notify('Order Creation Failed', 'Payment taken but order failed. Please contact support.', 'error');
+        notify('Order Creation Failed', 
+            error.message.includes('uuid') ? 'DB Error: Ensure Order ID is TEXT type in Supabase.' : 'Payment taken but order failed. Please contact support.', 
+            'error'
+        );
     }
   };
+
+  const formatCurrency = (val: number) => `£${val.toFixed(2)}`;
 
   return (
     <div className="container mx-auto px-4 py-12 min-h-screen bg-gray-50/50">
@@ -418,16 +438,16 @@ const Checkout: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         
-        {/* --- LEFT COLUMN: ADDRESS & PAYMENT --- */}
+        {/* --- LEFT COLUMN --- */}
         <div className="lg:col-span-2 space-y-8">
             
-          {/* STEP 1: ADDRESS */}
           <div className={`p-6 rounded-2xl border bg-white transition-all duration-300 ${paymentStep ? 'opacity-60 pointer-events-none' : 'shadow-md border-blue-200'}`}>
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <span className="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm">1</span>
                 Shipping Details
             </h2>
 
+            {/* ADDRESS SELECTOR */}
             {savedAddresses.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     {savedAddresses.map((addr) => (
@@ -446,62 +466,74 @@ const Checkout: React.FC = () => {
                             <p className="text-sm text-gray-600">{addr.city}, {addr.postcode}</p>
                         </div>
                     ))}
-                    <button onClick={() => setSelectedAddressId('new')} className={`p-4 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-all ${selectedAddressId === 'new' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-500 hover:border-blue-400'}`}>
-                        <Plus size={24} /><span className="font-bold">Add New Address</span>
+                    
+                    <button 
+                        onClick={() => setSelectedAddressId('new')}
+                        className={`p-4 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-all ${selectedAddressId === 'new' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-500 hover:border-blue-400'}`}
+                    >
+                        <Plus size={24} />
+                        <span className="font-bold">Add New Address</span>
                     </button>
                 </div>
             )}
 
+            {/* NEW ADDRESS FORM */}
             {(selectedAddressId === 'new' || savedAddresses.length === 0) && (
                 <div className="animate-in fade-in slide-in-from-top-2 space-y-4 pt-4 border-t">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <input required placeholder="First Name" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all" value={formData.firstName} onChange={(e) => setFormData({ ...formData, firstName: e.target.value })} />
-                        <input required placeholder="Last Name" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all" value={formData.lastName} onChange={(e) => setFormData({ ...formData, lastName: e.target.value })} />
-                        <input required type="email" placeholder="Email Address" className="md:col-span-2 p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
-                        <input required placeholder="Address Line 1" className="md:col-span-2 p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all" value={formData.address_line1} onChange={(e) => setFormData({ ...formData, address_line1: e.target.value })} />
-                        <input placeholder="Address Line 2 (Optional)" className="md:col-span-2 p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all" value={formData.address_line2} onChange={(e) => setFormData({ ...formData, address_line2: e.target.value })} />
-                        <input required placeholder="City" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} />
-                        <input required placeholder="Post Code (e.g. SW1A 1AA)" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all uppercase" value={formData.postcode} onChange={(e) => setFormData({ ...formData, postcode: e.target.value })} />
-                        <input placeholder="Country" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all" value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} />
-                        <input required placeholder="Phone Number" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
+                        <input required placeholder="First Name" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                            value={formData.firstName} onChange={(e) => setFormData({ ...formData, firstName: e.target.value })} />
+                        <input required placeholder="Last Name" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                            value={formData.lastName} onChange={(e) => setFormData({ ...formData, lastName: e.target.value })} />
+                        <input required type="email" placeholder="Email Address" className="md:col-span-2 p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                            value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+                        
+                        <input required placeholder="Address Line 1" className="md:col-span-2 p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                            value={formData.address_line1} onChange={(e) => setFormData({ ...formData, address_line1: e.target.value })} />
+                        <input placeholder="Address Line 2 (Optional)" className="md:col-span-2 p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                            value={formData.address_line2} onChange={(e) => setFormData({ ...formData, address_line2: e.target.value })} />
+
+                        <input required placeholder="City" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                            value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} />
+                        
+                        <div className="relative">
+                            <input required placeholder="Post Code (e.g. SW1A 1AA)" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all uppercase"
+                                value={formData.postcode} onChange={(e) => setFormData({ ...formData, postcode: e.target.value })} />
+                        </div>
+
+                        <input placeholder="Country" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                            value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} />
+                        
+                        <input required placeholder="Phone Number" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                            value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
                     </div>
+                    
                     <div className="flex items-center gap-2 mt-4">
-                        <input type="checkbox" id="saveAddr" checked={shouldSaveNewAddress} onChange={(e) => setShouldSaveNewAddress(e.target.checked)} className="w-4 h-4 text-blue-600 rounded cursor-pointer" />
+                        <input 
+                            type="checkbox" 
+                            id="saveAddr" 
+                            checked={shouldSaveNewAddress} 
+                            onChange={(e) => setShouldSaveNewAddress(e.target.checked)}
+                            className="w-4 h-4 text-blue-600 rounded cursor-pointer"
+                        />
                         <label htmlFor="saveAddr" className="text-sm text-gray-700 cursor-pointer select-none">Save this address for future orders</label>
                     </div>
                 </div>
             )}
 
             {!paymentStep && (
-                <button onClick={initializePayment} disabled={loading} className="w-full mt-6 bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition-colors flex justify-center items-center gap-2 disabled:opacity-50 shadow-lg hover:shadow-xl active:scale-[0.99] duration-200">
+                <button
+                    onClick={initializePayment}
+                    disabled={loading}
+                    className="w-full mt-6 bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition-colors flex justify-center items-center gap-2 disabled:opacity-50 shadow-lg hover:shadow-xl active:scale-[0.99] duration-200"
+                >
                     {loading ? <Loader2 className="animate-spin" /> : 'Proceed to Payment'}
                 </button>
             )}
           </div>
-
-          {/* STEP 2: PAYMENT (MOVED HERE TO FIX OVERLAP) */}
-          {paymentStep && clientSecret && (
-            <div id="payment-section" className="bg-white p-6 rounded-2xl border border-blue-500 shadow-xl ring-4 ring-blue-50/50 animate-in zoom-in-95 duration-300 scroll-mt-24">
-                <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                    <span className="bg-black text-white w-8 h-8 rounded-full flex items-center justify-center text-sm">2</span>
-                    Secure Payment
-                </h2>
-                <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
-                    <PaymentForm 
-                        totalAmount={finalTotal} 
-                        onSuccess={handleOrderSuccess} 
-                        formData={formData} 
-                        cartItems={cartItems}
-                    />
-                </Elements>
-                <button onClick={() => setPaymentStep(false)} className="text-xs text-gray-400 underline mt-4 text-center w-full hover:text-gray-600">
-                    Edit details or Coupon
-                </button>
-            </div>
-          )}
         </div>
 
-        {/* --- RIGHT COLUMN: SUMMARY & COUPONS --- */}
+        {/* --- RIGHT COLUMN --- */}
         <div className="lg:col-span-1 space-y-6">
             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm sticky top-24 z-10">
                 <h3 className="font-bold text-lg mb-4">Order Summary</h3>
@@ -518,9 +550,17 @@ const Checkout: React.FC = () => {
                     <div className="mb-6">
                         <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Have a coupon?</label>
                         <div className="flex gap-2">
-                            <input placeholder="Enter code" value={couponCode} onChange={(e) => setCouponCode(e.target.value)} disabled={!!appliedCoupon} className="flex-1 p-2 text-sm border rounded-lg uppercase outline-none focus:border-black transition-colors" />
+                            <input 
+                                placeholder="Enter code" 
+                                value={couponCode}
+                                onChange={(e) => setCouponCode(e.target.value)}
+                                disabled={!!appliedCoupon}
+                                className="flex-1 p-2 text-sm border rounded-lg uppercase outline-none focus:border-black transition-colors"
+                            />
                             {appliedCoupon ? (
-                                <button onClick={() => { setAppliedCoupon(null); setCouponCode(''); }} className="bg-red-100 text-red-600 px-3 rounded-lg hover:bg-red-200 transition-colors"><Trash2 size={16} /></button>
+                                <button onClick={() => { setAppliedCoupon(null); setCouponCode(''); }} className="bg-red-100 text-red-600 px-3 rounded-lg hover:bg-red-200 transition-colors">
+                                    <Trash2 size={16} />
+                                </button>
                             ) : (
                                 <button onClick={handleApplyCoupon} disabled={couponLoading || !couponCode} className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-800 disabled:opacity-50 transition-colors">
                                     {couponLoading ? <Loader2 size={16} className="animate-spin"/> : 'Apply'}
@@ -528,7 +568,9 @@ const Checkout: React.FC = () => {
                             )}
                         </div>
                         {appliedCoupon && (
-                            <div className="mt-2 text-xs text-green-600 flex items-center gap-1 font-bold bg-green-50 p-2 rounded animate-in fade-in slide-in-from-top-1"><Tag size={12} /> Coupon "{appliedCoupon.code}" applied!</div>
+                            <div className="mt-2 text-xs text-green-600 flex items-center gap-1 font-bold bg-green-50 p-2 rounded animate-in fade-in slide-in-from-top-1">
+                                <Tag size={12} /> Coupon "{appliedCoupon.code}" applied!
+                            </div>
                         )}
                     </div>
                 )}
@@ -537,9 +579,14 @@ const Checkout: React.FC = () => {
                     <div className="flex justify-between"><span>Subtotal</span><span>£{subTotal.toLocaleString()}</span></div>
                     <div className="flex justify-between"><span>VAT (20%)</span><span>£{tax.toLocaleString()}</span></div>
                     {appliedCoupon && (
-                        <div className="flex justify-between text-green-600 font-bold"><span>Discount ({appliedCoupon.code})</span><span>-£{discountAmount.toLocaleString()}</span></div>
+                        <div className="flex justify-between text-green-600 font-bold">
+                            <span>Discount ({appliedCoupon.code})</span>
+                            <span>-£{discountAmount.toLocaleString()}</span>
+                        </div>
                     )}
-                    <div className="border-t pt-2 flex justify-between font-bold text-gray-900 text-xl"><span>Total</span><span>£{finalTotal.toLocaleString()}</span></div>
+                    <div className="border-t pt-2 flex justify-between font-bold text-gray-900 text-xl">
+                        <span>Total</span><span>£{finalTotal.toLocaleString()}</span>
+                    </div>
                 </div>
 
                 {!paymentStep && (
@@ -548,6 +595,26 @@ const Checkout: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {paymentStep && clientSecret && (
+                <div id="payment-section" className="bg-white p-6 rounded-2xl border border-blue-500 shadow-xl ring-4 ring-blue-50/50 animate-in zoom-in-95 duration-300">
+                    <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                        <span className="bg-black text-white w-8 h-8 rounded-full flex items-center justify-center text-sm">2</span>
+                        Secure Payment
+                    </h2>
+                    <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
+                        <PaymentForm 
+                            totalAmount={finalTotal} 
+                            onSuccess={(id) => handleOrderSuccess(id)} 
+                            formData={formData} 
+                            cartItems={cartItems}
+                        />
+                    </Elements>
+                    <button onClick={() => setPaymentStep(false)} className="text-xs text-gray-400 underline mt-4 text-center w-full hover:text-gray-600">
+                        Edit details or Coupon
+                    </button>
+                </div>
+            )}
         </div>
       </div>
     </div>

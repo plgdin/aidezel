@@ -1,10 +1,13 @@
-// src/components/staff/StaffDashboard.tsx
+// src/pages/staff/StaffDashboard.tsx
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Loader2, Download, Package, AlertTriangle } from 'lucide-react';
+import { Loader2, Download, Package, AlertTriangle, CalendarDays } from 'lucide-react';
 
 const StaffDashboard = () => {
   const [loading, setLoading] = useState(true);
+
+  // Stats State
+  const [ordersThisMonth, setOrdersThisMonth] = useState(0);
 
   // Data Lists State
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
@@ -15,7 +18,7 @@ const StaffDashboard = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // 1. Fetch Orders (Only needed for Recent Orders list now, not for total stats)
+        // 1. Fetch Orders
         const { data: ordersData } = await supabase
           .from('orders')
           .select('*')
@@ -42,7 +45,19 @@ const StaffDashboard = () => {
         if (ordersData) {
           setAllOrdersForReport(ordersData);
           setRecentOrders(ordersData.slice(0, 5));
-          // NOTE: Revenue and Growth calculations removed for Staff
+
+          // --- CALCULATE ORDERS THIS MONTH ---
+          const now = new Date();
+          const currentMonth = now.getMonth(); // 0-11
+          const currentYear = now.getFullYear();
+
+          const count = ordersData.filter(order => {
+            const orderDate = new Date(order.created_at);
+            return orderDate.getMonth() === currentMonth && 
+                   orderDate.getFullYear() === currentYear;
+          }).length;
+
+          setOrdersThisMonth(count);
         }
 
         // --- CALCULATE TOP SELLING ---
@@ -137,9 +152,19 @@ const StaffDashboard = () => {
         </button>
       </div>
 
-      {/* HIDDEN SECTION: 
-         The Stats Grid (Revenue, Orders, Users, Growth) has been removed here.
-      */}
+      {/* --- NEW: Monthly Orders Card --- */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
+            <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                <CalendarDays size={28} />
+            </div>
+            <div>
+                <p className="text-gray-500 text-sm font-bold">Orders This Month</p>
+                <h3 className="text-3xl font-black text-gray-900">{ordersThisMonth}</h3>
+            </div>
+        </div>
+      </div>
+      {/* ------------------------------- */}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
@@ -212,7 +237,6 @@ const StaffDashboard = () => {
                             <p className="font-bold text-sm text-gray-900 truncate">{product.name}</p>
                             <p className="text-xs text-gray-500">{product.sales} sales</p>
                         </div>
-                        {/* We keep revenue per product, but you can remove this div if you want strict financial privacy */}
                         <div className="font-bold text-sm text-gray-900">£{product.revenue.toLocaleString()}</div>
                     </div>
                     ))

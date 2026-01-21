@@ -11,6 +11,12 @@ import { generateInvoiceBase64 } from '../../utils/invoiceGenerator';
 // --- INITIALIZE STRIPE ---
 const stripePromise = loadStripe('pk_test_51Sglkr4oJa5N3YQp50I51KNbXYnq0Carqr1e7TYcCYMsanyfFBxW9aOt2wdQ5xkNDeDcRTfpomZAjRl3G9Wmvotf00wXuzGGbW');
 
+// --- HELPER: GENERATE STRICTLY DIGITS (9 Digits) ---
+// Guarantees a number between 100,000,000 and 999,999,999.
+const generateOrderId = () => {
+  return Math.floor(100000000 + Math.random() * 900000000).toString();
+};
+
 // --- TYPES ---
 interface Address {
   id: string;
@@ -29,14 +35,14 @@ interface Coupon {
   value: number;
 }
 
-// --- HELPER: CUSTOM TOAST NOTIFICATION (Updated to match Dark Pill Design) ---
+// --- HELPER: CUSTOM TOAST NOTIFICATION ---
 const notify = (title: string, description: string, type: 'success' | 'error' = 'success') => {
   const isError = type === 'error';
   
   toast(
     <div className="flex items-center justify-between w-full gap-3">
       <div className="flex items-center gap-3">
-        {/* Left Icon Container (Dark transparent circle) */}
+        {/* Left Icon Container */}
         <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isError ? 'bg-red-500/20' : 'bg-white/10'}`}>
            {isError ? <AlertCircle size={20} className="text-red-500" /> : <Check size={20} className="text-green-400" />}
         </div>
@@ -48,13 +54,12 @@ const notify = (title: string, description: string, type: 'success' | 'error' = 
         </div>
       </div>
 
-      {/* Right Action Button (Blue/Red Circle) */}
+      {/* Right Action Button */}
       <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg ${isError ? 'bg-red-600' : 'bg-blue-600'}`}>
         {isError ? <X size={18} className="text-white" /> : <ShieldCheck size={18} className="text-white" />}
       </div>
     </div>, 
     {
-      // Styling: Dark Background, Pill Shape (rounded-full), Shadow, Animated
       className: `bg-[#0f172a] border border-slate-800 shadow-2xl rounded-full p-2 pr-2 min-w-[320px] flex items-center animate-in slide-in-from-bottom-5 fade-in duration-300`,
     }
   );
@@ -298,7 +303,7 @@ const Checkout: React.FC = () => {
     }
   };
 
-  // -- 4. HANDLE SUCCESS --
+  // -- 4. HANDLE SUCCESS (Updated with Numeric ID + Async Invoice) --
   const handleOrderSuccess = async (paymentId: string) => {
     try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -321,9 +326,13 @@ const Checkout: React.FC = () => {
             };
         }
 
+        // FIX 1: Generate Short Numeric ID
+        const customOrderId = generateOrderId();
+
         const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert([{
+            id: customOrderId, // Insert 9-digit numeric ID
             user_id: session?.user?.id || null,
             customer_name: finalShipping.name,
             email: formData.email,
@@ -340,27 +349,32 @@ const Checkout: React.FC = () => {
 
         const invoiceItems = [];
         for (const item of cartItems) {
+            // FIX 2: Store Gross Price (Price * 1.2) for proper invoice calculation
+            const priceIncTax = item.price * 1.2;
+
             await supabase.from('order_items').insert({
                 order_id: orderData.id,
                 product_id: item.id,
                 quantity: item.quantity,
-                price_at_purchase: item.price,
+                price_at_purchase: priceIncTax, // Storing Gross Price
                 selected_variant: (item as any).selectedVariant || ''
             });
 
             await supabase.rpc('decrement_stock', { product_id: item.id, quantity: item.quantity });
-            invoiceItems.push({ name: item.name, quantity: item.quantity, price: item.price });
+            invoiceItems.push({ name: item.name, quantity: item.quantity, price: priceIncTax });
         }
 
-        const pdfBase64 = generateInvoiceBase64({ id: orderData.id, customer_name: finalShipping.name || '' }, invoiceItems);
+        // FIX 3: Await the Async Invoice Generator (to load logo)
+        const pdfBase64 = await generateInvoiceBase64({ id: orderData.id, customer_name: finalShipping.name || '' }, invoiceItems);
+        
         await fetch('/api/send-email', {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify({
                  email: formData.email,
                  type: 'invoice',
-                 data: { orderId: orderData.id.slice(0, 8).toUpperCase(), name: finalShipping.name, total: finalTotal },
-                 attachments: [{ content: pdfBase64, filename: `Invoice.pdf` }]
+                 data: { orderId: orderData.id, name: finalShipping.name, total: formatCurrency(finalTotal) },
+                 attachments: [{ content: pdfBase64, filename: `Invoice-${orderData.id}.pdf` }]
              })
         });
 
@@ -368,11 +382,16 @@ const Checkout: React.FC = () => {
         notify('Order Successful!', 'Thank you for your purchase. Invoice sent.');
         setTimeout(() => navigate('/orders'), 2000);
 
-    } catch (error) {
+    } catch (error: any) {
         console.error(error);
-        notify('Order Creation Failed', 'Payment taken but order failed. Please contact support.', 'error');
+        notify('Order Creation Failed', 
+            error.message.includes('uuid') ? 'DB Error: Ensure Order ID is TEXT type in Supabase.' : 'Payment taken but order failed. Please contact support.', 
+            'error'
+        );
     }
   };
+
+  const formatCurrency = (val: number) => `£${val.toFixed(2)}`;
 
   return (
     <div className="container mx-auto px-4 py-12 min-h-screen bg-gray-50/50">

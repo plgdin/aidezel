@@ -209,7 +209,7 @@ const Checkout: React.FC = () => {
         } 
         else if (paymentIntent.status === "processing") {
           notify("Processing Payment", "Your payment is currently processing. We'll update you shortly.");
-        }
+        } 
         else if (paymentIntent.status === "requires_payment_method") {
           notify("Payment Failed", "Your payment was not successful. Please try again.", "error");
         }
@@ -420,28 +420,27 @@ const Checkout: React.FC = () => {
 
         clearCart(); 
 
-        // 3. Generate Invoice & Send Email (FIX: Use Database Order Data)
-        // We use 'orderData' here because it guarantees we use exactly what was saved to the database.
+      // 3. Generate Invoice & Send Email (FIXED: Passed address & skipLogo)
         const pdfBase64 = await generateInvoiceBase64(
             { 
                 id: orderData.id, 
-            customer_name: orderData.customer_name,
-            address: orderData.address,             // FIX: Uses DB Address
-            city: orderData.city,                   // FIX: Uses DB City
-            postcode: orderData.postcode,           // FIX: Uses DB Postcode
-            total_amount: orderData.total_amount    // FIX: Uses DB Total
+            customer_name: finalShipping.name, // Use Local Variable
+            address: finalShipping.address,    // Use Local Variable
+            city: finalShipping.city,          // Use Local Variable
+            postcode: finalShipping.postcode,  // Use Local Variable
+            total_amount: currentTotal         // Use Local Variable
             }, 
             invoiceItems, 
-          { skipLogo: true } // FIX: Skips logo for email to prevent 413 error
+          { skipLogo: true }
         );
         
         const emailResponse = await fetch('/api/send-email', {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify({
-               email: orderData.email,
+               email: currentFormData.email,
                  type: 'invoice',
-                 data: { orderId: orderData.id, name: orderData.customer_name, total: formatCurrency(currentTotal) },
+               data: { orderId: orderData.id, name: finalShipping.name, total: formatCurrency(currentTotal) },
                  attachments: [{ content: pdfBase64, filename: `Invoice-${orderData.id}.pdf` }]
              })
         });
@@ -474,7 +473,7 @@ const Checkout: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         
-        {/* --- LEFT COLUMN: ADDRESS & PAYMENT (LINEAR FLOW RESTORED) --- */}
+        {/* --- LEFT COLUMN: ADDRESS & PAYMENT --- */}
         <div className="lg:col-span-2 space-y-8">
             
           {/* STEP 1: ADDRESS */}
@@ -569,7 +568,7 @@ const Checkout: React.FC = () => {
             )}
           </div>
 
-          {/* STEP 2: PAYMENT (STATIC BLOCK - LEFT COLUMN) */}
+          {/* STEP 2: PAYMENT (STATIC BLOCK) */}
           {paymentStep && clientSecret && (
             <div id="payment-step-container" className="bg-white p-6 rounded-2xl border border-blue-500 shadow-xl ring-4 ring-blue-50/50 animate-in fade-in slide-in-from-bottom-4 duration-500 scroll-mt-24">
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2">

@@ -125,17 +125,20 @@ const PaymentForm = ({
       <div className="p-4 border border-gray-200 rounded-xl bg-white">
           <PaymentElement />
       </div>
+      
       {message && (
         <div className="text-red-600 text-sm font-bold bg-red-50 p-4 rounded-xl flex items-center gap-2 border border-red-100">
             <AlertCircle size={16} /> {message}
         </div>
       )}
+      
       <button 
         disabled={isProcessing || !stripe || !elements} 
         className="w-full bg-black text-white py-4 rounded-xl font-bold text-lg hover:bg-gray-800 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl active:scale-[0.99] duration-200"
       >
         {isProcessing ? <><Loader2 className="animate-spin" /> Processing...</> : <><Lock size={18} /> Pay £{totalAmount.toLocaleString()}</>}
       </button>
+      
       <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mt-4">
         <ShieldCheck size={14} className="text-green-600"/>
         <span>Payments processed securely by Stripe</span>
@@ -181,6 +184,33 @@ const Checkout: React.FC = () => {
   
   const finalTotal = Math.max(0, grossTotal - discountAmount);
 
+  // --- CRITICAL FIX: Sync Selected Address to FormData ---
+  // This ensures that when the payment redirects (and saves formData to localStorage),
+  // the address is actually saved, even if you didn't type it in the form.
+  useEffect(() => {
+    if (selectedAddressId !== 'new' && savedAddresses.length > 0) {
+        const addr = savedAddresses.find(a => a.id === selectedAddressId);
+        if (addr) {
+            // Split full name conservatively
+            const nameParts = addr.full_name.split(' ');
+            const fName = nameParts[0];
+            const lName = nameParts.slice(1).join(' ') || '.'; // fallback to dot if no last name
+
+            setFormData(prev => ({
+                ...prev, // Keep email
+                firstName: fName,
+                lastName: lName,
+                address_line1: addr.address_line1,
+                address_line2: addr.address_line2 || '',
+                city: addr.city,
+                postcode: addr.postcode,
+                country: addr.country,
+                phone: addr.phone
+            }));
+        }
+    }
+  }, [selectedAddressId, savedAddresses]);
+
   // --- HANDLE REDIRECT RETURN ---
   useEffect(() => {
     const checkRedirectStatus = async () => {
@@ -218,6 +248,7 @@ const Checkout: React.FC = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setFormData(prev => ({ ...prev, email: session.user.email || '' }));
+
         const { data: addresses } = await supabase
           .from('user_addresses')
           .select('*')
@@ -261,8 +292,8 @@ const Checkout: React.FC = () => {
     
     let shippingDetails;
     if (selectedAddressId === 'new') {
-         if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.email.trim() || !formData.address_line1.trim() || !formData.city.trim() || !formData.postcode.trim() || !formData.country.trim() || !formData.phone.trim()) {
-             return notify('Missing Details', 'Please fill in ALL address fields to continue.', 'error');
+         if (!formData.firstName || !formData.address_line1 || !formData.city || !formData.postcode || !formData.phone) {
+             return notify('Missing Details', 'Please fill in all address fields, including your phone number.', 'error');
          }
 
          if (!isValidUKPostcode(formData.postcode)) {
@@ -352,6 +383,8 @@ const Checkout: React.FC = () => {
         const currentCartItems = storedData ? storedData.cartItems : cartItems;
         const currentTotal = storedData ? storedData.totalAmount : finalTotal;
 
+        // CRITICAL FIX: Always rely on currentFormData logic if storedData exists
+        // because we synced the Selected Address into formData before saving.
         let finalShipping;
         if (selectedAddressId === 'new' || storedData) {
             finalShipping = {
@@ -410,16 +443,15 @@ const Checkout: React.FC = () => {
 
         clearCart(); 
 
-        // 3. Generate Invoice & Send Email 
-        // FIX: We MUST use 'finalShipping' (Local Var) because 'orderData' (DB) might be incomplete/slow
+        // 3. Generate Invoice & Send Email (FIX: Uses local 'finalShipping' to ensure address exists)
         const pdfBase64 = await generateInvoiceBase64(
             { 
                 id: orderData.id, 
                 customer_name: finalShipping.name, 
-                address: finalShipping.address,   // <--- FORCE LOCAL DATA
-                city: finalShipping.city,         // <--- FORCE LOCAL DATA
-                postcode: finalShipping.postcode, // <--- FORCE LOCAL DATA
-                total_amount: currentTotal        // <--- FORCE LOCAL DATA
+                address: finalShipping.address,   // FIX: Uses calculated local data
+                city: finalShipping.city,         
+                postcode: finalShipping.postcode, 
+                total_amount: currentTotal        
             }, 
             invoiceItems, 
             { skipLogo: true }

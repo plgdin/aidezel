@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Star, ShieldCheck, User, MapPin, Heart, Truck, RefreshCw, ChevronDown, CheckCircle, ShoppingBag } from 'lucide-react';
+import { Star, ShieldCheck, User, MapPin, Heart, Truck, RefreshCw, ChevronDown, CheckCircle, ShoppingBag, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useCart } from '../../context/CartContext';
 import { Session } from '@supabase/supabase-js';
 // SEO: Import Helmet
 import { Helmet } from 'react-helmet-async';
+import { toast as shadcnToast } from '../../components/ui/use-toast'; // Import Toast Function
 
 // FIX: Cast Helmet to 'any' to resolve the TypeScript error
 const SeoHelmet = Helmet as any;
@@ -25,18 +26,43 @@ const ProductDetails = () => {
   const [rating, setRating] = useState(5);
   const [session, setSession] = useState<Session | null>(null);
   
-  // --- NEW: SELECTED OPTIONS STATE ---
+  // --- SELECTED OPTIONS STATE ---
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   
-  // STATE: Wishlist & Toast
+  // STATE: Wishlist
   const [isWishlisted, setIsWishlisted] = useState(false);
+
+  // --- HELPER: CUSTOM DARK PILL TOAST ---
+  const notify = (title: string, description: string, type: 'success' | 'error' | 'wishlist' = 'success') => {
+    const isError = type === 'error';
+    const isWishlist = type === 'wishlist';
+    
+    shadcnToast(
+      <div className="flex items-center justify-between w-full gap-3">
+        <div className="flex items-center gap-3">
+          {/* Left Icon Container */}
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isError ? 'bg-red-500/20' : isWishlist ? 'bg-pink-500/20' : 'bg-white/10'}`}>
+             {isError ? <X size={20} className="text-red-500" /> : isWishlist ? <Heart size={20} className="text-pink-500 fill-pink-500" /> : <CheckCircle size={20} className="text-green-400" />}
+          </div>
+          
+          {/* Text Content */}
+          <div className="flex flex-col">
+            <h4 className="font-bold text-white text-sm leading-tight">{title}</h4>
+            <p className="text-slate-400 text-xs mt-0.5 leading-tight">{description}</p>
+          </div>
+        </div>
   
-  // UPDATED: Toast state now includes a 'type' to distinguish between Wishlist and Cart
-  const [toast, setToast] = useState<{ show: boolean; message: string; type: 'wishlist' | 'cart' }>({ 
-    show: false, 
-    message: '', 
-    type: 'wishlist' 
-  });
+        {/* Right Action Button */}
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg ${isError ? 'bg-red-600' : isWishlist ? 'bg-pink-600' : 'bg-blue-600'}`}>
+          {isError ? <X size={18} className="text-white" /> : isWishlist ? <Heart size={18} className="text-white fill-white" /> : <ShoppingBag size={18} className="text-white" />}
+        </div>
+      </div>, 
+      {
+        // Styling: Dark Background, Pill Shape (rounded-full), Shadow, Animated
+        className: `bg-[#0f172a] border border-slate-800 shadow-2xl rounded-full p-2 pr-2 min-w-[320px] flex items-center animate-in slide-in-from-bottom-5 fade-in duration-300`,
+      }
+    );
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
@@ -90,12 +116,6 @@ const ProductDetails = () => {
     window.scrollTo(0,0);
   }, [id]);
 
-  // HELPER: Trigger Toast
-  const triggerToast = (message: string, type: 'wishlist' | 'cart' = 'wishlist') => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: '', type: 'wishlist' }), 2000);
-  };
-
   // FUNCTION: Toggle Wishlist
   const toggleWishlist = async () => {
     if (!session) return alert("Please log in to add items to your wishlist.");
@@ -104,7 +124,7 @@ const ProductDetails = () => {
     setIsWishlisted(!previousState);
 
     if (previousState) {
-        triggerToast("Removed from Wishlist", 'wishlist');
+        notify("Removed from Wishlist", "This item has been removed from your list.", 'wishlist');
         const { error } = await supabase
             .from('wishlist')
             .delete()
@@ -112,7 +132,7 @@ const ProductDetails = () => {
             .eq('product_id', id);
         if (error) setIsWishlisted(true);
     } else {
-        triggerToast("Added to Wishlist", 'wishlist');
+        notify("Added to Wishlist", "This item is now in your wishlist.", 'wishlist');
         const { error } = await supabase
             .from('wishlist')
             .insert([{ user_id: session.user.id, product_id: id }]);
@@ -133,7 +153,7 @@ const ProductDetails = () => {
 
     if (!error) {
         setNewReview('');
-        alert("Review submitted!"); 
+        notify("Review Submitted", "Thank you for your feedback!", 'success');
         const { data } = await supabase.from('reviews').select('*').eq('product_id', id).order('created_at', { ascending: false });
         if (data) setRealReviews(data);
     }
@@ -175,7 +195,6 @@ const ProductDetails = () => {
           return false;
       }
 
-      // Create a string description of selected options (e.g., "Color: Red, Shape: Star")
       const optionString = Object.entries(selectedOptions).map(([key, val]) => `${key}: ${val}`).join(', ');
       
       addToCart({ 
@@ -184,8 +203,8 @@ const ProductDetails = () => {
           selectedVariant: optionString 
       });
 
-      // TRIGGER TOAST HERE
-      triggerToast("Added to Bag", 'cart');
+      // TRIGGER PILL TOAST HERE
+      notify("Added to Bag", `${product.name} (${qty}x)`, 'success');
       return true;
   };
   
@@ -465,21 +484,6 @@ const ProductDetails = () => {
              </div>
         </div>
       </div>
-
-      {/* CUSTOM TOAST NOTIFICATION (Wishlist + Cart) */}
-      {toast.show && (
-        <div className={`fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 ${
-            toast.type === 'cart' ? 'bg-green-600 text-white' : 'bg-black/90 text-white'
-        }`}>
-            {toast.type === 'wishlist' ? (
-                <Heart size={18} className="text-red-500 fill-red-500" />
-            ) : (
-                <CheckCircle size={18} className="text-white" />
-            )}
-            <span className="text-sm font-bold">{toast.message}</span>
-        </div>
-      )}
-
     </div>
   );
 };

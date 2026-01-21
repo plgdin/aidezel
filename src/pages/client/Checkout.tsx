@@ -29,29 +29,39 @@ interface Coupon {
   value: number;
 }
 
-// --- HELPER: CUSTOM TOAST NOTIFICATION ---
+// --- HELPER: CUSTOM TOAST NOTIFICATION (Updated to match Dark Pill Design) ---
 const notify = (title: string, description: string, type: 'success' | 'error' = 'success') => {
   const isError = type === 'error';
   
   toast(
-    <div className={`flex items-start gap-4`}>
-      <div className={`p-2 rounded-full flex-shrink-0 ${isError ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
-        {isError ? <AlertCircle size={20} /> : <Check size={20} />}
+    <div className="flex items-center justify-between w-full gap-3">
+      <div className="flex items-center gap-3">
+        {/* Left Icon Container (Dark transparent circle) */}
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isError ? 'bg-red-500/20' : 'bg-white/10'}`}>
+           {isError ? <AlertCircle size={20} className="text-red-500" /> : <Check size={20} className="text-green-400" />}
+        </div>
+        
+        {/* Text Content */}
+        <div className="flex flex-col">
+          <h4 className="font-bold text-white text-sm leading-tight">{title}</h4>
+          <p className="text-slate-400 text-xs mt-0.5 leading-tight">{description}</p>
+        </div>
       </div>
-      <div className="flex-1">
-        <h4 className="font-bold text-gray-900 text-sm">{title}</h4>
-        <p className="text-gray-500 text-xs mt-1 leading-relaxed">{description}</p>
+
+      {/* Right Action Button (Blue/Red Circle) */}
+      <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg ${isError ? 'bg-red-600' : 'bg-blue-600'}`}>
+        {isError ? <X size={18} className="text-white" /> : <ShieldCheck size={18} className="text-white" />}
       </div>
     </div>, 
     {
-      className: `bg-white border border-gray-100 shadow-2xl rounded-2xl p-4 min-w-[320px] flex items-center animate-in slide-in-from-bottom-5 fade-in duration-300 ${isError ? 'border-l-[6px] border-l-red-500' : 'border-l-[6px] border-l-green-500'}`,
+      // Styling: Dark Background, Pill Shape (rounded-full), Shadow, Animated
+      className: `bg-[#0f172a] border border-slate-800 shadow-2xl rounded-full p-2 pr-2 min-w-[320px] flex items-center animate-in slide-in-from-bottom-5 fade-in duration-300`,
     }
   );
 };
 
 // --- VALIDATION HELPERS ---
 const isValidUKPostcode = (postcode: string) => {
-  // Robust Regex for UK Postcodes
   const regex = /^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$/i;
   return regex.test(postcode.trim());
 };

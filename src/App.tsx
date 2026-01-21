@@ -33,7 +33,12 @@ const BuyAgain = lazy(() => import('./pages/client/BuyAgain'));
 const AdminLayout = lazy(() => import('./components/layout/AdminLayout'));
 const StaffLayout = lazy(() => import('./components/layout/StaffLayout'));
 
+// --- DASHBOARDS ---
 const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
+
+// ✅ FIXED: Importing from 'pages/staff' instead of 'components/staff'
+const StaffDashboard = lazy(() => import('./pages/staff/StaffDashboard'));
+
 const ManageProducts = lazy(() => import('./pages/admin/ManageProducts'));
 const ManageOrders = lazy(() => import('./pages/admin/ManageOrders'));
 const ManageCategories = lazy(() => import('./pages/admin/ManageCategories'));
@@ -81,7 +86,7 @@ function App() {
             <Route path="privacy" element={<Privacy />} />
           </Route>
 
-          {/* ADMIN ROUTES (Unprotected) */}
+          {/* ADMIN ROUTES */}
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<AdminDashboard />} />
@@ -95,11 +100,11 @@ function App() {
             <Route path="coupons" element={<AdminCoupons />} />
           </Route>
 
-          {/* STAFF ROUTES (Unprotected) */}
+          {/* STAFF ROUTES */}
           <Route path="/staff/login" element={<StaffLogin />} />
           <Route path="/staff/register" element={<StaffRegister />} />
           <Route path="/staff" element={<StaffLayout />}>
-            <Route index element={<AdminDashboard />} />
+            <Route index element={<StaffDashboard />} />
             <Route path="inventory" element={<Inventory />} />
             <Route path="products" element={<ManageProducts />} />
             <Route path="categories" element={<ManageCategories />} />

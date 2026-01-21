@@ -132,7 +132,8 @@ const Checkout: React.FC = () => {
 
         const { data, error } = await supabase.functions.invoke('bright-responder', {
             body: { 
-                amount: totalAmount, 
+                // *** FIX APPLIED HERE: Multiply by 100 for Stripe cents/pence ***
+                amount: Math.round(totalAmount * 100), 
                 metadata: { 
                     userId: session?.user?.id,
                     email: formData.email 

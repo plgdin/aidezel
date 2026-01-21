@@ -420,18 +420,19 @@ const Checkout: React.FC = () => {
 
         clearCart(); 
 
-      // 3. Generate Invoice & Send Email (FIXED: Passed address & skipLogo)
+      // 3. Generate Invoice & Send Email
+      // FIX 1: We use the LOCAL 'finalShipping' variables. This GUARANTEES the address appears on the PDF.
         const pdfBase64 = await generateInvoiceBase64(
             { 
                 id: orderData.id, 
-            customer_name: finalShipping.name, // Use Local Variable
-            address: finalShipping.address,    // Use Local Variable
-            city: finalShipping.city,          // Use Local Variable
-            postcode: finalShipping.postcode,  // Use Local Variable
-            total_amount: currentTotal         // Use Local Variable
+            customer_name: finalShipping.name,
+            address: finalShipping.address,   // <--- THE FIX: Using local data
+            city: finalShipping.city,         // <--- THE FIX: Using local data
+            postcode: finalShipping.postcode, // <--- THE FIX: Using local data
+            total_amount: currentTotal        // <--- THE FIX: Using local data
             }, 
             invoiceItems, 
-          { skipLogo: true }
+          { skipLogo: true } // FIX 2: Skip logo for email to prevent size error
         );
         
         const emailResponse = await fetch('/api/send-email', {
@@ -473,7 +474,7 @@ const Checkout: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         
-        {/* --- LEFT COLUMN: ADDRESS & PAYMENT --- */}
+        {/* --- LEFT COLUMN: ADDRESS & PAYMENT (LINEAR FLOW RESTORED) --- */}
         <div className="lg:col-span-2 space-y-8">
             
           {/* STEP 1: ADDRESS */}
@@ -568,7 +569,7 @@ const Checkout: React.FC = () => {
             )}
           </div>
 
-          {/* STEP 2: PAYMENT (STATIC BLOCK) */}
+          {/* STEP 2: PAYMENT (STATIC BLOCK - LEFT COLUMN) */}
           {paymentStep && clientSecret && (
             <div id="payment-step-container" className="bg-white p-6 rounded-2xl border border-blue-500 shadow-xl ring-4 ring-blue-50/50 animate-in fade-in slide-in-from-bottom-4 duration-500 scroll-mt-24">
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2">

@@ -88,7 +88,7 @@ const PaymentForm = ({
 
     setIsProcessing(true);
 
-    // SAVE STATE BEFORE REDIRECT (Handles 3DS / Amazon Pay / Apple Pay Redirects)
+    // Save state before potential redirect (Amazon Pay / 3DS)
     localStorage.setItem('pendingOrder', JSON.stringify({
         formData,
         cartItems,
@@ -98,7 +98,7 @@ const PaymentForm = ({
     const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        return_url: window.location.href, // Returns to this page to finish order
+        return_url: window.location.href, // Returns here to finish processing
       },
       redirect: "if_required",
     });
@@ -178,7 +178,7 @@ const Checkout: React.FC = () => {
   
   const finalTotal = Math.max(0, grossTotal - discountAmount);
 
-  // --- HANDLE REDIRECT RETURN (e.g. from 3D Secure or Amazon Pay) ---
+  // --- HANDLE REDIRECT RETURN ---
   useEffect(() => {
     const checkRedirectStatus = async () => {
       const clientSecretParam = new URLSearchParams(window.location.search).get(
@@ -325,6 +325,9 @@ const Checkout: React.FC = () => {
         if (data?.clientSecret) {
             setClientSecret(data.clientSecret);
             setPaymentStep(true);
+            setTimeout(() => {
+                document.getElementById('payment-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
         }
     } catch (err: any) {
         console.error(err);
@@ -334,12 +337,11 @@ const Checkout: React.FC = () => {
     }
   };
 
-  // --- HANDLE SUCCESS AND SEND INVOICE ---
+  // --- HANDLE ORDER SUCCESS ---
   const handleOrderSuccess = async (paymentId: string, storedData: any = null) => {
     try {
         const { data: { session } } = await supabase.auth.getSession();
         
-        // Use stored data (from redirect) or current state (standard flow)
         const currentFormData = storedData ? storedData.formData : formData;
         const currentCartItems = storedData ? storedData.cartItems : cartItems;
         const currentTotal = storedData ? storedData.totalAmount : finalTotal;
@@ -362,14 +364,14 @@ const Checkout: React.FC = () => {
             };
         }
 
-        // GENERATE 9-DIGIT NUMERIC ID
+        // Generate Numeric ID
         const customOrderId = generateOrderId();
 
-        // 1. CREATE ORDER
+        // 1. Create Order
         const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert([{
-            id: customOrderId, // TEXT (e.g. "839102938")
+            id: customOrderId, // Numeric String ID
             user_id: session?.user?.id || null,
             customer_name: finalShipping.name,
             email: currentFormData.email,
@@ -384,17 +386,16 @@ const Checkout: React.FC = () => {
 
         if (orderError) throw orderError;
 
-        // 2. ADD ITEMS & REDUCE STOCK
+        // 2. Add Items & Reduce Stock
         const invoiceItems = [];
         for (const item of currentCartItems) {
-            // Store Gross Price (Price * 1.2) for invoice math
-            const priceIncTax = item.price * 1.2;
+            const priceIncTax = item.price * 1.2; // Store Gross Price
 
             await supabase.from('order_items').insert({
                 order_id: orderData.id,
                 product_id: item.id,
                 quantity: item.quantity,
-                price_at_purchase: priceIncTax, // Storing Gross Price
+                price_at_purchase: priceIncTax, 
                 selected_variant: (item as any).selectedVariant || ''
             });
 
@@ -402,8 +403,7 @@ const Checkout: React.FC = () => {
             invoiceItems.push({ name: item.name, quantity: item.quantity, price: priceIncTax });
         }
 
-        // 3. GENERATE PDF & SEND EMAIL
-        // We AWAIT here so the logic waits for the Logo to load inside the generator
+        // 3. Generate Invoice & Send Email (Async/Await for Logo)
         const pdfBase64 = await generateInvoiceBase64({ id: orderData.id, customer_name: finalShipping.name || '' }, invoiceItems);
         
         await fetch('/api/send-email', {
@@ -438,7 +438,7 @@ const Checkout: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         
-        {/* --- LEFT COLUMN: ADDRESS & PAYMENT --- */}
+        {/* --- LEFT COLUMN --- */}
         <div className="lg:col-span-2 space-y-8">
             
           <div className={`p-6 rounded-2xl border bg-white transition-all duration-300 ${paymentStep ? 'opacity-60 pointer-events-none' : 'shadow-md border-blue-200'}`}>
@@ -447,7 +447,7 @@ const Checkout: React.FC = () => {
                 Shipping Details
             </h2>
 
-            {/* SAVED ADDRESSES GRID */}
+            {/* ADDRESS SELECTOR */}
             {savedAddresses.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     {savedAddresses.map((addr) => (
@@ -533,11 +533,10 @@ const Checkout: React.FC = () => {
           </div>
         </div>
 
-        {/* --- RIGHT COLUMN: SUMMARY & COUPONS --- */}
+        {/* --- RIGHT COLUMN --- */}
         <div className="lg:col-span-1 space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm sticky top-6">
+            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm sticky top-24 z-10">
                 <h3 className="font-bold text-lg mb-4">Order Summary</h3>
-                
                 <div className="space-y-3 mb-6 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
                     {cartItems.map(item => (
                         <div key={item.id} className="flex justify-between text-sm">
@@ -579,14 +578,12 @@ const Checkout: React.FC = () => {
                 <div className="space-y-2 mb-4 text-sm text-gray-600 border-t pt-4">
                     <div className="flex justify-between"><span>Subtotal</span><span>£{subTotal.toLocaleString()}</span></div>
                     <div className="flex justify-between"><span>VAT (20%)</span><span>£{tax.toLocaleString()}</span></div>
-                    
                     {appliedCoupon && (
                         <div className="flex justify-between text-green-600 font-bold">
                             <span>Discount ({appliedCoupon.code})</span>
                             <span>-£{discountAmount.toLocaleString()}</span>
                         </div>
                     )}
-                    
                     <div className="border-t pt-2 flex justify-between font-bold text-gray-900 text-xl">
                         <span>Total</span><span>£{finalTotal.toLocaleString()}</span>
                     </div>
@@ -600,13 +597,12 @@ const Checkout: React.FC = () => {
             </div>
 
             {paymentStep && clientSecret && (
-                <div className="bg-white p-6 rounded-2xl border border-blue-500 shadow-xl ring-4 ring-blue-50/50 animate-in zoom-in-95 duration-300">
+                <div id="payment-section" className="bg-white p-6 rounded-2xl border border-blue-500 shadow-xl ring-4 ring-blue-50/50 animate-in zoom-in-95 duration-300">
                     <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                         <span className="bg-black text-white w-8 h-8 rounded-full flex items-center justify-center text-sm">2</span>
                         Secure Payment
                     </h2>
                     <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
-                        {/* PASSING DATA TO PAYMENT FORM FOR REDIRECT SAVE */}
                         <PaymentForm 
                             totalAmount={finalTotal} 
                             onSuccess={(id) => handleOrderSuccess(id)} 

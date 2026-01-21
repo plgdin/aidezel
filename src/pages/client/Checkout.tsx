@@ -419,13 +419,19 @@ const Checkout: React.FC = () => {
 
         clearCart(); 
 
-        // 3. Generate Invoice & Send Email (SKIP LOGO TO FIX SIZE ERROR)
-        // Passing { skipLogo: true } forces text-only header for the email version
-        const pdfBase64 = await generateInvoiceBase64(
-            { id: orderData.id, customer_name: finalShipping.name || '' }, 
-            invoiceItems, 
-            { skipLogo: true }
-        );
+      // 3. Generate Invoice & Send Email (SKIP LOGO TO FIX SIZE ERROR)
+      const pdfBase64 = await generateInvoiceBase64(
+  {
+    id: orderData.id,
+    customer_name: finalShipping.name || '',
+    address: finalShipping.address,   // Added
+    city: finalShipping.city,         // Added
+    postcode: finalShipping.postcode, // Added
+    total_amount: currentTotal        // Added to ensure total matches exactly
+  },
+  invoiceItems,
+  { skipLogo: true }
+);
         
         const emailResponse = await fetch('/api/send-email', {
              method: 'POST',

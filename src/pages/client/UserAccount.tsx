@@ -265,7 +265,19 @@ const UserAccount = () => {
                     <form onSubmit={handleUpdateProfile} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
                              <label className="text-sm font-bold text-gray-700">Full Name</label>
-                             <input type="text" value={profile.full_name} onChange={e => setProfile({...profile, full_name: e.target.value})} className="w-full p-3 border border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none" placeholder="John Doe" />
+                             {/* ONLY LETTERS ALLOWED */}
+                             <input 
+                                type="text" 
+                                value={profile.full_name} 
+                                onChange={e => {
+                                    // Regex: Only allow letters and spaces
+                                    if (/^[a-zA-Z\s]*$/.test(e.target.value)) {
+                                        setProfile({...profile, full_name: e.target.value});
+                                    }
+                                }} 
+                                className="w-full p-3 border border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none" 
+                                placeholder="John Doe" 
+                             />
                         </div>
                          <div className="space-y-2">
                             <label className="text-sm font-bold text-gray-700">Phone Number</label>

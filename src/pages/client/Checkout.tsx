@@ -9,7 +9,7 @@ import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-
 import { generateInvoiceBase64 } from '../../utils/invoiceGenerator';
 
 // --- 1. INITIALIZE STRIPE ---
-const stripePromise = loadStripe('pk_test_51Sglkr4oJa5N3YQp50I51KNbXYnq0Carqr1e7TYcCYMsanyfFBxW9aOt2wdQ5xkNDeDcRTfpomZAjRl3G9Wmvotf00wXuzGGbW');
+const stripePromise = loadStripe('pk_live_51Sglkr4oJa5N3YQpYFkrntrLQIt1nupIvMiBSwm6sHmXuQXBz611vKffQRz8PJ6hTFUtjIhmuCiMZnNoHWB7sysO00ieNwCb8r');
 
 // --- 2. INNER PAYMENT FORM COMPONENT ---
 const PaymentForm = ({ totalAmount, onSuccess }: { totalAmount: number, onSuccess: (id: string) => void }) => {
@@ -132,7 +132,8 @@ const Checkout: React.FC = () => {
 
         const { data, error } = await supabase.functions.invoke('bright-responder', {
             body: { 
-                amount: totalAmount, 
+                // *** FIX APPLIED HERE: Multiply by 100 for Stripe cents/pence ***
+                amount: Math.round(totalAmount * 100), 
                 metadata: { 
                     userId: session?.user?.id,
                     email: formData.email 

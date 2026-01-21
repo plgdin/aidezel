@@ -1,7 +1,10 @@
+// src/pages/staff/StaffLogin.tsx
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate, Link } from 'react-router-dom';
 import { Lock, Loader2, Eye, EyeOff } from 'lucide-react';
+// IMPORT THE CUSTOM TOAST
+import { toast } from '../../components/ui/toaster';
 
 const StaffLogin = () => {
   const navigate = useNavigate();
@@ -9,12 +12,18 @@ const StaffLogin = () => {
   const [email, setEmail] = useState(''); 
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  
+  // We can remove the local 'error' state if we rely entirely on toasts,
+  // but keeping it for the form-level alert box is also fine.
   const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    // Show loading toast
+    const loadingToastId = toast.loading("Verifying credentials...", "Please wait");
 
     try {
       const { data: { user }, error: authError } = await supabase.auth.signInWithPassword({
@@ -30,7 +39,7 @@ const StaffLogin = () => {
         .eq('id', user.id)
         .single();
 
-      // --- NEW SECURITY CHECKS ---
+      // --- SECURITY CHECKS ---
       if (!profile) throw new Error("Profile not found.");
 
       if (profile.role === 'pending_staff') {
@@ -49,7 +58,6 @@ const StaffLogin = () => {
       }
 
       // --- LOG SESSION (CLOCK IN) ---
-      // We only log sessions for 'staff', not admins (unless you want to)
       if (profile.role === 'staff') {
          await supabase.from('staff_sessions').insert({
             user_id: user.id,
@@ -57,9 +65,16 @@ const StaffLogin = () => {
          });
       }
 
+      // Success!
+      toast.dismiss(loadingToastId); // Dismiss loading
+      toast.success("Welcome back!", "Access granted to staff portal.");
+      
       navigate('/staff'); 
+
     } catch (err: any) {
+      toast.dismiss(loadingToastId);
       setError(err.message);
+      toast.error("Login Failed", err.message);
     } finally {
       setLoading(false);
     }

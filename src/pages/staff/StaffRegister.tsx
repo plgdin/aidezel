@@ -13,6 +13,8 @@ import {
   CheckCircle2,  
   RefreshCw      
 } from 'lucide-react'; 
+// IMPORT THE CUSTOM TOAST
+import { toast } from '../../components/ui/toaster';
 
 const StaffRegister = () => {
   const navigate = useNavigate();
@@ -23,7 +25,7 @@ const StaffRegister = () => {
   const [step, setStep] = useState<'form' | 'otp'>('form');
   const [userOtp, setUserOtp] = useState('');
   
-  // --- EXISTING FORM STATE ---
+  // --- FORM STATE ---
   const [fullName, setFullName] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [email, setEmail] = useState('');
@@ -33,11 +35,18 @@ const StaffRegister = () => {
   
   const [error, setError] = useState<string | null>(null);
 
-  // --- STEP 1: INITIAL SIGN UP (TRIGGERS EMAIL) ---
+  // --- STEP 1: INITIAL SIGN UP ---
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    
+    // Initial validation check
+    if (!staffCode) {
+        toast.error("Missing Code", "Please enter the Staff Access Code.");
+        setLoading(false);
+        return;
+    }
 
     try {
       const { error: upError } = await supabase.auth.signUp({ 
@@ -54,28 +63,31 @@ const StaffRegister = () => {
       
       if (upError) throw upError;
           
-      // INSTEAD OF ALERT/REDIRECT, WE MOVE TO OTP STEP
+      // Success - Move to OTP
+      toast.success("Code Sent!", `Please check ${email} for your verification code.`);
       setStep('otp');
 
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Registration failed");
+      setError(err.message);
+      toast.error("Registration Failed", err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // --- STEP 2: VERIFY OTP (COMPLETES REGISTRATION) ---
+  // --- STEP 2: VERIFY OTP ---
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     if (userOtp.length < 6) {
-      setError("Please enter the full code");
+      toast.error("Invalid Code", "Please enter the full 6-digit code.");
       return;
     }
 
     setLoading(true);
+    const loadingId = toast.loading("Verifying...", "Checking your code");
 
     try {
       const { error } = await supabase.auth.verifyOtp({
@@ -86,15 +98,21 @@ const StaffRegister = () => {
 
       if (error) throw error;
 
-      // --- UPDATED SUCCESS LOGIC ---
-      // Inform the user that their account is pending approval
-      alert("Registration Successful!\n\nYour account is now PENDING APPROVAL.\nPlease wait for an Admin to activate your account.");
+      // SUCCESS
+      toast.dismiss(loadingId);
       
-      // Redirect to Staff Login
-      navigate('/staff/login'); 
+      // Use a slightly longer duration for this important message
+      toast.success("Registration Successful!", "Your account is now PENDING APPROVAL. Please wait for an Admin.");
+      
+      // Optional: Delay navigation slightly so they see the toast
+      setTimeout(() => {
+          navigate('/staff/login'); 
+      }, 2000);
 
     } catch (err: any) {
+      toast.dismiss(loadingId);
       setError(err.message || "Invalid code.");
+      toast.error("Verification Failed", err.message);
     } finally {
       setLoading(false);
     }
@@ -109,8 +127,11 @@ const StaffRegister = () => {
     });
     setResending(false);
     
-    if (error) setError(error.message);
-    else alert("New code sent!");
+    if (error) {
+        toast.error("Error", error.message);
+    } else {
+        toast.success("New Code Sent", "Check your inbox again.");
+    }
   };
 
   return (
@@ -130,7 +151,7 @@ const StaffRegister = () => {
         </p>
         
         {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm font-bold text-center">
+            <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm font-bold text-center border border-red-100">
                 {error}
             </div>
         )}
@@ -226,7 +247,7 @@ const StaffRegister = () => {
                         required
                         type="text"
                         maxLength={8} 
-                        placeholder="00000000"
+                        placeholder="000000"
                         className="w-full text-center text-3xl tracking-[4px] font-bold p-4 border-2 border-purple-100 rounded-xl focus:border-purple-600 outline-none text-slate-800"
                         value={userOtp}
                         onChange={e => setUserOtp(e.target.value)}

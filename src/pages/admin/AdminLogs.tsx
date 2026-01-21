@@ -1,15 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { History, Search, Loader2, User, CreditCard } from 'lucide-react'; // Added icons
+import { History, Loader2, User } from 'lucide-react';
 
 interface LogEntry {
   id: string;
-  admin_email: string;
+  admin_email: string; // Kept for historical reference or fallback
   action: string;
   details: string;
   created_at: string;
-  // New optional fields for display
-  full_name?: string;
+  // These are now expected to be direct columns in the 'admin_logs' table
+  full_name?: string; 
   employee_id?: string;
 }
 
@@ -24,7 +24,9 @@ const AdminLogs = () => {
   const fetchLogs = async () => {
     setLoading(true);
     
-    // 1. Fetch the raw logs
+    // 1. Fetch logs directly. 
+    // We assume 'full_name' and 'employee_id' are now columns in this table.
+    // This avoids the issue where deleting a user deletes their history details.
     const { data: logsData, error } = await supabase
       .from('admin_logs')
       .select('*')
@@ -33,33 +35,8 @@ const AdminLogs = () => {
 
     if (error) {
         console.error("Error fetching logs", error);
-        setLoading(false);
-        return;
-    }
-
-    if (logsData && logsData.length > 0) {
-        // 2. Extract unique emails to fetch their profiles
-        const emails = [...new Set(logsData.map(log => log.admin_email))];
-
-        // 3. Fetch profile data (Name & Emp ID) for these emails
-        const { data: profilesData } = await supabase
-            .from('profiles')
-            .select('email, full_name, employee_id')
-            .in('email', emails);
-
-        // 4. Merge the profile info into the log entries
-        const mergedLogs = logsData.map(log => {
-            const profile = profilesData?.find(p => p.email === log.admin_email);
-            return {
-                ...log,
-                full_name: profile?.full_name || log.admin_email, // Fallback to email if name missing
-                employee_id: profile?.employee_id || '-'          // Fallback to dash
-            };
-        });
-
-        setLogs(mergedLogs);
     } else {
-        setLogs([]);
+        setLogs(logsData || []);
     }
     
     setLoading(false);
@@ -84,9 +61,7 @@ const AdminLogs = () => {
           <table className="w-full text-left">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                {/* 1. Changed Admin to Name */}
                 <th className="p-4 text-sm font-semibold text-slate-600">Name</th>
-                {/* 2. Added EMP ID Column */}
                 <th className="p-4 text-sm font-semibold text-slate-600">EMP ID</th>
                 <th className="p-4 text-sm font-semibold text-slate-600">Action</th>
                 <th className="p-4 text-sm font-semibold text-slate-600">Details</th>
@@ -96,23 +71,23 @@ const AdminLogs = () => {
             <tbody className="divide-y divide-slate-100">
               {logs.map((log) => (
                 <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                  {/* Name Column */}
+                  {/* Name Column: Uses the snapshot value from the log */}
                   <td className="p-4 text-sm text-slate-900 font-medium">
                     <div className="flex items-center gap-2">
                         <User size={16} className="text-slate-400"/>
-                        {log.full_name}
+                        {log.full_name || log.admin_email || 'Unknown User'}
                     </div>
                   </td>
 
-                  {/* EMP ID Column */}
+                  {/* EMP ID Column: Uses the snapshot value from the log */}
                   <td className="p-4 text-sm text-slate-600 font-mono">
-                     {log.employee_id ? (
-                         <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded text-xs">
+                      {log.employee_id ? (
+                          <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded text-xs">
                              {log.employee_id}
-                         </span>
-                     ) : (
-                         <span className="text-gray-300">-</span>
-                     )}
+                          </span>
+                      ) : (
+                          <span className="text-gray-300">-</span>
+                      )}
                   </td>
 
                   <td className="p-4 text-sm text-blue-700 font-semibold bg-blue-50/50">

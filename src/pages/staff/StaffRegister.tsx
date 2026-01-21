@@ -9,9 +9,9 @@ import {
   CreditCard, 
   Eye, 
   EyeOff, 
-  ArrowRight,    // New
-  CheckCircle2,  // New
-  RefreshCw      // New
+  ArrowRight,    
+  CheckCircle2,  
+  RefreshCw      
 } from 'lucide-react'; 
 
 const StaffRegister = () => {
@@ -86,10 +86,11 @@ const StaffRegister = () => {
 
       if (error) throw error;
 
-      // SUCCESS: User is logged in
-      alert(`Welcome Staff Member: ${fullName}!`);
+      // --- UPDATED SUCCESS LOGIC ---
+      // Inform the user that their account is pending approval
+      alert("Registration Successful!\n\nYour account is now PENDING APPROVAL.\nPlease wait for an Admin to activate your account.");
       
-      // Redirect to Staff Login or Dashboard
+      // Redirect to Staff Login
       navigate('/staff/login'); 
 
     } catch (err: any) {

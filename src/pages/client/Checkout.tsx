@@ -66,8 +66,8 @@ const isValidUKPostcode = (postcode: string) => {
 };
 
 const isValidUKPhone = (phone: string) => {
-  // Regex for UK Phone Numbers (Mobile & Landline, allows spaces/dashes)
   const cleanPhone = phone.replace(/\s+/g, '').replace(/-/g, '');
+  // Accepts: 07..., +44..., 01..., 02...
   const regex = /^(?:(?:\+44)|(?:0))(?:(?:(?:1\d{8,9})|(?:7[1-9]\d{8})|(?:70\d{8})|(?:2\d{9})|(?:3\d{9})|(?:800\d{6,7})|(?:845\d{6,7})|(?:870\d{6,7})|(?:871\d{6,7})|(?:9\d{9})))$/;
   return regex.test(cleanPhone);
 };
@@ -95,7 +95,7 @@ const PaymentForm = ({
 
     setIsProcessing(true);
 
-    // Save state before potential redirect (Amazon Pay / 3DS)
+    // Save state before potential redirect
     localStorage.setItem('pendingOrder', JSON.stringify({
         formData,
         cartItems,
@@ -105,12 +105,13 @@ const PaymentForm = ({
     const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        return_url: window.location.href, // Returns here to finish processing
+        return_url: window.location.href, 
       },
       redirect: "if_required",
     });
 
     if (error) {
+      // 1. SHOW TOAST ON PAYMENT FAILURE
       setMessage(error.message || "An unexpected error occurred.");
       notify("Payment Failed", error.message || "Please check your card details.", "error");
       setIsProcessing(false);
@@ -126,20 +127,17 @@ const PaymentForm = ({
       <div className="p-4 border border-gray-200 rounded-xl bg-white">
           <PaymentElement />
       </div>
-      
       {message && (
         <div className="text-red-600 text-sm font-bold bg-red-50 p-4 rounded-xl flex items-center gap-2 border border-red-100">
             <AlertCircle size={16} /> {message}
         </div>
       )}
-      
       <button 
         disabled={isProcessing || !stripe || !elements} 
         className="w-full bg-black text-white py-4 rounded-xl font-bold text-lg hover:bg-gray-800 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl active:scale-[0.99] duration-200"
       >
         {isProcessing ? <><Loader2 className="animate-spin" /> Processing...</> : <><Lock size={18} /> Pay £{totalAmount.toLocaleString()}</>}
       </button>
-      
       <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mt-4">
         <ShieldCheck size={14} className="text-green-600"/>
         <span>Payments processed securely by Stripe</span>
@@ -158,7 +156,7 @@ const Checkout: React.FC = () => {
   const [clientSecret, setClientSecret] = useState('');
   const [paymentStep, setPaymentStep] = useState(false);
   
-  // NEW STATES FOR UI FLOW
+  // UI STATES
   const [isProcessingReturn, setIsProcessingReturn] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [confirmedOrderId, setConfirmedOrderId] = useState<string>('');
@@ -190,8 +188,7 @@ const Checkout: React.FC = () => {
   
   const finalTotal = Math.max(0, grossTotal - discountAmount);
 
-  // --- CRITICAL: SYNC SAVED ADDRESS TO FORM DATA ---
-  // This ensures form data is populated for localStorage saving when a user picks a saved address.
+  // --- SYNC ADDRESS TO FORM DATA (Crucial for redirects) ---
   useEffect(() => {
     if (selectedAddressId !== 'new' && savedAddresses.length > 0) {
         const addr = savedAddresses.find(a => a.id === selectedAddressId);
@@ -214,7 +211,7 @@ const Checkout: React.FC = () => {
     }
   }, [selectedAddressId, savedAddresses]);
 
-  // --- HANDLE REDIRECT RETURN (REVOLUT / AMAZON) ---
+  // --- 2. HANDLE REDIRECT RETURN (The Fix for Amazon/Revolut Loop) ---
   useEffect(() => {
     const checkRedirectStatus = async () => {
       const clientSecretParam = new URLSearchParams(window.location.search).get(
@@ -226,7 +223,8 @@ const Checkout: React.FC = () => {
       const stripe = await stripePromise;
       if (!stripe) return;
 
-      setIsProcessingReturn(true); // Show "Please Wait" screen
+      // Optimistically show processing screen
+      setIsProcessingReturn(true);
 
       const { paymentIntent } = await stripe.retrievePaymentIntent(clientSecretParam);
 
@@ -238,21 +236,24 @@ const Checkout: React.FC = () => {
                 await handleOrderSuccess(paymentIntent.id, parsedData);
                 localStorage.removeItem('pendingOrder');
             } else {
-                // Fallback
-                notify("Order Processed", "Please check your email.");
+                notify("Order Processed", "Please check your email for confirmation.");
                 navigate('/orders');
             }
         } 
         else if (paymentIntent.status === "processing") {
-            notify("Processing Payment", "Your payment is currently processing.");
+            notify("Processing Payment", "Your payment is currently processing. We'll update you shortly.");
         } 
         else {
-            // Payment Failed or Cancelled
-            setIsProcessingReturn(false); // Hide loading screen
+            // PAYMENT FAILED or CANCELLED
+            setIsProcessingReturn(false); // Remove "Please Wait" screen to show form again
+            
             if (paymentIntent.status === "requires_payment_method") {
-                notify("Payment Failed", "Your payment was not successful. Please try again.", "error");
+                // Specific toast for failed authorization
+                notify("Payment Failed", "Authorization failed. Please try a different card or method.", "error");
             } else if (paymentIntent.status === "canceled") {
                 notify("Payment Cancelled", "You cancelled the payment.", "error");
+            } else {
+                notify("Payment Error", "Something went wrong. Please try again.", "error");
             }
         }
       }
@@ -267,7 +268,6 @@ const Checkout: React.FC = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setFormData(prev => ({ ...prev, email: session.user.email || '' }));
-
         const { data: addresses } = await supabase
           .from('user_addresses')
           .select('*')
@@ -306,12 +306,13 @@ const Checkout: React.FC = () => {
     }
   };
 
+  // --- 3. VALIDATION POPUPS ---
   const initializePayment = async () => {
     if (cartItems.length === 0) return notify('Cart is empty', 'Add items to proceed.', 'error');
     
     let shippingDetails;
     if (selectedAddressId === 'new') {
-         // --- STRICT VALIDATION: ALL FIELDS ---
+         // Check Empty Fields
          if (
              !formData.firstName.trim() || 
              !formData.lastName.trim() || 
@@ -325,12 +326,14 @@ const Checkout: React.FC = () => {
              return notify('Missing Details', 'Please fill in ALL address fields to continue.', 'error');
          }
 
+         // Strict Postcode Check
          if (!isValidUKPostcode(formData.postcode)) {
-             return notify('Invalid Postcode', 'Please enter a valid UK postcode.', 'error');
+             return notify('Invalid Postcode', 'Please enter a valid UK postcode (e.g. SW1A 1AA).', 'error');
          }
 
+         // Strict Phone Check
          if (!isValidUKPhone(formData.phone)) {
-             return notify('Invalid Phone', 'Please enter a valid UK phone number.', 'error');
+             return notify('Invalid Phone', 'Please enter a valid UK phone number (e.g. 07700 900000).', 'error');
          }
 
          shippingDetails = {
@@ -403,7 +406,6 @@ const Checkout: React.FC = () => {
     }
   };
 
-  // --- HANDLE ORDER SUCCESS ---
   const handleOrderSuccess = async (paymentId: string, storedData: any = null) => {
     try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -432,7 +434,6 @@ const Checkout: React.FC = () => {
 
         const customOrderId = generateOrderId();
 
-        // 1. Create Order
         const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert([{
@@ -451,7 +452,6 @@ const Checkout: React.FC = () => {
 
         if (orderError) throw orderError;
 
-        // 2. Add Items
         const invoiceItems = [];
         for (const item of currentCartItems) {
             const priceIncTax = item.price * 1.2; 
@@ -467,10 +467,8 @@ const Checkout: React.FC = () => {
             invoiceItems.push({ name: item.name, quantity: item.quantity, price: priceIncTax });
         }
 
-        // --- CLEAR CART IMMEDIATELY ---
         clearCart(); 
 
-        // 3. Generate Invoice & Email
         const pdfBase64 = await generateInvoiceBase64({ id: orderData.id, customer_name: finalShipping.name || '' }, invoiceItems);
         const emailResponse = await fetch('/api/send-email', {
              method: 'POST',
@@ -483,9 +481,8 @@ const Checkout: React.FC = () => {
              })
         });
 
-        if (!emailResponse.ok) console.error("Email failed.");
+        if (!emailResponse.ok) console.error("Invoice email failed to send.");
 
-        // 4. SHOW SUCCESS SCREEN
         setConfirmedOrderId(orderData.id);
         setOrderSuccess(true);
         setIsProcessingReturn(false);
@@ -502,7 +499,6 @@ const Checkout: React.FC = () => {
 
   const formatCurrency = (val: number) => `£${val.toFixed(2)}`;
 
-  // --- INTERSTITIAL VIEW: PROCESSING ---
   if (isProcessingReturn) {
       return (
           <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
@@ -520,7 +516,6 @@ const Checkout: React.FC = () => {
       );
   }
 
-  // --- INTERSTITIAL VIEW: SUCCESS ---
   if (orderSuccess) {
       return (
           <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
@@ -544,17 +539,15 @@ const Checkout: React.FC = () => {
       );
   }
 
-  // --- DEFAULT VIEW: CHECKOUT FORM ---
   return (
     <div className="container mx-auto px-4 py-12 min-h-screen bg-gray-50/50">
       <h1 className="text-3xl font-bold mb-8">Checkout</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         
-        {/* --- LEFT COLUMN: ADDRESS & PAYMENT --- */}
+        {/* --- LEFT COLUMN --- */}
         <div className="lg:col-span-2 space-y-8">
             
-          {/* STEP 1: ADDRESS */}
           <div className={`p-6 rounded-2xl border bg-white transition-all duration-300 ${paymentStep ? 'opacity-60 pointer-events-none' : 'shadow-md border-blue-200'}`}>
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <span className="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm">1</span>
@@ -612,7 +605,6 @@ const Checkout: React.FC = () => {
             )}
           </div>
 
-          {/* STEP 2: PAYMENT (STATIC BLOCK) */}
           {paymentStep && clientSecret && (
             <div id="payment-step-container" className="bg-white p-6 rounded-2xl border border-blue-500 shadow-xl ring-4 ring-blue-50/50 animate-in fade-in slide-in-from-bottom-4 duration-500 scroll-mt-24">
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
@@ -634,7 +626,7 @@ const Checkout: React.FC = () => {
           )}
         </div>
 
-        {/* --- RIGHT COLUMN: SUMMARY --- */}
+        {/* --- RIGHT COLUMN --- */}
         <div className="lg:col-span-1 space-y-6">
             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm sticky top-24 z-10">
                 <h3 className="font-bold text-lg mb-4">Order Summary</h3>

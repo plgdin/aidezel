@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useCart } from '../../context/CartContext';
 import { supabase } from '../../lib/supabase';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { ShieldCheck, Loader2, Lock, MapPin, Plus, Tag, Check, Trash2, X, AlertCircle } from 'lucide-react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { ShieldCheck, Loader2, Lock, MapPin, Plus, Tag, Check, Trash2, X, AlertCircle, CheckCircle, ArrowRight } from 'lucide-react';
 import { toast } from '../../components/ui/use-toast';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -94,7 +94,6 @@ const PaymentForm = ({
 
     setIsProcessing(true);
 
-    // Save state before potential redirect
     localStorage.setItem('pendingOrder', JSON.stringify({
         formData,
         cartItems,
@@ -154,6 +153,11 @@ const Checkout: React.FC = () => {
   const [clientSecret, setClientSecret] = useState('');
   const [paymentStep, setPaymentStep] = useState(false);
   
+  // NEW STATES FOR PROCESSING SCREENS
+  const [isProcessingReturn, setIsProcessingReturn] = useState(false);
+  const [orderSuccess, setOrderSuccess] = useState(false);
+  const [confirmedOrderId, setConfirmedOrderId] = useState<string>('');
+  
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | 'new'>('new');
   const [shouldSaveNewAddress, setShouldSaveNewAddress] = useState(false);
@@ -193,11 +197,15 @@ const Checkout: React.FC = () => {
       const stripe = await stripePromise;
       if (!stripe) return;
 
+      // SHOW PROCESSING SCREEN IMMEDIATELY
+      setIsProcessingReturn(true);
+
       const { paymentIntent } = await stripe.retrievePaymentIntent(clientSecretParam);
 
       if (paymentIntent) {
         if (paymentIntent.status === "succeeded") {
             const storedData = localStorage.getItem('pendingOrder');
+            
             if (storedData) {
                 const parsedData = JSON.parse(storedData);
                 await handleOrderSuccess(paymentIntent.id, parsedData);
@@ -208,13 +216,17 @@ const Checkout: React.FC = () => {
             }
         } 
         else if (paymentIntent.status === "processing") {
+            // Still processing - keep showing the loading screen or notify
             notify("Processing Payment", "Your payment is currently processing. We'll update you shortly.");
         } 
-        else if (paymentIntent.status === "requires_payment_method") {
-            notify("Payment Failed", "Your payment was not successful. Please try again.", "error");
-        }
-        else if (paymentIntent.status === "canceled") {
-            notify("Payment Cancelled", "You cancelled the payment.", "error");
+        else {
+            // FAILED / CANCELLED - Hide processing screen and show error
+            setIsProcessingReturn(false);
+            if (paymentIntent.status === "requires_payment_method") {
+                notify("Payment Failed", "Your payment was not successful. Please try again.", "error");
+            } else if (paymentIntent.status === "canceled") {
+                notify("Payment Cancelled", "You cancelled the payment.", "error");
+            }
         }
       }
     };
@@ -222,6 +234,7 @@ const Checkout: React.FC = () => {
     checkRedirectStatus();
   }, [location]);
 
+  // -- FETCH SAVED ADDRESSES --
   useEffect(() => {
     const loadData = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -270,22 +283,12 @@ const Checkout: React.FC = () => {
     
     let shippingDetails;
     if (selectedAddressId === 'new') {
-         // --- STRICT VALIDATION: ALL FIELDS MUST BE FILLED ---
-         if (
-             !formData.firstName.trim() || 
-             !formData.lastName.trim() || 
-             !formData.email.trim() || 
-             !formData.address_line1.trim() || 
-             !formData.city.trim() || 
-             !formData.postcode.trim() || 
-             !formData.country.trim() || 
-             !formData.phone.trim()
-         ) {
-             return notify('Missing Details', 'Please fill in ALL address fields to continue.', 'error');
+         if (!formData.firstName || !formData.address_line1 || !formData.city || !formData.postcode || !formData.phone) {
+             return notify('Missing Details', 'Please fill in all address fields.', 'error');
          }
 
          if (!isValidUKPostcode(formData.postcode)) {
-             return notify('Invalid Postcode', 'Please enter a valid UK postcode (e.g. SW1A 1AA).', 'error');
+             return notify('Invalid Postcode', 'Please enter a valid UK postcode.', 'error');
          }
 
          if (!isValidUKPhone(formData.phone)) {
@@ -390,6 +393,7 @@ const Checkout: React.FC = () => {
 
         const customOrderId = generateOrderId();
 
+        // 1. Create Order
         const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert([{
@@ -408,6 +412,7 @@ const Checkout: React.FC = () => {
 
         if (orderError) throw orderError;
 
+        // 2. Add Items
         const invoiceItems = [];
         for (const item of currentCartItems) {
             const priceIncTax = item.price * 1.2; 
@@ -423,6 +428,7 @@ const Checkout: React.FC = () => {
             invoiceItems.push({ name: item.name, quantity: item.quantity, price: priceIncTax });
         }
 
+        // 3. Clear Cart & Send Emails
         clearCart(); 
 
         const pdfBase64 = await generateInvoiceBase64({ id: orderData.id, customer_name: finalShipping.name || '' }, invoiceItems);
@@ -437,15 +443,16 @@ const Checkout: React.FC = () => {
              })
         });
 
-        if (!emailResponse.ok) {
-            console.error("Invoice email failed to send.");
-        }
+        if (!emailResponse.ok) console.error("Invoice email failed to send.");
 
-        notify('Order Successful!', 'Thank you for your purchase. Invoice sent.');
-        setTimeout(() => navigate('/orders'), 2000);
+        // 4. TRANSITION TO SUCCESS SCREEN
+        setConfirmedOrderId(orderData.id);
+        setOrderSuccess(true);
+        setIsProcessingReturn(false); // Hide processing screen
 
     } catch (error: any) {
         console.error(error);
+        setIsProcessingReturn(false); // Hide processing screen on error
         notify('Order Creation Failed', 
             error.message.includes('uuid') ? 'DB Error: Ensure Order ID is TEXT type.' : 'Payment taken but order failed. Contact support.', 
             'error'
@@ -455,13 +462,56 @@ const Checkout: React.FC = () => {
 
   const formatCurrency = (val: number) => `£${val.toFixed(2)}`;
 
+  // --- INTERSTITIAL VIEW: PROCESSING ---
+  if (isProcessingReturn) {
+      return (
+          <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
+              <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full border border-gray-100 flex flex-col items-center">
+                  <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-6">
+                      <Loader2 size={32} className="animate-spin" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Processing Payment</h2>
+                  <p className="text-gray-500 mb-6">Please wait while we verify your payment. Do not reload or close this page.</p>
+                  <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-600 animate-pulse w-2/3 rounded-full"></div>
+                  </div>
+              </div>
+          </div>
+      );
+  }
+
+  // --- INTERSTITIAL VIEW: SUCCESS ---
+  if (orderSuccess) {
+      return (
+          <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
+              <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full border border-gray-100 flex flex-col items-center animate-in zoom-in-95 duration-500">
+                  <div className="w-20 h-20 bg-green-50 text-green-600 rounded-full flex items-center justify-center mb-6 shadow-sm border border-green-100">
+                      <CheckCircle size={40} />
+                  </div>
+                  <h2 className="text-3xl font-bold text-gray-900 mb-2">Order Placed!</h2>
+                  <p className="text-gray-500 mb-6">Thank you for your purchase. Your order ID is <span className="font-mono font-bold text-gray-900">#{confirmedOrderId}</span>.</p>
+                  
+                  <div className="w-full space-y-3">
+                      <Link to="/orders" className="block w-full bg-black text-white py-3 rounded-xl font-bold hover:bg-gray-800 transition-all flex items-center justify-center gap-2">
+                          View My Orders <ArrowRight size={18} />
+                      </Link>
+                      <Link to="/shop" className="block w-full bg-white text-gray-700 border border-gray-200 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all">
+                          Continue Shopping
+                      </Link>
+                  </div>
+              </div>
+          </div>
+      );
+  }
+
+  // --- DEFAULT VIEW: CHECKOUT FORM ---
   return (
     <div className="container mx-auto px-4 py-12 min-h-screen bg-gray-50/50">
       <h1 className="text-3xl font-bold mb-8">Checkout</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         
-        {/* --- LEFT COLUMN: ADDRESS & PAYMENT (NOW STATIC IN FLOW) --- */}
+        {/* --- LEFT COLUMN: ADDRESS & PAYMENT (STATIC) --- */}
         <div className="lg:col-span-2 space-y-8">
             
           {/* STEP 1: ADDRESS */}
@@ -505,7 +555,7 @@ const Checkout: React.FC = () => {
                         <input placeholder="Address Line 2 (Optional)" className="md:col-span-2 p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all" value={formData.address_line2} onChange={(e) => setFormData({ ...formData, address_line2: e.target.value })} />
                         <input required placeholder="City" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} />
                         <input required placeholder="Post Code (e.g. SW1A 1AA)" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all uppercase" value={formData.postcode} onChange={(e) => setFormData({ ...formData, postcode: e.target.value })} />
-                        <input required placeholder="Country" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all" value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} />
+                        <input placeholder="Country" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all" value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} />
                         <input required placeholder="Phone Number" className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-100 outline-none transition-all" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
                     </div>
                     <div className="flex items-center gap-2 mt-4">

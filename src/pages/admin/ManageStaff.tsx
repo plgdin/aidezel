@@ -1,7 +1,10 @@
 // src/pages/admin/ManageStaff.tsx
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Loader2, UserCheck, UserX, Clock, ShieldAlert, CheckCircle, Ban } from 'lucide-react';
+import { Loader2, UserCheck, UserX, Clock, CheckCircle, Ban } from 'lucide-react';
+
+// 1. IMPORT YOUR NEW TOAST
+import { toast } from '../../components/ui/toaster';
 
 const ManageStaff = () => {
   const [loading, setLoading] = useState(true);
@@ -10,8 +13,6 @@ const ManageStaff = () => {
 
   const fetchStaff = async () => {
     setLoading(true);
-    // Fetch profiles where role is staff-related
-    // We also join with staff_sessions to sum up work duration
     const { data, error } = await supabase
       .from('profiles')
       .select(`
@@ -22,7 +23,6 @@ const ManageStaff = () => {
       .order('created_at', { ascending: false });
 
     if (data) {
-      // Calculate total hours worked for each staff
       const processedData = data.map(staff => {
         const totalMinutes = staff.staff_sessions?.reduce((acc: number, session: any) => acc + (session.duration_minutes || 0), 0) || 0;
         return {
@@ -39,18 +39,34 @@ const ManageStaff = () => {
     fetchStaff();
   }, []);
 
-  const handleUpdateStatus = async (userId: string, newRole: string) => {
-    if(!window.confirm(`Are you sure you want to set this user to ${newRole}?`)) return;
+  const handleUpdateStatus = async (userId: string, newRole: string, staffName: string) => {
+    // Keep the confirm simple for safety, or we can make a custom modal later.
+    if(!window.confirm(`Are you sure you want to change ${staffName} to ${newRole.toUpperCase()}?`)) return;
+
+    // 2. SHOW LOADING TOAST
+    const loadId = toast.loading("Updating Status...", "Please wait a moment");
 
     const { error } = await supabase
       .from('profiles')
       .update({ role: newRole })
       .eq('id', userId);
 
+    // 3. HANDLE SUCCESS / ERROR WITH TOASTS
     if (error) {
-      alert("Error updating status");
+      toast.dismiss(loadId);
+      toast.error("Update Failed", error.message);
     } else {
-      fetchStaff(); // Refresh list
+      toast.dismiss(loadId);
+      
+      if (newRole === 'staff') {
+        toast.success("Staff Approved!", `${staffName} can now access the Staff Portal.`);
+      } else if (newRole === 'banned') {
+        toast.error("User Banned", `${staffName} has been blocked.`);
+      } else {
+        toast.success("Status Updated", `User is now ${newRole}.`);
+      }
+      
+      fetchStaff(); // Refresh the list
     }
   };
 
@@ -79,7 +95,7 @@ const ManageStaff = () => {
         >
           Pending Requests
           {staffList.filter(s => s.role === 'pending_staff').length > 0 && (
-            <span className="ml-2 bg-red-100 text-red-600 px-2 py-0.5 rounded-full text-xs">
+            <span className="ml-2 bg-red-100 text-red-600 px-2 py-0.5 rounded-full text-xs animate-pulse">
               {staffList.filter(s => s.role === 'pending_staff').length}
             </span>
           )}
@@ -116,17 +132,17 @@ const ManageStaff = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                     {filteredStaff.map((staff) => (
-                        <tr key={staff.id} className="hover:bg-gray-50">
+                        <tr key={staff.id} className="hover:bg-gray-50 transition-colors">
                             <td className="px-6 py-4">
                                 <div className="font-bold text-gray-900">{staff.full_name || 'No Name'}</div>
                                 <div className="text-gray-500 text-xs">{staff.employee_id}</div>
-                                <div className="text-gray-400 text-xs">{staff.id}</div>
+                                <div className="text-gray-400 text-xs font-mono">{staff.email}</div>
                             </td>
                             <td className="px-6 py-4">
-                                <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase ${
-                                    staff.role === 'pending_staff' ? 'bg-yellow-100 text-yellow-700' :
-                                    staff.role === 'staff' ? 'bg-green-100 text-green-700' :
-                                    'bg-red-100 text-red-700'
+                                <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${
+                                    staff.role === 'pending_staff' ? 'bg-amber-100 text-amber-700' :
+                                    staff.role === 'staff' ? 'bg-emerald-100 text-emerald-700' :
+                                    'bg-rose-100 text-rose-700'
                                 }`}>
                                     {staff.role.replace('_', ' ')}
                                 </span>
@@ -142,14 +158,14 @@ const ManageStaff = () => {
                                 {staff.role === 'pending_staff' && (
                                     <>
                                         <button 
-                                            onClick={() => handleUpdateStatus(staff.id, 'staff')}
-                                            className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-700 inline-flex items-center gap-1"
+                                            onClick={() => handleUpdateStatus(staff.id, 'staff', staff.full_name)}
+                                            className="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-700 inline-flex items-center gap-1 shadow-sm transition-all active:scale-95"
                                         >
                                             <CheckCircle size={14} /> Approve
                                         </button>
                                         <button 
-                                            onClick={() => handleUpdateStatus(staff.id, 'banned')}
-                                            className="bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-100 inline-flex items-center gap-1"
+                                            onClick={() => handleUpdateStatus(staff.id, 'banned', staff.full_name)}
+                                            className="bg-white text-rose-600 border border-rose-200 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-rose-50 inline-flex items-center gap-1 shadow-sm transition-all active:scale-95"
                                         >
                                             <Ban size={14} /> Reject
                                         </button>
@@ -159,17 +175,17 @@ const ManageStaff = () => {
                                 {/* ACTIVE ACTIONS */}
                                 {staff.role === 'staff' && (
                                     <button 
-                                        onClick={() => handleUpdateStatus(staff.id, 'banned')}
-                                        className="text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors inline-flex items-center gap-1"
+                                        onClick={() => handleUpdateStatus(staff.id, 'banned', staff.full_name)}
+                                        className="text-rose-600 hover:bg-rose-50 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors inline-flex items-center gap-1"
                                     >
-                                        <UserX size={14} /> Ban / Timeout
+                                        <UserX size={14} /> Ban User
                                     </button>
                                 )}
 
                                 {/* BANNED ACTIONS */}
                                 {staff.role === 'banned' && (
                                     <button 
-                                        onClick={() => handleUpdateStatus(staff.id, 'staff')}
+                                        onClick={() => handleUpdateStatus(staff.id, 'staff', staff.full_name)}
                                         className="text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors inline-flex items-center gap-1"
                                     >
                                         <UserCheck size={14} /> Restore Access

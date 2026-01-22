@@ -11,11 +11,11 @@ import { generateInvoiceBase64 } from '../../utils/invoiceGenerator';
 // --- INITIALIZE STRIPE ---
 const stripePromise = loadStripe('pk_test_51Sglkr4oJa5N3YQp50I51KNbXYnq0Carqr1e7TYcCYMsanyfFBxW9aOt2wdQ5xkNDeDcRTfpomZAjRl3G9Wmvotf00wXuzGGbW');
 
-// --- STRIPE APPEARANCE CONFIG (The Fix for the Tick Mark) ---
+// --- STRIPE APPEARANCE CONFIG (Adds Tick Marks/Radios) ---
 const stripeAppearance = {
   theme: 'stripe' as const,
   variables: {
-    colorPrimary: '#16a34a', // Green-600 to match your "Success" ticks
+    colorPrimary: '#16a34a',
     colorBackground: '#ffffff',
     colorText: '#1f2937',
     borderRadius: '12px',
@@ -24,7 +24,7 @@ const stripeAppearance = {
   layout: {
     type: 'accordion' as const,
     defaultCollapsed: false,
-    radios: true, // <--- THIS ADDS THE SELECTION INDICATOR (TICK/RADIO)
+    radios: true,
     spacedAccordionItems: true
   }
 };
@@ -139,9 +139,9 @@ const PaymentForm = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 mt-6 animate-in fade-in slide-in-from-bottom-4">
-      {/* Payment Element inherits styles from options passed to <Elements> */}
-      <PaymentElement />
-      
+      <div className="p-4 border border-gray-200 rounded-xl bg-white">
+          <PaymentElement />
+      </div>
       {message && (
         <div className="text-red-600 text-sm font-bold bg-red-50 p-4 rounded-xl flex items-center gap-2 border border-red-100">
             <AlertCircle size={16} /> {message}
@@ -171,6 +171,7 @@ const Checkout: React.FC = () => {
   const [clientSecret, setClientSecret] = useState('');
   const [paymentStep, setPaymentStep] = useState(false);
   
+  // UI STATES
   const [isProcessingReturn, setIsProcessingReturn] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [paymentFailed, setPaymentFailed] = useState(false);
@@ -233,11 +234,11 @@ const Checkout: React.FC = () => {
         "payment_intent_client_secret"
       );
 
-      // --- FIX: CLEAR URL PARAMS IMMEDIATELY TO PREVENT "PROCESSING" ON REFRESH ---
+      // FIX: Clean URL immediately to stop processing on refresh if param exists
       if (clientSecretParam) {
           window.history.replaceState(null, '', window.location.pathname);
       } else {
-          return; // Stop if no param
+          return;
       }
 
       const stripe = await stripePromise;
@@ -248,7 +249,7 @@ const Checkout: React.FC = () => {
       const { paymentIntent } = await stripe.retrievePaymentIntent(clientSecretParam);
 
       if (paymentIntent) {
-        // Restore State
+        // RESTORE DATA
         const storedData = localStorage.getItem('pendingOrder');
         if (storedData) {
             const parsedData = JSON.parse(storedData);
@@ -266,9 +267,10 @@ const Checkout: React.FC = () => {
             }
         } 
         else if (paymentIntent.status === "processing") {
-            notify("Processing Payment", "Your payment is currently processing.");
+            notify("Processing Payment", "Your payment is currently processing. We'll update you shortly.");
         } 
         else {
+            // FAILED / CANCELLED
             setIsProcessingReturn(false); 
             setPaymentFailed(true);
             
@@ -351,7 +353,7 @@ const Checkout: React.FC = () => {
          }
 
          if (!isValidUKPostcode(formData.postcode)) {
-             return notify('Invalid Postcode', 'Please enter a valid UK postcode.', 'error');
+             return notify('Invalid Postcode', 'Please enter a valid UK postcode (e.g. SW1A 1AA).', 'error');
          }
 
          if (!isValidUKPhone(formData.phone)) {
@@ -551,16 +553,10 @@ const Checkout: React.FC = () => {
                 <button 
                     onClick={() => {
                         setPaymentFailed(false); 
-                        setPaymentStep(true); 
-                        const pending = localStorage.getItem('pendingOrder');
-                        if (pending) {
-                           setClientSecret(JSON.parse(pending).clientSecret || clientSecret); 
-                        }
+                        setPaymentStep(false); // FIX: Reset to Step 1 so "Proceed" button appears
+                        setClientSecret(''); // Clear secret to force new init
+                        setLoading(false); 
                         window.history.replaceState(null, '', window.location.pathname);
-                        setTimeout(() => {
-                           const el = document.getElementById('payment-step-container');
-                           if(el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }, 200);
                     }}
                     className="w-full bg-black text-white py-3 rounded-xl font-bold hover:bg-gray-800 transition-all flex items-center justify-center gap-2"
                 >
@@ -603,7 +599,7 @@ const Checkout: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         
-        {/* --- LEFT COLUMN: ADDRESS & PAYMENT --- */}
+        {/* --- LEFT COLUMN --- */}
         <div className="lg:col-span-2 space-y-8">
             
           {/* STEP 1: ADDRESS */}

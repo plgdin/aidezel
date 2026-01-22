@@ -11,7 +11,7 @@ import { generateInvoiceBase64 } from '../../utils/invoiceGenerator';
 // --- INITIALIZE STRIPE ---
 const stripePromise = loadStripe('pk_test_51Sglkr4oJa5N3YQp50I51KNbXYnq0Carqr1e7TYcCYMsanyfFBxW9aOt2wdQ5xkNDeDcRTfpomZAjRl3G9Wmvotf00wXuzGGbW');
 
-// --- STRIPE APPEARANCE CONFIG (Adds Tick Marks/Radios) ---
+// --- STRIPE APPEARANCE ---
 const stripeAppearance = {
   theme: 'stripe' as const,
   variables: {
@@ -171,7 +171,6 @@ const Checkout: React.FC = () => {
   const [clientSecret, setClientSecret] = useState('');
   const [paymentStep, setPaymentStep] = useState(false);
   
-  // UI STATES
   const [isProcessingReturn, setIsProcessingReturn] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [paymentFailed, setPaymentFailed] = useState(false);
@@ -234,7 +233,6 @@ const Checkout: React.FC = () => {
         "payment_intent_client_secret"
       );
 
-      // FIX: Clean URL immediately to stop processing on refresh if param exists
       if (clientSecretParam) {
           window.history.replaceState(null, '', window.location.pathname);
       } else {
@@ -249,7 +247,6 @@ const Checkout: React.FC = () => {
       const { paymentIntent } = await stripe.retrievePaymentIntent(clientSecretParam);
 
       if (paymentIntent) {
-        // RESTORE DATA
         const storedData = localStorage.getItem('pendingOrder');
         if (storedData) {
             const parsedData = JSON.parse(storedData);
@@ -267,10 +264,9 @@ const Checkout: React.FC = () => {
             }
         } 
         else if (paymentIntent.status === "processing") {
-            notify("Processing Payment", "Your payment is currently processing. We'll update you shortly.");
+            notify("Processing Payment", "Your payment is currently processing.");
         } 
         else {
-            // FAILED / CANCELLED
             setIsProcessingReturn(false); 
             setPaymentFailed(true);
             
@@ -540,6 +536,7 @@ const Checkout: React.FC = () => {
       );
   }
 
+  // --- PAYMENT FAILED UI (FIXED RETRY LOGIC) ---
   if (paymentFailed) {
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
@@ -552,10 +549,10 @@ const Checkout: React.FC = () => {
                 
                 <button 
                     onClick={() => {
-                        setPaymentFailed(false); 
-                        setPaymentStep(false); // FIX: Reset to Step 1 so "Proceed" button appears
-                        setClientSecret(''); // Clear secret to force new init
+                        setPaymentFailed(false); // Hide failure screen
+                        setPaymentStep(false); // FIX: Reset to Step 1 (Shipping Details) so they can click "Proceed" again
                         setLoading(false); 
+                        setClientSecret(''); // Clear secret to force new one
                         window.history.replaceState(null, '', window.location.pathname);
                     }}
                     className="w-full bg-black text-white py-3 rounded-xl font-bold hover:bg-gray-800 transition-all flex items-center justify-center gap-2"
@@ -599,7 +596,7 @@ const Checkout: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         
-        {/* --- LEFT COLUMN --- */}
+        {/* --- LEFT COLUMN: ADDRESS & PAYMENT --- */}
         <div className="lg:col-span-2 space-y-8">
             
           {/* STEP 1: ADDRESS */}

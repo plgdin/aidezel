@@ -489,7 +489,16 @@ const Checkout: React.FC = () => {
 
         clearCart(); 
 
-        const pdfBase64 = await generateInvoiceBase64({ id: orderData.id, customer_name: finalShipping.name || '' }, invoiceItems);
+        // FIX: Added address details here so the email invoice is complete
+        const pdfBase64 = await generateInvoiceBase64({ 
+            id: orderData.id, 
+            customer_name: finalShipping.name || '',
+            address: finalShipping.address,
+            city: finalShipping.city,
+            postcode: finalShipping.postcode,
+            total_amount: currentTotal
+        }, invoiceItems, { skipLogo: true });
+
         const emailResponse = await fetch('/api/send-email', {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },

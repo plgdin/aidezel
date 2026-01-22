@@ -65,6 +65,11 @@ const ProductDetails = () => {
   };
 
   useEffect(() => {
+    // Listen for auth changes to keep session sync
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+        setSession(session);
+    });
+
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
 
     const fetchData = async () => {
@@ -114,6 +119,10 @@ const ProductDetails = () => {
 
     fetchData();
     window.scrollTo(0,0);
+
+    return () => {
+        authListener.subscription.unsubscribe();
+    };
   }, [id]);
 
   // FUNCTION: Toggle Wishlist
@@ -142,11 +151,22 @@ const ProductDetails = () => {
 
   const submitReview = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!session || !newReview.trim()) return alert("Please log in.");
+    
+    // FIX 1: Get FRESH session directly from Supabase to avoid stale state
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+
+    if (!currentSession) {
+        return notify("Authentication Error", "Please log in to submit a review.", "error");
+    }
+
+    // FIX 2: Separate check for empty review so user knows WHY it failed
+    if (!newReview.trim()) {
+        return notify("Empty Review", "Please write something before submitting.", "error");
+    }
 
     const { error } = await supabase.from('reviews').insert([{
         product_id: id,
-        user_name: session.user.user_metadata.full_name || 'Verified User',
+        user_name: currentSession.user.user_metadata.full_name || 'Verified User',
         rating: rating,
         comment: newReview
     }]);
@@ -156,6 +176,9 @@ const ProductDetails = () => {
         notify("Review Submitted", "Thank you for your feedback!", 'success');
         const { data } = await supabase.from('reviews').select('*').eq('product_id', id).order('created_at', { ascending: false });
         if (data) setRealReviews(data);
+    } else {
+        console.error(error);
+        notify("Error", "Could not submit review. Please try again.", "error");
     }
   };
 
@@ -455,6 +478,7 @@ const ProductDetails = () => {
                     {/* FIXED: Check if number > 0 */}
                     <span className="text-lg font-medium">{Number(averageRating) > 0 ? `${averageRating} out of 5` : 'No reviews yet'}</span>
                 </div>
+                {/* --- RENDER REVIEW FORM IF LOGGED IN --- */}
                 {session ? (
                     <form onSubmit={submitReview} className="bg-gray-50 p-4 rounded-xl mb-8 border border-gray-200">
                         <h4 className="font-bold text-sm mb-2">Write a review</h4>

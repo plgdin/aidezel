@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useCart } from '../../context/CartContext';
 import { supabase } from '../../lib/supabase';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { ShieldCheck, Loader2, Lock, MapPin, Plus, Tag, Check, Trash2, X, AlertCircle, CheckCircle, ArrowRight } from 'lucide-react';
+import { ShieldCheck, Loader2, Lock, MapPin, Plus, Tag, Check, Trash2, X, AlertCircle, CheckCircle, ArrowRight, RefreshCw } from 'lucide-react';
 import { toast } from '../../components/ui/use-toast';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -67,7 +67,6 @@ const isValidUKPostcode = (postcode: string) => {
 
 const isValidUKPhone = (phone: string) => {
   const cleanPhone = phone.replace(/\s+/g, '').replace(/-/g, '');
-  // Accepts: 07..., +44..., 01..., 02...
   const regex = /^(?:(?:\+44)|(?:0))(?:(?:(?:1\d{8,9})|(?:7[1-9]\d{8})|(?:70\d{8})|(?:2\d{9})|(?:3\d{9})|(?:800\d{6,7})|(?:845\d{6,7})|(?:870\d{6,7})|(?:871\d{6,7})|(?:9\d{9})))$/;
   return regex.test(cleanPhone);
 };
@@ -95,7 +94,6 @@ const PaymentForm = ({
 
     setIsProcessing(true);
 
-    // Save state before potential redirect
     localStorage.setItem('pendingOrder', JSON.stringify({
         formData,
         cartItems,
@@ -111,7 +109,6 @@ const PaymentForm = ({
     });
 
     if (error) {
-      // 1. SHOW TOAST ON PAYMENT FAILURE
       setMessage(error.message || "An unexpected error occurred.");
       notify("Payment Failed", error.message || "Please check your card details.", "error");
       setIsProcessing(false);
@@ -159,6 +156,7 @@ const Checkout: React.FC = () => {
   // UI STATES
   const [isProcessingReturn, setIsProcessingReturn] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
+  const [paymentFailed, setPaymentFailed] = useState(false); // NEW STATE FOR FAILURE SCREEN
   const [confirmedOrderId, setConfirmedOrderId] = useState<string>('');
   
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
@@ -188,7 +186,7 @@ const Checkout: React.FC = () => {
   
   const finalTotal = Math.max(0, grossTotal - discountAmount);
 
-  // --- SYNC ADDRESS TO FORM DATA (Crucial for redirects) ---
+  // --- SYNC ADDRESS TO FORM DATA ---
   useEffect(() => {
     if (selectedAddressId !== 'new' && savedAddresses.length > 0) {
         const addr = savedAddresses.find(a => a.id === selectedAddressId);
@@ -211,7 +209,7 @@ const Checkout: React.FC = () => {
     }
   }, [selectedAddressId, savedAddresses]);
 
-  // --- 2. HANDLE REDIRECT RETURN (The Fix for Amazon/Revolut Loop) ---
+  // --- HANDLE REDIRECT RETURN ---
   useEffect(() => {
     const checkRedirectStatus = async () => {
       const clientSecretParam = new URLSearchParams(window.location.search).get(
@@ -223,14 +221,21 @@ const Checkout: React.FC = () => {
       const stripe = await stripePromise;
       if (!stripe) return;
 
-      // Optimistically show processing screen
       setIsProcessingReturn(true);
 
       const { paymentIntent } = await stripe.retrievePaymentIntent(clientSecretParam);
 
       if (paymentIntent) {
+        // ALWAYS RESTORE DATA FIRST IF AVAILABLE
+        const storedData = localStorage.getItem('pendingOrder');
+        if (storedData) {
+            const parsedData = JSON.parse(storedData);
+            // Restore form data so user doesn't lose it on failure
+            setFormData(parsedData.formData);
+            // Restore cart check? (optional, cart usually persists)
+        }
+
         if (paymentIntent.status === "succeeded") {
-            const storedData = localStorage.getItem('pendingOrder');
             if (storedData) {
                 const parsedData = JSON.parse(storedData);
                 await handleOrderSuccess(paymentIntent.id, parsedData);
@@ -244,12 +249,12 @@ const Checkout: React.FC = () => {
             notify("Processing Payment", "Your payment is currently processing. We'll update you shortly.");
         } 
         else {
-            // PAYMENT FAILED or CANCELLED
-            setIsProcessingReturn(false); // Remove "Please Wait" screen to show form again
+            // FAILED / CANCELLED
+            setIsProcessingReturn(false); 
+            setPaymentFailed(true); // SHOW FAILURE SCREEN
             
             if (paymentIntent.status === "requires_payment_method") {
-                // Specific toast for failed authorization
-                notify("Payment Failed", "Authorization failed. Please try a different card or method.", "error");
+                notify("Payment Failed", "Authorization failed. Please try again.", "error");
             } else if (paymentIntent.status === "canceled") {
                 notify("Payment Cancelled", "You cancelled the payment.", "error");
             } else {
@@ -306,13 +311,11 @@ const Checkout: React.FC = () => {
     }
   };
 
-  // --- 3. VALIDATION POPUPS ---
   const initializePayment = async () => {
     if (cartItems.length === 0) return notify('Cart is empty', 'Add items to proceed.', 'error');
     
     let shippingDetails;
     if (selectedAddressId === 'new') {
-         // Check Empty Fields
          if (
              !formData.firstName.trim() || 
              !formData.lastName.trim() || 
@@ -326,14 +329,12 @@ const Checkout: React.FC = () => {
              return notify('Missing Details', 'Please fill in ALL address fields to continue.', 'error');
          }
 
-         // Strict Postcode Check
          if (!isValidUKPostcode(formData.postcode)) {
              return notify('Invalid Postcode', 'Please enter a valid UK postcode (e.g. SW1A 1AA).', 'error');
          }
 
-         // Strict Phone Check
          if (!isValidUKPhone(formData.phone)) {
-             return notify('Invalid Phone', 'Please enter a valid UK phone number (e.g. 07700 900000).', 'error');
+             return notify('Invalid Phone', 'Please enter a valid UK phone number.', 'error');
          }
 
          shippingDetails = {
@@ -499,6 +500,7 @@ const Checkout: React.FC = () => {
 
   const formatCurrency = (val: number) => `£${val.toFixed(2)}`;
 
+  // --- 1. PROCESSING VIEW ---
   if (isProcessingReturn) {
       return (
           <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
@@ -516,6 +518,43 @@ const Checkout: React.FC = () => {
       );
   }
 
+  // --- 2. PAYMENT FAILED VIEW (Retry Logic) ---
+  if (paymentFailed) {
+    return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
+            <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full border border-red-100 flex flex-col items-center animate-in zoom-in-95 duration-500">
+                <div className="w-20 h-20 bg-red-50 text-red-600 rounded-full flex items-center justify-center mb-6 shadow-sm border border-red-100">
+                    <X size={40} />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Payment Failed</h2>
+                <p className="text-gray-500 mb-6">We couldn't process your payment. Please try again or use a different method.</p>
+                
+                <button 
+                    onClick={() => {
+                        setPaymentFailed(false); // Hide failure screen
+                        setPaymentStep(true); // Go directly to payment step
+                        // Ensure stripe element is re-initialized by triggering render
+                        setClientSecret(localStorage.getItem('pendingOrder') ? JSON.parse(localStorage.getItem('pendingOrder')!).clientSecret : clientSecret);
+                        // Force a small delay to allow re-render then scroll
+                        setTimeout(() => {
+                           const el = document.getElementById('payment-step-container');
+                           if(el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                           // Re-initialize payment logic if needed, but usually just rendering the form is enough if secret exists
+                        }, 200);
+                    }}
+                    className="w-full bg-black text-white py-3 rounded-xl font-bold hover:bg-gray-800 transition-all flex items-center justify-center gap-2"
+                >
+                    <RefreshCw size={18} /> Try Again
+                </button>
+                <Link to="/cart" className="block mt-4 text-sm text-gray-500 hover:text-gray-900 underline">
+                    Return to Cart
+                </Link>
+            </div>
+        </div>
+    );
+  }
+
+  // --- 3. SUCCESS VIEW ---
   if (orderSuccess) {
       return (
           <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
@@ -545,15 +584,16 @@ const Checkout: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         
-        {/* --- LEFT COLUMN --- */}
+        {/* --- LEFT COLUMN: ADDRESS & PAYMENT --- */}
         <div className="lg:col-span-2 space-y-8">
             
+          {/* STEP 1: ADDRESS */}
           <div className={`p-6 rounded-2xl border bg-white transition-all duration-300 ${paymentStep ? 'opacity-60 pointer-events-none' : 'shadow-md border-blue-200'}`}>
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <span className="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm">1</span>
                 Shipping Details
             </h2>
-
+            {/* ... Address Form ... */}
             {savedAddresses.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     {savedAddresses.map((addr) => (
@@ -605,6 +645,7 @@ const Checkout: React.FC = () => {
             )}
           </div>
 
+          {/* STEP 2: PAYMENT */}
           {paymentStep && clientSecret && (
             <div id="payment-step-container" className="bg-white p-6 rounded-2xl border border-blue-500 shadow-xl ring-4 ring-blue-50/50 animate-in fade-in slide-in-from-bottom-4 duration-500 scroll-mt-24">
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2">

@@ -16,6 +16,7 @@ const OrderInvoiceAdmin: React.FC = () => {
       if (!id) return;
       try {
         setLoading(true);
+        // 1. Fetch Order
         const { data: orderData } = await supabase
           .from('orders')
           .select('*')
@@ -23,11 +24,20 @@ const OrderInvoiceAdmin: React.FC = () => {
           .single();
         setOrder(orderData || null);
 
+        // 2. Fetch Items WITH Product Name (The Fix)
         const { data: itemsData } = await supabase
           .from('order_items')
-          .select('*')
+          .select('*, products(name)') // <--- JOIN performed here
           .eq('order_id', id);
-        setItems(itemsData || []);
+
+        // 3. Map the result to flatten "products.name" into "product_name"
+        const formattedItems = itemsData?.map((item: any) => ({
+          ...item,
+          product_name: item.products?.name || 'Product Item' // Fallback if product deleted
+        })) || [];
+
+        setItems(formattedItems);
+
       } catch (err) {
         console.error(err);
       } finally {
@@ -154,6 +164,7 @@ const OrderInvoiceAdmin: React.FC = () => {
               return (
                 <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                   <td className="py-3 px-4 font-medium text-gray-800 border-r border-gray-200">
+                    {/* FIXED: Uses fetched product name */}
                     {item.product_name}
                     <div className="text-[10px] text-gray-500 mt-0.5">HSN: 851762</div>
                   </td>

@@ -2,8 +2,19 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase'; 
-// Added 'Ticket' icon for coupons
-import { LayoutDashboard, Package, ShoppingCart, LogOut, Tags, ClipboardList, Loader2, FileText, History, Ticket } from 'lucide-react';
+import { 
+  LayoutDashboard, 
+  Package, 
+  ShoppingCart, 
+  LogOut, 
+  Tags, 
+  ClipboardList, 
+  Loader2, 
+  FileText, 
+  History, 
+  Ticket, 
+  Users // <--- Added Users icon for Staff Management
+} from 'lucide-react';
 import { Toaster } from '../ui/toaster';
 
 const AdminLayout = () => {
@@ -83,6 +94,12 @@ const AdminLayout = () => {
             <Ticket size={20} /> Coupons
           </Link>
           {/* ------------------------- */}
+
+          {/* --- NEW MANAGE STAFF LINK --- */}
+          <Link to="/admin/staff-manage" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive('/admin/staff-manage')}`}>
+            <Users size={20} /> Manage Staff
+          </Link>
+          {/* ----------------------------- */}
 
           <Link to="/admin/content" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive('/admin/content')}`}>
             <FileText size={20} /> Legal Content

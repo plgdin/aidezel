@@ -2,24 +2,28 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate, Link } from 'react-router-dom';
-// NEW: Added Eye and EyeOff imports
 import { Lock, Loader2, Eye, EyeOff } from 'lucide-react';
+// IMPORT THE CUSTOM TOAST
+import { toast } from '../../components/ui/toaster';
 
 const StaffLogin = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState(''); 
   const [password, setPassword] = useState('');
-  
-  // NEW: State for password visibility
   const [showPassword, setShowPassword] = useState(false);
   
+  // We can remove the local 'error' state if we rely entirely on toasts,
+  // but keeping it for the form-level alert box is also fine.
   const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    // Show loading toast
+    const loadingToastId = toast.loading("Verifying credentials...", "Please wait");
 
     try {
       const { data: { user }, error: authError } = await supabase.auth.signInWithPassword({
@@ -35,15 +39,42 @@ const StaffLogin = () => {
         .eq('id', user.id)
         .single();
 
-      // 2. Validate role (Staff or Admin only)
-      if (!profile || (profile.role !== 'staff' && profile.role !== 'admin')) {
+      // --- SECURITY CHECKS ---
+      if (!profile) throw new Error("Profile not found.");
+
+      if (profile.role === 'pending_staff') {
+        await supabase.auth.signOut();
+        throw new Error("Account Pending: An administrator has not approved your account yet.");
+      }
+
+      if (profile.role === 'banned') {
+        await supabase.auth.signOut();
+        throw new Error("Access Denied: This account has been suspended.");
+      }
+
+      if (profile.role !== 'staff' && profile.role !== 'admin') {
         await supabase.auth.signOut();
         throw new Error('Access Denied: Not a registered staff member.');
       }
 
+      // --- LOG SESSION (CLOCK IN) ---
+      if (profile.role === 'staff') {
+         await supabase.from('staff_sessions').insert({
+            user_id: user.id,
+            login_at: new Date().toISOString()
+         });
+      }
+
+      // Success!
+      toast.dismiss(loadingToastId); // Dismiss loading
+      toast.success("Welcome back!", "Access granted to staff portal.");
+      
       navigate('/staff'); 
+
     } catch (err: any) {
+      toast.dismiss(loadingToastId);
       setError(err.message);
+      toast.error("Login Failed", err.message);
     } finally {
       setLoading(false);
     }
@@ -58,14 +89,12 @@ const StaffLogin = () => {
         </div>
         
         {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm font-bold">
+            <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm font-bold border border-red-100">
                 {error}
             </div>
         )}
         
         <form onSubmit={handleLogin} className="space-y-4">
-            
-            {/* Email Field */}
             <input 
                 type="email" 
                 placeholder="Staff Email" 
@@ -75,12 +104,11 @@ const StaffLogin = () => {
                 required 
             />
             
-            {/* Password Field with Toggle */}
             <div className="relative">
                 <input 
                     type={showPassword ? "text" : "password"} 
                     placeholder="Password" 
-                    className="w-full p-3 border rounded-lg bg-gray-50 pr-10" // added pr-10 for icon space
+                    className="w-full p-3 border rounded-lg bg-gray-50 pr-10"
                     value={password} 
                     onChange={e => setPassword(e.target.value)} 
                     required 

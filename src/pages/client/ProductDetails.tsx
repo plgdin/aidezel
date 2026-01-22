@@ -32,39 +32,21 @@ const ProductDetails = () => {
   // STATE: Wishlist
   const [isWishlisted, setIsWishlisted] = useState(false);
 
-  // --- HELPER: CUSTOM DARK PILL TOAST ---
+  // --- HELPER: FIXED NOTIFY FUNCTION (SONNER COMPATIBLE) ---
   const notify = (title: string, description: string, type: 'success' | 'error' | 'wishlist' = 'success') => {
-    const isError = type === 'error';
-    const isWishlist = type === 'wishlist';
-    
-    shadcnToast(
-      <div className="flex items-center justify-between w-full gap-3">
-        <div className="flex items-center gap-3">
-          {/* Left Icon Container */}
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isError ? 'bg-red-500/20' : isWishlist ? 'bg-pink-500/20' : 'bg-white/10'}`}>
-             {isError ? <X size={20} className="text-red-500" /> : isWishlist ? <Heart size={20} className="text-pink-500 fill-pink-500" /> : <CheckCircle size={20} className="text-green-400" />}
-          </div>
-          
-          {/* Text Content */}
-          <div className="flex flex-col">
-            <h4 className="font-bold text-white text-sm leading-tight">{title}</h4>
-            <p className="text-slate-400 text-xs mt-0.5 leading-tight">{description}</p>
-          </div>
-        </div>
-  
-        {/* Right Action Button */}
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg ${isError ? 'bg-red-600' : isWishlist ? 'bg-pink-600' : 'bg-blue-600'}`}>
-          {isError ? <X size={18} className="text-white" /> : isWishlist ? <Heart size={18} className="text-white fill-white" /> : <ShoppingBag size={18} className="text-white" />}
-        </div>
-      </div>, 
-      {
-        // Styling: Dark Background, Pill Shape (rounded-full), Shadow, Animated
-        className: `bg-[#0f172a] border border-slate-800 shadow-2xl rounded-full p-2 pr-2 min-w-[320px] flex items-center animate-in slide-in-from-bottom-5 fade-in duration-300`,
-      }
-    );
+    shadcnToast(title, {
+      description: description,
+      action: type === 'error' ? { label: 'Close', onClick: () => {} } : undefined,
+      className: type === 'error' ? "bg-red-600 text-white border-red-600" : "bg-slate-900 text-white border-slate-800",
+    });
   };
 
   useEffect(() => {
+    // Listen for auth changes to keep session sync
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+        setSession(session);
+    });
+
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
 
     const fetchData = async () => {
@@ -93,12 +75,13 @@ const ProductDetails = () => {
         }
 
         if (user) {
+            // FIX: Use maybeSingle() to prevent 406 errors if item isn't in wishlist yet
             const { data: wishlistData } = await supabase
                 .from('wishlist')
                 .select('*')
                 .eq('user_id', user.id)
                 .eq('product_id', id)
-                .single();
+                .maybeSingle();
             if (wishlistData) setIsWishlisted(true);
         }
 
@@ -114,17 +97,21 @@ const ProductDetails = () => {
 
     fetchData();
     window.scrollTo(0,0);
+
+    return () => {
+        authListener.subscription.unsubscribe();
+    };
   }, [id]);
 
   // FUNCTION: Toggle Wishlist
   const toggleWishlist = async () => {
-    if (!session) return alert("Please log in to add items to your wishlist.");
+    if (!session) return notify("Login Required", "Please log in to add items to your wishlist.", "error");
 
     const previousState = isWishlisted;
     setIsWishlisted(!previousState);
 
     if (previousState) {
-        notify("Removed from Wishlist", "This item has been removed from your list.", 'wishlist');
+        notify("Removed from Wishlist", "Item removed from your list.", 'wishlist');
         const { error } = await supabase
             .from('wishlist')
             .delete()
@@ -132,7 +119,7 @@ const ProductDetails = () => {
             .eq('product_id', id);
         if (error) setIsWishlisted(true);
     } else {
-        notify("Added to Wishlist", "This item is now in your wishlist.", 'wishlist');
+        notify("Added to Wishlist", "Item added to your wishlist.", 'wishlist');
         const { error } = await supabase
             .from('wishlist')
             .insert([{ user_id: session.user.id, product_id: id }]);
@@ -140,13 +127,41 @@ const ProductDetails = () => {
     }
   };
 
+  // --- REVISED SUBMIT REVIEW (Smart Name Detection) ---
   const submitReview = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!session || !newReview.trim()) return alert("Please log in.");
+    
+    // 1. Get a FRESH session directly from Supabase (Guarantees accuracy)
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
 
+    // 2. Check if logged in FIRST
+    if (!currentSession) {
+        return notify("Authentication Error", "Please log in to submit a review.", "error");
+    }
+
+    // 3. Check if review is empty SECOND
+    if (!newReview.trim()) {
+        return notify("Empty Review", "Please write something before submitting.", "error");
+    }
+
+    // 4. DETERMINE USER NAME (Smart Fallback)
+    let reviewerName = 'Verified User';
+    const meta = currentSession.user.user_metadata;
+
+    if (meta?.full_name) {
+        reviewerName = meta.full_name; // Use metadata name if available
+    } else if (meta?.name) {
+        reviewerName = meta.name;      // Use 'name' if 'full_name' is missing
+    } else if (currentSession.user.email) {
+        // Fallback: Use email username (e.g., "azeez" from "azeez@gmail.com")
+        reviewerName = currentSession.user.email.split('@')[0];
+    }
+
+    // 5. Submit to Database
     const { error } = await supabase.from('reviews').insert([{
         product_id: id,
-        user_name: session.user.user_metadata.full_name || 'Verified User',
+        user_name: reviewerName, // <--- Using the detected name
+        user_id: currentSession.user.id, 
         rating: rating,
         comment: newReview
     }]);
@@ -154,8 +169,18 @@ const ProductDetails = () => {
     if (!error) {
         setNewReview('');
         notify("Review Submitted", "Thank you for your feedback!", 'success');
-        const { data } = await supabase.from('reviews').select('*').eq('product_id', id).order('created_at', { ascending: false });
+        
+        // Refresh reviews list
+        const { data } = await supabase
+            .from('reviews')
+            .select('*')
+            .eq('product_id', id)
+            .order('created_at', { ascending: false });
+            
         if (data) setRealReviews(data);
+    } else {
+        console.error(error);
+        notify("Error", "Could not submit review. Please try again.", "error");
     }
   };
 
@@ -455,6 +480,7 @@ const ProductDetails = () => {
                     {/* FIXED: Check if number > 0 */}
                     <span className="text-lg font-medium">{Number(averageRating) > 0 ? `${averageRating} out of 5` : 'No reviews yet'}</span>
                 </div>
+                {/* --- RENDER REVIEW FORM IF LOGGED IN --- */}
                 {session ? (
                     <form onSubmit={submitReview} className="bg-gray-50 p-4 rounded-xl mb-8 border border-gray-200">
                         <h4 className="font-bold text-sm mb-2">Write a review</h4>

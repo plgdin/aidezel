@@ -66,6 +66,7 @@ const isValidUKPostcode = (postcode: string) => {
 };
 
 const isValidUKPhone = (phone: string) => {
+  // Regex for UK Phone Numbers (Mobile & Landline, allows spaces/dashes)
   const cleanPhone = phone.replace(/\s+/g, '').replace(/-/g, '');
   const regex = /^(?:(?:\+44)|(?:0))(?:(?:(?:1\d{8,9})|(?:7[1-9]\d{8})|(?:70\d{8})|(?:2\d{9})|(?:3\d{9})|(?:800\d{6,7})|(?:845\d{6,7})|(?:870\d{6,7})|(?:871\d{6,7})|(?:9\d{9})))$/;
   return regex.test(cleanPhone);
@@ -94,6 +95,7 @@ const PaymentForm = ({
 
     setIsProcessing(true);
 
+    // Save state before potential redirect (Amazon Pay / 3DS)
     localStorage.setItem('pendingOrder', JSON.stringify({
         formData,
         cartItems,
@@ -103,7 +105,7 @@ const PaymentForm = ({
     const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        return_url: window.location.href, 
+        return_url: window.location.href, // Returns here to finish processing
       },
       redirect: "if_required",
     });
@@ -124,17 +126,20 @@ const PaymentForm = ({
       <div className="p-4 border border-gray-200 rounded-xl bg-white">
           <PaymentElement />
       </div>
+      
       {message && (
         <div className="text-red-600 text-sm font-bold bg-red-50 p-4 rounded-xl flex items-center gap-2 border border-red-100">
             <AlertCircle size={16} /> {message}
         </div>
       )}
+      
       <button 
         disabled={isProcessing || !stripe || !elements} 
         className="w-full bg-black text-white py-4 rounded-xl font-bold text-lg hover:bg-gray-800 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl active:scale-[0.99] duration-200"
       >
         {isProcessing ? <><Loader2 className="animate-spin" /> Processing...</> : <><Lock size={18} /> Pay £{totalAmount.toLocaleString()}</>}
       </button>
+      
       <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mt-4">
         <ShieldCheck size={14} className="text-green-600"/>
         <span>Payments processed securely by Stripe</span>
@@ -153,7 +158,7 @@ const Checkout: React.FC = () => {
   const [clientSecret, setClientSecret] = useState('');
   const [paymentStep, setPaymentStep] = useState(false);
   
-  // NEW STATES FOR PROCESSING SCREENS
+  // NEW STATES FOR UI FLOW
   const [isProcessingReturn, setIsProcessingReturn] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [confirmedOrderId, setConfirmedOrderId] = useState<string>('');
@@ -185,7 +190,31 @@ const Checkout: React.FC = () => {
   
   const finalTotal = Math.max(0, grossTotal - discountAmount);
 
-  // --- HANDLE REDIRECT RETURN ---
+  // --- CRITICAL: SYNC SAVED ADDRESS TO FORM DATA ---
+  // This ensures form data is populated for localStorage saving when a user picks a saved address.
+  useEffect(() => {
+    if (selectedAddressId !== 'new' && savedAddresses.length > 0) {
+        const addr = savedAddresses.find(a => a.id === selectedAddressId);
+        if (addr) {
+            const nameParts = addr.full_name.split(' ');
+            const fName = nameParts[0];
+            const lName = nameParts.slice(1).join(' ') || '.';
+            setFormData(prev => ({
+                ...prev,
+                firstName: fName,
+                lastName: lName,
+                address_line1: addr.address_line1,
+                address_line2: addr.address_line2 || '',
+                city: addr.city,
+                postcode: addr.postcode,
+                country: addr.country,
+                phone: addr.phone
+            }));
+        }
+    }
+  }, [selectedAddressId, savedAddresses]);
+
+  // --- HANDLE REDIRECT RETURN (REVOLUT / AMAZON) ---
   useEffect(() => {
     const checkRedirectStatus = async () => {
       const clientSecretParam = new URLSearchParams(window.location.search).get(
@@ -197,31 +226,29 @@ const Checkout: React.FC = () => {
       const stripe = await stripePromise;
       if (!stripe) return;
 
-      // SHOW PROCESSING SCREEN IMMEDIATELY
-      setIsProcessingReturn(true);
+      setIsProcessingReturn(true); // Show "Please Wait" screen
 
       const { paymentIntent } = await stripe.retrievePaymentIntent(clientSecretParam);
 
       if (paymentIntent) {
         if (paymentIntent.status === "succeeded") {
             const storedData = localStorage.getItem('pendingOrder');
-            
             if (storedData) {
                 const parsedData = JSON.parse(storedData);
                 await handleOrderSuccess(paymentIntent.id, parsedData);
                 localStorage.removeItem('pendingOrder');
             } else {
-                notify("Order Processed", "Please check your email for confirmation.");
+                // Fallback
+                notify("Order Processed", "Please check your email.");
                 navigate('/orders');
             }
         } 
         else if (paymentIntent.status === "processing") {
-            // Still processing - keep showing the loading screen or notify
-            notify("Processing Payment", "Your payment is currently processing. We'll update you shortly.");
+            notify("Processing Payment", "Your payment is currently processing.");
         } 
         else {
-            // FAILED / CANCELLED - Hide processing screen and show error
-            setIsProcessingReturn(false);
+            // Payment Failed or Cancelled
+            setIsProcessingReturn(false); // Hide loading screen
             if (paymentIntent.status === "requires_payment_method") {
                 notify("Payment Failed", "Your payment was not successful. Please try again.", "error");
             } else if (paymentIntent.status === "canceled") {
@@ -240,6 +267,7 @@ const Checkout: React.FC = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setFormData(prev => ({ ...prev, email: session.user.email || '' }));
+
         const { data: addresses } = await supabase
           .from('user_addresses')
           .select('*')
@@ -283,8 +311,18 @@ const Checkout: React.FC = () => {
     
     let shippingDetails;
     if (selectedAddressId === 'new') {
-         if (!formData.firstName || !formData.address_line1 || !formData.city || !formData.postcode || !formData.phone) {
-             return notify('Missing Details', 'Please fill in all address fields.', 'error');
+         // --- STRICT VALIDATION: ALL FIELDS ---
+         if (
+             !formData.firstName.trim() || 
+             !formData.lastName.trim() || 
+             !formData.email.trim() || 
+             !formData.address_line1.trim() || 
+             !formData.city.trim() || 
+             !formData.postcode.trim() || 
+             !formData.country.trim() || 
+             !formData.phone.trim()
+         ) {
+             return notify('Missing Details', 'Please fill in ALL address fields to continue.', 'error');
          }
 
          if (!isValidUKPostcode(formData.postcode)) {
@@ -359,12 +397,13 @@ const Checkout: React.FC = () => {
         }
     } catch (err: any) {
         console.error(err);
-        notify('Connection Error', 'Could not connect to payment server.', 'error');
+        notify('Connection Error', 'Could not connect to payment server. Please try again.', 'error');
     } finally {
         setLoading(false);
     }
   };
 
+  // --- HANDLE ORDER SUCCESS ---
   const handleOrderSuccess = async (paymentId: string, storedData: any = null) => {
     try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -428,9 +467,10 @@ const Checkout: React.FC = () => {
             invoiceItems.push({ name: item.name, quantity: item.quantity, price: priceIncTax });
         }
 
-        // 3. Clear Cart & Send Emails
+        // --- CLEAR CART IMMEDIATELY ---
         clearCart(); 
 
+        // 3. Generate Invoice & Email
         const pdfBase64 = await generateInvoiceBase64({ id: orderData.id, customer_name: finalShipping.name || '' }, invoiceItems);
         const emailResponse = await fetch('/api/send-email', {
              method: 'POST',
@@ -443,16 +483,16 @@ const Checkout: React.FC = () => {
              })
         });
 
-        if (!emailResponse.ok) console.error("Invoice email failed to send.");
+        if (!emailResponse.ok) console.error("Email failed.");
 
-        // 4. TRANSITION TO SUCCESS SCREEN
+        // 4. SHOW SUCCESS SCREEN
         setConfirmedOrderId(orderData.id);
         setOrderSuccess(true);
-        setIsProcessingReturn(false); // Hide processing screen
+        setIsProcessingReturn(false);
 
     } catch (error: any) {
         console.error(error);
-        setIsProcessingReturn(false); // Hide processing screen on error
+        setIsProcessingReturn(false);
         notify('Order Creation Failed', 
             error.message.includes('uuid') ? 'DB Error: Ensure Order ID is TEXT type.' : 'Payment taken but order failed. Contact support.', 
             'error'
@@ -511,7 +551,7 @@ const Checkout: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         
-        {/* --- LEFT COLUMN: ADDRESS & PAYMENT (STATIC) --- */}
+        {/* --- LEFT COLUMN: ADDRESS & PAYMENT --- */}
         <div className="lg:col-span-2 space-y-8">
             
           {/* STEP 1: ADDRESS */}
@@ -594,7 +634,7 @@ const Checkout: React.FC = () => {
           )}
         </div>
 
-        {/* --- RIGHT COLUMN: SUMMARY & COUPONS --- */}
+        {/* --- RIGHT COLUMN: SUMMARY --- */}
         <div className="lg:col-span-1 space-y-6">
             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm sticky top-24 z-10">
                 <h3 className="font-bold text-lg mb-4">Order Summary</h3>

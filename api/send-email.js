@@ -1,12 +1,12 @@
 import { Resend } from 'resend';
 
-// CRITICAL: Check all possible key names used by Vercel/Netlify/Vite
+// CHECK ALL POSSIBLE KEY NAMES (Fixes Vercel/Netlify/Vite issues)
 const apiKey = process.env.RESEND_API_KEY || process.env.VITE_RESEND_API_KEY || process.env.NEXT_PUBLIC_RESEND_API_KEY;
 
 const resend = apiKey ? new Resend(apiKey) : null;
 
 export default async function handler(req, res) {
-  // 1. Debugging: Check if API Key exists (Don't log the actual key for security)
+  // 1. Critical Setup Check
   if (!resend) {
     console.error("❌ CRITICAL: No 'RESEND_API_KEY' found in environment variables.");
     return res.status(500).json({ error: 'Server Config Error: API Key Missing' });
@@ -14,8 +14,6 @@ export default async function handler(req, res) {
 
   try {
     const { email, type, data, attachments } = req.body;
-
-    console.log(`📩 [Email API] Request received for type: '${type}' to: ${email}`);
 
     // === SAFETY CHECK (OTP) ===
     if (type === 'otp') {
@@ -41,7 +39,7 @@ export default async function handler(req, res) {
 
       // Attempt Send
       const response = await resend.emails.send({
-        from: 'Aidezel Orders <orders@aidezel.co.uk>', // Ensure this domain is verified in Resend dashboard
+        from: 'Aidezel Orders <orders@aidezel.co.uk>',
         to: [email],
         subject: subject,
         html: htmlContent,

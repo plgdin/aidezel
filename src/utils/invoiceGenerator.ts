@@ -13,12 +13,14 @@ const getBase64ImageFromURL = (url: string): Promise<string> => {
     img.src = url;
     img.onload = () => {
       const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = img.height;
+      // Scale down image to save space
+      const scale = Math.min(1, 300 / img.width);
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
       const ctx = canvas.getContext("2d");
       if (ctx) {
-        ctx.drawImage(img, 0, 0);
-        resolve(canvas.toDataURL("image/png"));
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.7));
       } else {
         reject(new Error("Canvas context is null"));
       }
@@ -27,42 +29,53 @@ const getBase64ImageFromURL = (url: string): Promise<string> => {
   });
 };
 
-export const generateInvoiceBase64 = async (order: any, items: any[]) => {
+export const generateInvoiceBase64 = async (order: any, items: any[], options: { skipLogo?: boolean } = {}) => {
   try {
-    const doc = new jsPDF();
+    const doc = new jsPDF({ compress: true });
 
-    // --- LOGO ---
-    try {
-      const logoBase64 = await getBase64ImageFromURL(logo);
-      const imgProps = doc.getImageProperties(logoBase64);
-      const pdfWidth = 40;
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      doc.addImage(logoBase64, "PNG", 14, 10, pdfWidth, pdfHeight);
-    } catch (err) {
-      console.error("Could not load logo image", err);
-      doc.setFontSize(22);
+    // --- 1. PROFESSIONAL HEADER (No "Shitty" Text) ---
+    if (!options.skipLogo) {
+      try {
+        const logoBase64 = await getBase64ImageFromURL(logo);
+        const imgProps = doc.getImageProperties(logoBase64);
+        const pdfWidth = 40; 
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        doc.addImage(logoBase64, "JPEG", 14, 10, pdfWidth, pdfHeight);
+      } catch (err) {
+        // Fallback: Professional Typography
+        doc.setFontSize(26);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(35, 47, 62); 
+        doc.text("Aidezel", 14, 25);
+      }
+    } else {
+      // EMAIL MODE: Professional Typography (Small File Size)
+      doc.setFontSize(26);
       doc.setFont("helvetica", "bold");
-      doc.text("AIDEZEL", 14, 25);
+      doc.setTextColor(35, 47, 62); // Dark Corporate Blue
+      doc.text("Aidezel", 14, 25);
     }
 
     const safeItems = Array.isArray(items) ? items : []; 
     const safeOrder = order || {};
     const safeId = safeOrder.id || "PENDING";
-    const safeDate = new Date(safeOrder.created_at || new Date()).toLocaleDateString('en-GB');
+    const displayId = String(safeId).toUpperCase();
+    const safeDate = new Date().toLocaleDateString('en-GB');
 
-    // --- HEADER ---
-    doc.setFontSize(18);
+    // "TAX INVOICE" Label
+    doc.setTextColor(0); 
+    doc.setFontSize(16);
     doc.setFont("helvetica", "bold");
-    doc.text("TAX INVOICE", 196, 20, { align: "right" });
+    doc.text("TAX INVOICE", 196, 22, { align: "right" });
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.text("(Original for Recipient)", 196, 25, { align: "right" });
+    doc.text("(Original for Recipient)", 196, 27, { align: "right" });
 
-    // --- ADDRESSES ---
+    // --- 2. ADDRESSES (Fixed Placement) ---
     const startY = 50;
 
+    // Left: Sold By
     doc.setFontSize(10);
-    // Seller
     doc.text("Sold By:", 14, startY);
     doc.setFont("helvetica", "bold");
     doc.text("Aidezel Ltd.", 14, startY + 5);
@@ -70,44 +83,58 @@ export const generateInvoiceBase64 = async (order: any, items: any[]) => {
     doc.text("Unit 42, Innovation Tech Park", 14, startY + 10);
     doc.text("123 Commerce Way, London", 14, startY + 15);
     doc.text("United Kingdom, EC1A 1BB", 14, startY + 20);
-    doc.setFontSize(8);
-    doc.text("VAT Reg No: GB 987 654 321", 14, startY + 30);
 
-    // Customer
+    // Right: Billing Address (With Debug Fallback)
     const rightColX = 130;
-    doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.text("Billing/Shipping Address:", rightColX, startY);
-    doc.setFont("helvetica", "bold");
-    doc.text(String(safeOrder.customer_name || "Valued Customer").toUpperCase(), rightColX, startY + 5);
-    doc.setFont("helvetica", "normal");
-    doc.text(safeOrder.address || "", rightColX, startY + 10);
-    doc.text(`${safeOrder.city || ""} ${safeOrder.postcode || ""}`, rightColX, startY + 15);
 
-    // --- ORDER BAR ---
+    // Name
+    const custName = safeOrder.customer_name || "Valued Customer";
+    doc.text(String(custName).toUpperCase(), rightColX, startY + 5);
+
+    doc.setFont("helvetica", "normal");
+
+    // Address Lines (Ensure it's not empty)
+    const addrText = safeOrder.address || "Address Details Unavailable";
+    const addressLines = doc.splitTextToSize(addrText, 65);
+    doc.text(addressLines, rightColX, startY + 10);
+
+    const cityY = startY + 10 + (addressLines.length * 4);
+    doc.text(`${safeOrder.city || ""} ${safeOrder.postcode || ""}`, rightColX, cityY);
+
+    // --- 3. ORDER BAR ---
     const barY = startY + 40;
-    doc.setLineWidth(0.5);
-    doc.line(14, barY, 196, barY);
-    doc.setFontSize(9);
-    doc.text(`Order Number:`, 14, barY + 6);
-    doc.setFont("helvetica", "bold");
-    doc.text(`${safeId}`, 40, barY + 6);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Order Date:`, 110, barY + 6);
-    doc.setFont("helvetica", "bold");
-    doc.text(`${safeDate}`, 130, barY + 6);
-    doc.line(14, barY + 10, 196, barY + 10);
+    doc.setFillColor(245, 245, 245);
+    doc.rect(14, barY - 4, 182, 14, 'F');
 
-    // --- TABLE (AMAZON STYLE) ---
+    doc.setFontSize(9);
+    doc.setTextColor(50);
+    doc.text(`Order Number:`, 18, barY + 4);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0);
+    doc.text(`${displayId}`, 45, barY + 4);
+
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(50);
+    doc.text(`Order Date:`, 110, barY + 4);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0);
+    doc.text(`${safeDate}`, 130, barY + 4);
+
+    // --- 4. CALCULATE TOTALS ---
+    let calculatedTotal = 0;
     const tableData = safeItems.map((item: any) => {
-      // 1. Explicitly use the product name
       const name = item.product_name || item.name || "Item";
       const quantity = Number(item.quantity || 1);
 
-      const rawPrice = item.price !== undefined ? item.price : item.price_at_purchase;
-      const unitPriceGross = Number(rawPrice || 0);
+      let unitPriceGross = 0;
+      if (item.price_at_purchase !== undefined) unitPriceGross = Number(item.price_at_purchase);
+      else if (item.price !== undefined) unitPriceGross = Number(item.price);
 
       const totalLineGross = unitPriceGross * quantity;
+      calculatedTotal += totalLineGross;
+
       const totalLineNet = totalLineGross / 1.2;
       const totalLineTax = totalLineGross - totalLineNet;
       const unitPriceNet = unitPriceGross / 1.2;
@@ -123,76 +150,57 @@ export const generateInvoiceBase64 = async (order: any, items: any[]) => {
       ];
     });
 
+    let grandTotal = Number(safeOrder.total_amount || 0);
+    if (grandTotal === 0 && calculatedTotal > 0) {
+      grandTotal = calculatedTotal;
+    }
+    const totalNet = grandTotal / 1.2;
+    const totalTax = grandTotal - totalNet;
+
+    // --- 5. TABLE ---
     autoTable(doc, {
       startY: barY + 15,
-      theme: 'grid', // 'grid' gives nice professional borders
-      headStyles: { 
-        fillColor: [35, 47, 62], // Amazon-ish Dark Blue/Grey Header
-        textColor: [255, 255, 255],
-        fontStyle: 'bold', 
-        fontSize: 8,
-        halign: 'center',
-        cellPadding: 3
-      },
-      bodyStyles: {
-        textColor: [50, 50, 50],
-        fontSize: 9,
-        cellPadding: 5,
-        valign: 'middle'
-      },
-      alternateRowStyles: {
-        fillColor: [249, 250, 251] // Very subtle alternation
-      },
+      theme: 'plain',
+      headStyles: { fillColor: [35, 47, 62], textColor: 255, fontStyle: 'bold', fontSize: 8, cellPadding: 3 },
+      bodyStyles: { textColor: 50, fontSize: 9, cellPadding: 4, valign: 'middle', lineColor: [230, 230, 230], lineWidth: { bottom: 0.1 } },
       head: [["Description", "Unit Price (Net)", "Qty", "Net Amount", "Tax Rate", "Tax Amount", "Total"]],
       body: tableData,
       columnStyles: {
-        0: { cellWidth: 70, halign: 'left' }, // Description
-        1: { halign: 'right' },
-        2: { halign: 'center' },
-        3: { halign: 'right' },
-        4: { halign: 'right' },
-        5: { halign: 'right' },
-        6: { halign: 'right', fontStyle: 'bold' } // Bold Total
+        0: { cellWidth: 70 },
+        6: { fontStyle: 'bold', halign: 'right' } 
       }
     });
 
-    // --- TOTALS ---
+    // --- 6. SUMMARY ---
     const finalY = (doc as any).lastAutoTable.finalY + 10;
-    const totalAmount = Number(safeOrder.total_amount || 0);
-    const totalNet = totalAmount / 1.2;
-    const totalTax = totalAmount - totalNet;
+    const summaryXLabel = 140;
+    const summaryXValue = 196;
 
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
+    doc.setTextColor(80);
 
-    // Aligned breakdown
-    doc.text("Total Net Amount:", 130, finalY);
-    doc.text(formatCurrency(totalNet), 196, finalY, { align: "right" });
+    doc.text("Total Net Amount:", summaryXLabel, finalY);
+    doc.text(formatCurrency(totalNet), summaryXValue, finalY, { align: "right" });
 
-    doc.text("Total Tax (20%):", 130, finalY + 6);
-    doc.text(formatCurrency(totalTax), 196, finalY + 6, { align: "right" });
+    doc.text("Total Tax (20%):", summaryXLabel, finalY + 5);
+    doc.text(formatCurrency(totalTax), summaryXValue, finalY + 5, { align: "right" });
 
-    doc.text("Shipping:", 130, finalY + 12);
-    doc.setTextColor(22, 163, 74);
-    doc.text("FREE", 196, finalY + 12, { align: "right" });
+    doc.setDrawColor(200);
+    doc.line(summaryXLabel, finalY + 8, summaryXValue, finalY + 8);
 
-    doc.setTextColor(0);
-    doc.setLineWidth(0.5);
-    doc.line(130, finalY + 16, 196, finalY + 16);
-
-    doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
-    doc.text("Grand Total:", 130, finalY + 24);
-    doc.text(formatCurrency(totalAmount), 196, finalY + 24, { align: "right" });
+    doc.setTextColor(0);
+    doc.setFont("helvetica", "bold");
+    doc.text("Grand Total:", summaryXLabel, finalY + 15);
+    doc.text(formatCurrency(grandTotal), summaryXValue, finalY + 15, { align: "right" });
 
-    // --- FOOTER ---
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text("For Aidezel Ltd.", 150, finalY + 50);
-
+    const pageHeight = doc.internal.pageSize.height;
     doc.setFontSize(8);
-    doc.setTextColor(100);
-    doc.text("This is a computer generated invoice.", 14, finalY + 60);
+    doc.setTextColor(150);
+    doc.setFont("helvetica", "normal");
+    doc.text("This is a computer generated invoice.", 14, pageHeight - 15);
+    doc.text("Aidezel Ltd. Registered in UK.", 196, pageHeight - 15, { align: "right" });
 
     const pdfOutput = doc.output("datauristring");
     return pdfOutput.split(",")[1];

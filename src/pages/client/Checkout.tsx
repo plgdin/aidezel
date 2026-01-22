@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useCart } from '../../context/CartContext';
 import { supabase } from '../../lib/supabase';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { ShieldCheck, Loader2, Lock, MapPin, Plus, Tag, Check, Trash2, X, AlertCircle, CheckCircle, ArrowRight, RefreshCw } from 'lucide-react';
+import { ShieldCheck, Loader2, Lock, MapPin, Plus, Tag, Check, Trash2, X, AlertCircle, CheckCircle, ArrowRight, ChevronLeft, RefreshCw } from 'lucide-react';
 import { toast } from '../../components/ui/use-toast';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -10,6 +10,24 @@ import { generateInvoiceBase64 } from '../../utils/invoiceGenerator';
 
 // --- INITIALIZE STRIPE ---
 const stripePromise = loadStripe('pk_test_51Sglkr4oJa5N3YQp50I51KNbXYnq0Carqr1e7TYcCYMsanyfFBxW9aOt2wdQ5xkNDeDcRTfpomZAjRl3G9Wmvotf00wXuzGGbW');
+
+// --- STRIPE APPEARANCE CONFIG (The Fix for the Tick Mark) ---
+const stripeAppearance = {
+  theme: 'stripe' as const,
+  variables: {
+    colorPrimary: '#16a34a', // Green-600 to match your "Success" ticks
+    colorBackground: '#ffffff',
+    colorText: '#1f2937',
+    borderRadius: '12px',
+    fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+  },
+  layout: {
+    type: 'accordion' as const,
+    defaultCollapsed: false,
+    radios: true, // <--- THIS ADDS THE SELECTION INDICATOR (TICK/RADIO)
+    spacedAccordionItems: true
+  }
+};
 
 // --- HELPER: GENERATE STRICTLY DIGITS (9 Digits) ---
 const generateOrderId = () => {
@@ -121,9 +139,9 @@ const PaymentForm = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 mt-6 animate-in fade-in slide-in-from-bottom-4">
-      <div className="p-4 border border-gray-200 rounded-xl bg-white">
-          <PaymentElement />
-      </div>
+      {/* Payment Element inherits styles from options passed to <Elements> */}
+      <PaymentElement />
+      
       {message && (
         <div className="text-red-600 text-sm font-bold bg-red-50 p-4 rounded-xl flex items-center gap-2 border border-red-100">
             <AlertCircle size={16} /> {message}
@@ -153,10 +171,9 @@ const Checkout: React.FC = () => {
   const [clientSecret, setClientSecret] = useState('');
   const [paymentStep, setPaymentStep] = useState(false);
   
-  // UI STATES
   const [isProcessingReturn, setIsProcessingReturn] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
-  const [paymentFailed, setPaymentFailed] = useState(false); // NEW STATE FOR FAILURE SCREEN
+  const [paymentFailed, setPaymentFailed] = useState(false);
   const [confirmedOrderId, setConfirmedOrderId] = useState<string>('');
   
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
@@ -216,7 +233,12 @@ const Checkout: React.FC = () => {
         "payment_intent_client_secret"
       );
 
-      if (!clientSecretParam) return;
+      // --- FIX: CLEAR URL PARAMS IMMEDIATELY TO PREVENT "PROCESSING" ON REFRESH ---
+      if (clientSecretParam) {
+          window.history.replaceState(null, '', window.location.pathname);
+      } else {
+          return; // Stop if no param
+      }
 
       const stripe = await stripePromise;
       if (!stripe) return;
@@ -226,13 +248,11 @@ const Checkout: React.FC = () => {
       const { paymentIntent } = await stripe.retrievePaymentIntent(clientSecretParam);
 
       if (paymentIntent) {
-        // ALWAYS RESTORE DATA FIRST IF AVAILABLE
+        // Restore State
         const storedData = localStorage.getItem('pendingOrder');
         if (storedData) {
             const parsedData = JSON.parse(storedData);
-            // Restore form data so user doesn't lose it on failure
             setFormData(parsedData.formData);
-            // Restore cart check? (optional, cart usually persists)
         }
 
         if (paymentIntent.status === "succeeded") {
@@ -246,12 +266,11 @@ const Checkout: React.FC = () => {
             }
         } 
         else if (paymentIntent.status === "processing") {
-            notify("Processing Payment", "Your payment is currently processing. We'll update you shortly.");
+            notify("Processing Payment", "Your payment is currently processing.");
         } 
         else {
-            // FAILED / CANCELLED
             setIsProcessingReturn(false); 
-            setPaymentFailed(true); // SHOW FAILURE SCREEN
+            setPaymentFailed(true);
             
             if (paymentIntent.status === "requires_payment_method") {
                 notify("Payment Failed", "Authorization failed. Please try again.", "error");
@@ -261,6 +280,8 @@ const Checkout: React.FC = () => {
                 notify("Payment Error", "Something went wrong. Please try again.", "error");
             }
         }
+      } else {
+          setIsProcessingReturn(false);
       }
     };
 
@@ -330,7 +351,7 @@ const Checkout: React.FC = () => {
          }
 
          if (!isValidUKPostcode(formData.postcode)) {
-             return notify('Invalid Postcode', 'Please enter a valid UK postcode (e.g. SW1A 1AA).', 'error');
+             return notify('Invalid Postcode', 'Please enter a valid UK postcode.', 'error');
          }
 
          if (!isValidUKPhone(formData.phone)) {
@@ -500,7 +521,6 @@ const Checkout: React.FC = () => {
 
   const formatCurrency = (val: number) => `£${val.toFixed(2)}`;
 
-  // --- 1. PROCESSING VIEW ---
   if (isProcessingReturn) {
       return (
           <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
@@ -518,7 +538,6 @@ const Checkout: React.FC = () => {
       );
   }
 
-  // --- 2. PAYMENT FAILED VIEW (Retry Logic) ---
   if (paymentFailed) {
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
@@ -531,15 +550,16 @@ const Checkout: React.FC = () => {
                 
                 <button 
                     onClick={() => {
-                        setPaymentFailed(false); // Hide failure screen
-                        setPaymentStep(true); // Go directly to payment step
-                        // Ensure stripe element is re-initialized by triggering render
-                        setClientSecret(localStorage.getItem('pendingOrder') ? JSON.parse(localStorage.getItem('pendingOrder')!).clientSecret : clientSecret);
-                        // Force a small delay to allow re-render then scroll
+                        setPaymentFailed(false); 
+                        setPaymentStep(true); 
+                        const pending = localStorage.getItem('pendingOrder');
+                        if (pending) {
+                           setClientSecret(JSON.parse(pending).clientSecret || clientSecret); 
+                        }
+                        window.history.replaceState(null, '', window.location.pathname);
                         setTimeout(() => {
                            const el = document.getElementById('payment-step-container');
                            if(el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                           // Re-initialize payment logic if needed, but usually just rendering the form is enough if secret exists
                         }, 200);
                     }}
                     className="w-full bg-black text-white py-3 rounded-xl font-bold hover:bg-gray-800 transition-all flex items-center justify-center gap-2"
@@ -554,7 +574,6 @@ const Checkout: React.FC = () => {
     );
   }
 
-  // --- 3. SUCCESS VIEW ---
   if (orderSuccess) {
       return (
           <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
@@ -589,11 +608,14 @@ const Checkout: React.FC = () => {
             
           {/* STEP 1: ADDRESS */}
           <div className={`p-6 rounded-2xl border bg-white transition-all duration-300 ${paymentStep ? 'opacity-60 pointer-events-none' : 'shadow-md border-blue-200'}`}>
-            <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                <span className="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm">1</span>
-                Shipping Details
+            <h2 className="text-xl font-bold mb-6 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <span className="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm">1</span>
+                    Shipping Details
+                </div>
+                {paymentStep && <CheckCircle className="text-green-500" size={24} />}
             </h2>
-            {/* ... Address Form ... */}
+
             {savedAddresses.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     {savedAddresses.map((addr) => (
@@ -643,16 +665,25 @@ const Checkout: React.FC = () => {
                     {loading ? <Loader2 className="animate-spin" /> : 'Proceed to Payment'}
                 </button>
             )}
+            
+            {paymentStep && (
+                <button onClick={() => setPaymentStep(false)} className="mt-4 text-sm text-blue-600 font-bold hover:underline flex items-center gap-1">
+                    <ChevronLeft size={16} /> Edit Shipping Details
+                </button>
+            )}
           </div>
 
-          {/* STEP 2: PAYMENT */}
+          {/* STEP 2: PAYMENT (STATIC BLOCK) */}
           {paymentStep && clientSecret && (
             <div id="payment-step-container" className="bg-white p-6 rounded-2xl border border-blue-500 shadow-xl ring-4 ring-blue-50/50 animate-in fade-in slide-in-from-bottom-4 duration-500 scroll-mt-24">
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                     <span className="bg-black text-white w-8 h-8 rounded-full flex items-center justify-center text-sm">2</span>
                     Secure Payment
                 </h2>
-                <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
+                <Elements stripe={stripePromise} options={{ 
+                    clientSecret, 
+                    appearance: stripeAppearance 
+                }}>
                     <PaymentForm 
                         totalAmount={finalTotal} 
                         onSuccess={handleOrderSuccess} 
@@ -660,14 +691,11 @@ const Checkout: React.FC = () => {
                         cartItems={cartItems} 
                     />
                 </Elements>
-                <button onClick={() => setPaymentStep(false)} className="text-xs text-gray-400 underline mt-4 text-center w-full hover:text-gray-600">
-                    Edit details or Coupon
-                </button>
             </div>
           )}
         </div>
 
-        {/* --- RIGHT COLUMN --- */}
+        {/* --- RIGHT COLUMN: SUMMARY & COUPONS --- */}
         <div className="lg:col-span-1 space-y-6">
             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm sticky top-24 z-10">
                 <h3 className="font-bold text-lg mb-4">Order Summary</h3>

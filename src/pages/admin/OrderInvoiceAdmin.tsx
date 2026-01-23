@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { ArrowLeft, Download, Printer, ShieldAlert } from 'lucide-react';
-import logo from '../../assets/logo.png';
 import { generateInvoiceBase64 } from '../../utils/invoiceGenerator';
 
 const OrderInvoiceAdmin: React.FC = () => {
@@ -24,16 +23,16 @@ const OrderInvoiceAdmin: React.FC = () => {
           .single();
         setOrder(orderData || null);
 
-        // 2. Fetch Items WITH Product Name (The Fix)
+        // 2. Fetch Items WITH Product Name
         const { data: itemsData } = await supabase
           .from('order_items')
-          .select('*, products(name)') // <--- JOIN performed here
+          .select('*, products(name)') 
           .eq('order_id', id);
 
-        // 3. Map the result to flatten "products.name" into "product_name"
+        // 3. Flatten product name
         const formattedItems = itemsData?.map((item: any) => ({
           ...item,
-          product_name: item.products?.name || 'Product Item' // Fallback if product deleted
+          product_name: item.products?.name || item.product_name || 'Product Item' 
         })) || [];
 
         setItems(formattedItems);
@@ -61,9 +60,24 @@ const OrderInvoiceAdmin: React.FC = () => {
   if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-500">Loading invoice...</div>;
   if (!order) return <div className="min-h-screen flex items-center justify-center text-red-500">Order not found.</div>;
 
-  const totalAmount = Number(order.total_amount || 0);
-  const totalNet = totalAmount / 1.2;
-  const totalTax = totalAmount - totalNet;
+  // --- MATH LOGIC (Same as Client Invoice) ---
+  const dbGrandTotal = Number(order.total_amount || 0);
+
+  // Calculate Subtotal from Items
+  const calculatedSubtotal = items.reduce((sum, item) => {
+    const price = Number(item.price_at_purchase || item.price || 0);
+    return sum + (price * (item.quantity || 1));
+  }, 0);
+
+  // Calculate Discount
+  let discountAmount = 0;
+  if (dbGrandTotal < calculatedSubtotal - 0.05) {
+    discountAmount = calculatedSubtotal - dbGrandTotal;
+  }
+
+  // Tax Logic
+  const totalNet = dbGrandTotal / 1.2;
+  const totalTax = dbGrandTotal - totalNet;
 
   return (
     <div className="bg-gray-100 min-h-screen pb-12 print:bg-white print:pb-0 print:absolute print:top-0 print:left-0 print:w-full print:h-full print:z-[9999]">
@@ -91,7 +105,10 @@ const OrderInvoiceAdmin: React.FC = () => {
         {/* HEADER */}
         <div className="flex justify-between items-start border-b border-black/80 pb-8 mb-10">
           <div className="flex flex-col justify-start">
-            <img src={logo} alt="Aidezel" className="h-24 w-auto object-contain mb-2 -ml-2" /> 
+            {/* FIXED TEXT LOGO */}
+            <h1 className="text-4xl font-extrabold tracking-tighter" style={{ color: '#232f3e', fontFamily: 'Helvetica, Arial, sans-serif' }}>
+              AIDEZEL
+            </h1>
           </div>
           <div className="text-right">
             <h1 className="text-xl font-bold text-black uppercase tracking-wide">Tax Invoice</h1>
@@ -164,7 +181,6 @@ const OrderInvoiceAdmin: React.FC = () => {
               return (
                 <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                   <td className="py-3 px-4 font-medium text-gray-800 border-r border-gray-200">
-                    {/* FIXED: Uses fetched product name */}
                     {item.product_name}
                     <div className="text-[10px] text-gray-500 mt-0.5">HSN: 851762</div>
                   </td>
@@ -184,17 +200,28 @@ const OrderInvoiceAdmin: React.FC = () => {
         <div className="flex justify-end">
           <div className="w-72 space-y-3 text-sm">
             <div className="flex justify-between">
-              <span className="text-gray-600">Total Net Amount:</span>
-              <span>£{totalNet.toFixed(2)}</span>
+              <span className="text-gray-600">Subtotal:</span>
+              <span>£{calculatedSubtotal.toFixed(2)}</span>
             </div>
+
+            {/* --- DISCOUNT ROW --- */}
+            {discountAmount > 0.01 && (
+              <div className="flex justify-between text-green-700 font-medium">
+                <span>Discount:</span>
+                <span>-£{discountAmount.toFixed(2)}</span>
+              </div>
+            )}
+
             <div className="flex justify-between">
-              <span className="text-gray-600">Total Tax (20%):</span>
+              <span className="text-gray-600">Included VAT (20%):</span>
               <span>£{totalTax.toFixed(2)}</span>
             </div>
+
             <div className="flex justify-between border-t border-black pt-3 mt-3 text-base">
               <span className="font-bold text-black">Grand Total:</span>
-              <span className="font-bold text-black">£{totalAmount.toFixed(2)}</span>
+              <span className="font-bold text-black">£{dbGrandTotal.toFixed(2)}</span>
             </div>
+            <p className="text-[10px] text-right text-gray-500 mt-1 font-medium">(Amount in Words: Pounds Sterling Only)</p>
           </div>
         </div>
 

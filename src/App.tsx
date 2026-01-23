@@ -17,6 +17,8 @@ const StaffRegister = lazy(() => import('./pages/staff/StaffRegister'));
 
 const HomePage = lazy(() => import('./pages/client/Home'));
 const ShopPage = lazy(() => import('./pages/client/Shop'));
+// NEW: SubCategories Page
+
 const ProductDetails = lazy(() => import('./pages/client/ProductDetails'));
 const Cart = lazy(() => import('./pages/client/Cart'));
 const Checkout = lazy(() => import('./pages/client/Checkout'));
@@ -75,6 +77,8 @@ function App() {
           <Route path="/" element={<ClientLayout />}>
             <Route index element={<HomePage />} />
             <Route path="shop" element={<ShopPage />} />
+            {/* NEW: SubCategories Route */}
+        
             <Route path="product/:id" element={<ProductDetails />} />
             <Route path="cart" element={<Cart />} />
             <Route path="checkout" element={<Checkout />} />

@@ -11,6 +11,7 @@ import {
   Lightbulb,
   ChevronUp,
   ChevronDown,
+  ArrowUpDown
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
@@ -24,34 +25,10 @@ const SeoHelmet = Helmet as any;
 // --- CONFIGURATION ---
 
 const ALLOWED_FILTERS = [
-  // --- General (Applies to almost everything) ---
-  'Brand', 
-  'Color', 
-  'Material', 
-  'Style', 
-  'Type', 
-  
-  // --- Furniture & Hardware ---
-  'Finish',          // e.g., Matte, Gloss, Oak
-  'Shape',           // e.g., Round, Rectangular
-  'Assembly',        // e.g., Pre-assembled, DIY
-  'Seating Capacity',// e.g., 2 Seater, 4 Seater
-  'Room',            // e.g., Living Room, Bedroom
-  'Dimensions',      // e.g., Large, Compact
-  
-  // --- Lighting Specific ---
-  'Light Source',    // e.g., LED, Bulb
-  'Power Source',    // e.g., Battery, Plug-in
-  
-  // --- Dressing / Clothing / Fabrics ---
-  'Size',            // e.g., S, M, L, XL, UK 10
-  'Gender',          // e.g., Men, Women, Unisex
-  'Pattern',         // e.g., Solid, Striped, Floral
-  'Fit',             // e.g., Slim, Regular, Oversized
-  'Fabric',          // e.g., Cotton, Silk (Sometimes separate from Material)
-  'Sleeve Length',   // e.g., Long Sleeve, Short Sleeve
-  'Neckline',        // e.g., V-Neck, Round
-  'Occasion'         // e.g., Casual, Formal, Party
+  'Brand', 'Color', 'Material', 'Style', 'Type', 
+  'Finish', 'Shape', 'Assembly', 'Seating Capacity', 'Room', 'Dimensions', 
+  'Light Source', 'Power Source', 
+  'Size', 'Gender', 'Pattern', 'Fit', 'Fabric', 'Sleeve Length', 'Neckline', 'Occasion'
 ];
 
 const SUBCAT_IMAGES: Record<string, string> = {
@@ -72,7 +49,6 @@ interface CategoryData {
   subcategories: any[];
 }
 
-// ✅ HELPER: Robust Standardization
 const standardizeValue = (val: string): string => {
   if (!val || typeof val !== 'string') return '';
   const parts = val.split(/[\+\/&,]+/).map(p => p.trim());
@@ -82,7 +58,6 @@ const standardizeValue = (val: string): string => {
   return formattedParts.join(' + ');
 };
 
-// ✅ HELPER: Fuzzy Key Matcher
 const findMatchingKey = (obj: any, targetKey: string) => {
   if (!obj) return null;
   return Object.keys(obj).find(k => {
@@ -106,7 +81,8 @@ const FilterSection = ({ title, children, defaultOpen = true }: any) => {
 };
 
 const Shop = () => {
-  const [allProducts, setAllProducts] = useState<(Product & { options: any[] })[]>([]);
+  // FIX: Added 'rawPrice: number' to the type definition here to fix TS Error
+  const [allProducts, setAllProducts] = useState<(Product & { options: any[], created_at: string, is_hero: boolean, rawPrice: number })[]>([]);
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<CategoryData[]>([]); 
 
@@ -119,6 +95,8 @@ const Shop = () => {
   const [selectedSubcats, setSelectedSubcats] = useState<string[]>([]);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  const [sortBy, setSortBy] = useState('featured');
 
   const [selectedSpecs, setSelectedSpecs] = useState<Record<string, string[]>>({});
   const [fastDeliveryOnly, setFastDeliveryOnly] = useState(false);
@@ -136,7 +114,7 @@ const Shop = () => {
           id: item.id,
           name: item.name,
           price: `£${item.price.toLocaleString()}`,
-          rawPrice: item.price,
+          rawPrice: item.price, // Ensure this exists in your DB
           image: item.image_url,
           category: item.category,
           subcategory: item.subcategory,
@@ -145,6 +123,8 @@ const Shop = () => {
           options: item.options || [],
           tag: item.status === 'Out of Stock' ? 'Sold Out' : item.is_hero ? 'Featured' : 'New',
           stock_quantity: item.stock_quantity,
+          created_at: item.created_at, 
+          is_hero: item.is_hero 
         }));
         setAllProducts(formatted);
       }
@@ -187,21 +167,14 @@ const Shop = () => {
     relevantProducts.forEach((p: any) => {
       ALLOWED_FILTERS.forEach((allowedKey) => {
         let valuesFound: string[] = [];
-
         if (Array.isArray(p.options)) {
           const variantGroup = p.options.find((o: any) => o.name.toLowerCase() === allowedKey.toLowerCase());
-          if (variantGroup && Array.isArray(variantGroup.values)) {
-             valuesFound = variantGroup.values;
-          }
+          if (variantGroup && Array.isArray(variantGroup.values)) valuesFound = variantGroup.values;
         }
-
         if (valuesFound.length === 0 && p.specs) {
            const specKey = findMatchingKey(p.specs, allowedKey);
-           if (specKey && p.specs[specKey]) {
-             valuesFound = [String(p.specs[specKey])];
-           }
+           if (specKey && p.specs[specKey]) valuesFound = [String(p.specs[specKey])];
         }
-
         if (valuesFound.length > 0) {
            if (!specsMap[allowedKey]) specsMap[allowedKey] = new Set();
            valuesFound.forEach(v => specsMap[allowedKey].add(standardizeValue(v)));
@@ -210,10 +183,7 @@ const Shop = () => {
     });
 
     const specsArray = Object.entries(specsMap)
-      .map(([key, values]) => ({
-        key,
-        values: Array.from(values).sort(),
-      }))
+      .map(([key, values]) => ({ key, values: Array.from(values).sort() }))
       .sort((a, b) => a.key.localeCompare(b.key));
 
     return {
@@ -224,42 +194,36 @@ const Shop = () => {
   }, [selectedCategory, allProducts, categories]);
 
   const filteredProducts = useMemo(() => {
-    return allProducts.filter((product: any) => {
+    // 1. FILTER
+    let result = allProducts.filter((product: any) => {
       if (selectedCategory !== 'All' && product.category !== selectedCategory) return false;
       if (selectedSubcats.length > 0 && (!product.subcategory || !selectedSubcats.includes(product.subcategory))) return false;
       if (selectedBrands.length > 0 && (!product.brand || !selectedBrands.includes(product.brand))) return false;
 
       const matchesSpecs = Object.entries(selectedSpecs).every(([filterKey, selectedValues]) => {
         if (selectedValues.length === 0) return true;
-        
         let productValues: string[] = [];
-
         if (Array.isArray(product.options)) {
             const variantGroup = product.options.find((o: any) => o.name.toLowerCase() === filterKey.toLowerCase());
             if (variantGroup && Array.isArray(variantGroup.values)) {
                 productValues = variantGroup.values.map((v: string) => standardizeValue(v));
             }
         }
-
         if (productValues.length === 0 && product.specs) {
             const specKey = findMatchingKey(product.specs, filterKey);
             if (specKey && product.specs[specKey]) {
                 productValues = [standardizeValue(String(product.specs[specKey]))];
             }
         }
-
         let hasMatch = productValues.some(val => selectedValues.includes(val));
-
         if (!hasMatch) {
             const titleLower = product.name.toLowerCase();
             const descriptionLower = (product.description || "").toLowerCase();
-            
             hasMatch = selectedValues.some(sv => {
                 const parts = sv.toLowerCase().split(' + ');
                 return parts.every(part => titleLower.includes(part) || descriptionLower.includes(part));
             });
         }
-
         return hasMatch;
       });
 
@@ -273,10 +237,22 @@ const Shop = () => {
         const matchesBrand = product.brand?.toLowerCase().includes(lowerTerm);
         if (!matchesName && !matchesCat && !matchesBrand) return false;
       }
-
       return true;
     });
-  }, [allProducts, selectedCategory, selectedSubcats, selectedBrands, selectedSpecs, fastDeliveryOnly, searchTerm]);
+
+    // 2. SORT LOGIC (Fixed TS Errors with fallbacks)
+    return result.sort((a, b) => {
+        switch (sortBy) {
+            case 'price-asc': return (a.rawPrice || 0) - (b.rawPrice || 0);
+            case 'price-desc': return (b.rawPrice || 0) - (a.rawPrice || 0);
+            case 'newest': return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            case 'best-selling': return (a.stock_quantity || 0) - (b.stock_quantity || 0); 
+            case 'featured': 
+            default: return (b.is_hero ? 1 : 0) - (a.is_hero ? 1 : 0);
+        }
+    });
+
+  }, [allProducts, selectedCategory, selectedSubcats, selectedBrands, selectedSpecs, fastDeliveryOnly, searchTerm, sortBy]);
 
   const handleCategoryChange = (cat: string) => {
     setSelectedCategory(cat);
@@ -327,6 +303,7 @@ const Shop = () => {
     setSelectedBrands([]);
     setSelectedSpecs({});
     setFastDeliveryOnly(false);
+    setSortBy('featured'); 
     handleCategoryChange('All');
   };
 
@@ -339,7 +316,6 @@ const Shop = () => {
     }
   };
 
-  // --- SEO DYNAMIC LOGIC ---
   const pageTitle = useMemo(() => {
     if (searchTerm) return `Search Results for "${searchTerm}" | Aidezel UK`;
     if (selectedCategory && selectedCategory !== 'All') return `Shop ${selectedCategory} | Aidezel UK`;
@@ -377,7 +353,6 @@ const Shop = () => {
             <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full cursor-pointer" onClick={() => setSelectedSubcats([])}>Clear</span>
           )}
         </div>
-        {/* ADDED px-6 to fix cutoff on hover/shadows */}
         <div className="flex gap-4 overflow-x-auto pb-6 pt-4 px-6 scrollbar-hide snap-x">
           {availableSubcats.map((sub: any) => {
             const isSelected = selectedSubcats.includes(sub);
@@ -484,27 +459,20 @@ const Shop = () => {
   );
 
   return (
-    // FIX: Changed pt-8 to pt-0 lg:pt-8 to remove top gap on mobile
     <div className="container mx-auto px-4 pt-0 lg:pt-8 pb-24 min-h-screen">
       
-      {/* --- SEO METADATA START --- */}
       <SeoHelmet>
         <title>{pageTitle}</title>
         <meta name="description" content={metaDescription} />
         <link rel="canonical" href={currentUrl} />
-        
-        {/* Open Graph */}
         <meta property="og:type" content="website" />
         <meta property="og:title" content={pageTitle} />
         <meta property="og:description" content={metaDescription} />
         <meta property="og:url" content={currentUrl} />
-        
-        {/* Twitter */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={pageTitle} />
         <meta name="twitter:description" content={metaDescription} />
       </SeoHelmet>
-      {/* --- SEO METADATA END --- */}
 
       <div className="lg:hidden mb-6 flex gap-3 sticky top-[72px] z-30 bg-white/80 backdrop-blur-md py-3 border-b border-gray-100">
         <button onClick={() => setShowMobileFilters(true)} className="flex-1 bg-gray-900 text-white p-3 rounded-xl flex items-center justify-center gap-2 font-bold shadow-md active:scale-95 transition-transform">
@@ -526,17 +494,43 @@ const Shop = () => {
 
         <div className="flex-1">
           {renderSubcategoryScroller()}
-          <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+          
+          {/* HEADER ROW: Title, Search, and SORT BY DROPDOWN */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 border-b border-gray-100 pb-4">
             <div>
               <h1 className="text-3xl font-bold flex items-center gap-2 mb-1">{selectedCategory === 'All' ? 'All Products' : selectedCategory}</h1>
               <p className="text-gray-500 text-sm">{filteredProducts.length} results found</p>
             </div>
-            {searchTerm && (
-              <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-medium border border-blue-100 self-start md:self-auto">
-                <span>Search: "{searchTerm}"</span>
-                <button onClick={clearSearch} className="hover:text-blue-900"><X size={14} /></button>
+            
+            <div className="flex flex-col sm:flex-row gap-3">
+              {searchTerm && (
+                <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-2 rounded-full text-sm font-medium border border-blue-100 self-start md:self-auto">
+                  <span>Search: "{searchTerm}"</span>
+                  <button onClick={clearSearch} className="hover:text-blue-900"><X size={14} /></button>
+                </div>
+              )}
+
+              {/* --- NEW: SORT DROPDOWN --- */}
+              <div className="relative group">
+                <div className="flex items-center gap-2 bg-white border border-gray-200 px-3 py-2 rounded-lg shadow-sm hover:border-gray-400 transition-colors cursor-pointer">
+                    <ArrowUpDown size={16} className="text-gray-500" />
+                    <select 
+                        value={sortBy} 
+                        onChange={(e) => setSortBy(e.target.value)} 
+                        className="bg-transparent text-sm font-bold text-gray-900 outline-none appearance-none cursor-pointer pr-8"
+                        style={{ backgroundImage: 'none' }}
+                    >
+                        <option value="featured">Featured</option>
+                        <option value="price-asc">Price: Low to high</option>
+                        <option value="price-desc">Price: High to low</option>
+                        <option value="rating">Avg. Customer review</option>
+                        <option value="newest">Newest arrivals</option>
+                        <option value="best-selling">Best Sellers</option>
+                    </select>
+                    <ChevronDown size={14} className="text-gray-400 absolute right-3 pointer-events-none" />
+                </div>
               </div>
-            )}
+            </div>
           </div>
 
           {loading ? (

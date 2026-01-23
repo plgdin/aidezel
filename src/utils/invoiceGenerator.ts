@@ -1,60 +1,20 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import logo from "../assets/logo.png";
 
 const formatCurrency = (amount: any) => {
   return `£${Number(amount || 0).toFixed(2)}`;
-};
-
-const getBase64ImageFromURL = (url: string): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "Anonymous";
-    img.src = url;
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      // Scale down image to save space
-      const scale = Math.min(1, 300 / img.width);
-      canvas.width = img.width * scale;
-      canvas.height = img.height * scale;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", 0.7));
-      } else {
-        reject(new Error("Canvas context is null"));
-      }
-    };
-    img.onerror = (error) => reject(error);
-  });
 };
 
 export const generateInvoiceBase64 = async (order: any, items: any[], options: { skipLogo?: boolean } = {}) => {
   try {
     const doc = new jsPDF({ compress: true });
 
-    // --- 1. PROFESSIONAL HEADER (No "Shitty" Text) ---
-    if (!options.skipLogo) {
-      try {
-        const logoBase64 = await getBase64ImageFromURL(logo);
-        const imgProps = doc.getImageProperties(logoBase64);
-        const pdfWidth = 40; 
-        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-        doc.addImage(logoBase64, "JPEG", 14, 10, pdfWidth, pdfHeight);
-      } catch (err) {
-        // Fallback: Professional Typography
-        doc.setFontSize(26);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(35, 47, 62); 
-        doc.text("Aidezel", 14, 25);
-      }
-    } else {
-      // EMAIL MODE: Professional Typography (Small File Size)
-      doc.setFontSize(26);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(35, 47, 62); // Dark Corporate Blue
-      doc.text("Aidezel", 14, 25);
-    }
+    // --- 1. HEADER (TEXT LOGO REPLACEMENT) ---
+    // This replaces the image entirely to prevent the black bar issue
+    doc.setFontSize(28);
+    doc.setTextColor(22, 163, 74); // Brand Green
+    doc.setFont("helvetica", "bold");
+    doc.text("AIDEZEL", 14, 25);
 
     const safeItems = Array.isArray(items) ? items : []; 
     const safeOrder = order || {};
@@ -84,7 +44,7 @@ export const generateInvoiceBase64 = async (order: any, items: any[], options: {
     doc.text("123 Commerce Way, London", 14, startY + 15);
     doc.text("United Kingdom, EC1A 1BB", 14, startY + 20);
 
-    // Right: Billing Address (With Debug Fallback)
+    // Right: Billing Address
     const rightColX = 130;
     doc.setFont("helvetica", "bold");
     doc.text("Billing/Shipping Address:", rightColX, startY);
@@ -95,11 +55,12 @@ export const generateInvoiceBase64 = async (order: any, items: any[], options: {
 
     doc.setFont("helvetica", "normal");
 
-    // Address Lines (Ensure it's not empty)
+    // Address Lines
     const addrText = safeOrder.address || "Address Details Unavailable";
     const addressLines = doc.splitTextToSize(addrText, 65);
     doc.text(addressLines, rightColX, startY + 10);
 
+    // City/Postcode position depends on address length
     const cityY = startY + 10 + (addressLines.length * 4);
     doc.text(`${safeOrder.city || ""} ${safeOrder.postcode || ""}`, rightColX, cityY);
 

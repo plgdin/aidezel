@@ -9,7 +9,7 @@ import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-
 import { generateInvoiceBase64 } from '../../utils/invoiceGenerator';
 
 // --- INITIALIZE STRIPE ---
-const stripePromise = loadStripe('pk_test_51Sglkr4oJa5N3YQp50I51KNbXYnq0Carqr1e7TYcCYMsanyfFBxW9aOt2wdQ5xkNDeDcRTfpomZAjRl3G9Wmvotf00wXuzGGbW');
+const stripePromise = loadStripe('pk_live_51Sglkr4oJa5N3YQpYFkrntrLQIt1nupIvMiBSwm6sHmXuQXBz611vKffQRz8PJ6hTFUtjIhmuCiMZnNoHWB7sysO00ieNwCb8r');
 
 // --- STRIPE APPEARANCE ---
 const stripeAppearance = {

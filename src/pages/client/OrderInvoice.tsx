@@ -17,7 +17,7 @@ const OrderInvoice: React.FC = () => {
       if (!id) return;
       try {
         setLoading(true);
-        // 1. Fetch Order Details
+        // 1. Fetch Order Details (Address comes from here)
         const { data: orderData, error: orderError } = await supabase
           .from('orders')
           .select('*')
@@ -26,20 +26,21 @@ const OrderInvoice: React.FC = () => {
 
         if (orderError) throw orderError;
 
-        // 2. Fetch Items WITH Product Name (The Fix)
+        // 2. Fetch Items WITH Product Name (Crucial for PDF description)
         const { data: itemsData, error: itemsError } = await supabase
           .from('order_items')
-          .select('*, products(name)') // <--- JOIN performed here
+          .select('*, products(name)') // Join to get product name
           .eq('order_id', id);
 
         if (itemsError) throw itemsError;
 
         setOrder(orderData);
 
-        // 3. Map the result to flatten "products.name" into "product_name"
+        // 3. Format Items for the PDF Generator
         const formattedItems = itemsData?.map((item: any) => ({
             ...item,
-            product_name: item.products?.name || 'Product Item' // Fallback if product deleted
+            // Ensure product_name exists. Fallback to 'Product' if missing.
+            product_name: item.products?.name || item.product_name || 'Product Item' 
         })) || [];
 
         setItems(formattedItems);
@@ -58,10 +59,11 @@ const OrderInvoice: React.FC = () => {
 
   const handleDownloadPDF = async () => {
     if (!order || !items) return;
+    // Generates PDF using database data
     const base64 = await generateInvoiceBase64(order, items);
     const link = document.createElement('a');
-    link.href = `data:application/pdf;base64,${base64}`;
-    link.download = `Invoice-${order.id}.pdf`;
+    link.href = data:application/pdf;base64,${base64};
+    link.download = Invoice-${order.id}.pdf;
     link.click();
   };
 
@@ -125,6 +127,7 @@ const OrderInvoice: React.FC = () => {
             <div>
               <h3 className="font-bold text-black mb-1">Billing & Shipping Address:</h3>
               <p className="font-semibold uppercase">{order.customer_name}</p>
+              {/* This displays what is saved in DB. If DB is empty, this is empty. */}
               <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
                 {order.address}<br/>
                 {order.city}<br/>
@@ -150,7 +153,7 @@ const OrderInvoice: React.FC = () => {
           </div>
         </div>
 
-        {/* TABLE (Professional Look) */}
+        {/* TABLE */}
         <table className="w-full text-sm mb-12 border-collapse border border-gray-300">
           <thead className="bg-[#232f3e] text-white">
             <tr className="text-xs uppercase tracking-wide">
@@ -176,7 +179,6 @@ const OrderInvoice: React.FC = () => {
               return (
                 <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                   <td className="py-3 px-4 font-medium text-gray-800 border-r border-gray-200">
-                    {/* THIS NOW WORKS BECAUSE WE FETCHED IT */}
                     {item.product_name}
                     <div className="text-[10px] text-gray-500 mt-0.5">HSN: 851762</div>
                   </td>

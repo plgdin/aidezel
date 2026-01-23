@@ -9,10 +9,10 @@ export const generateInvoiceBase64 = async (order: any, items: any[], options: {
   try {
     const doc = new jsPDF({ compress: true });
 
-    // --- 1. HEADER (TEXT LOGO REPLACEMENT) ---
-    // This replaces the image entirely to prevent the black bar issue
+    // --- 1. HEADER (TEXT LOGO) ---
     doc.setFontSize(28);
-    doc.setTextColor(22, 163, 74); // Brand Green
+    // CHANGED: Matched color to Table Headers (Dark Blue/Grey) instead of Green
+    doc.setTextColor(35, 47, 62); 
     doc.setFont("helvetica", "bold");
     doc.text("AIDEZEL", 14, 25);
 
@@ -122,7 +122,13 @@ export const generateInvoiceBase64 = async (order: any, items: any[], options: {
     autoTable(doc, {
       startY: barY + 15,
       theme: 'plain',
-      headStyles: { fillColor: [35, 47, 62], textColor: 255, fontStyle: 'bold', fontSize: 8, cellPadding: 3 },
+      headStyles: {
+        fillColor: [35, 47, 62], // Dark Blue/Grey (Matched by Header)
+        textColor: 255,
+        fontStyle: 'bold',
+        fontSize: 8,
+        cellPadding: 3
+      },
       bodyStyles: { textColor: 50, fontSize: 9, cellPadding: 4, valign: 'middle', lineColor: [230, 230, 230], lineWidth: { bottom: 0.1 } },
       head: [["Description", "Unit Price (Net)", "Qty", "Net Amount", "Tax Rate", "Tax Amount", "Total"]],
       body: tableData,

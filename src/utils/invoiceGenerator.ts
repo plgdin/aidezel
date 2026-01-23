@@ -9,10 +9,9 @@ export const generateInvoiceBase64 = async (order: any, items: any[], options: {
   try {
     const doc = new jsPDF({ compress: true });
 
-    // --- 1. HEADER ---
-    // COLOR MATCH: Using Dark Blue (RGB: 35, 47, 62) to match the Table Header
+    // --- 1. HEADER (Dark Blue Text Logo) ---
     doc.setFontSize(28);
-    doc.setTextColor(35, 47, 62); 
+    doc.setTextColor(35, 47, 62); // Dark Blue to match table headers
     doc.setFont("helvetica", "bold");
     doc.text("AIDEZEL", 14, 25);
 
@@ -50,18 +49,14 @@ export const generateInvoiceBase64 = async (order: any, items: any[], options: {
     doc.setFont("helvetica", "bold");
     doc.text("Billing/Shipping Address:", rightColX, startY);
 
-    // Name
     const custName = safeOrder.customer_name || "Valued Customer";
     doc.text(String(custName).toUpperCase(), rightColX, startY + 5);
 
     doc.setFont("helvetica", "normal");
-
-    // Address Lines
     const addrText = safeOrder.address || "Address Details Unavailable";
     const addressLines = doc.splitTextToSize(addrText, 65);
     doc.text(addressLines, rightColX, startY + 10);
 
-    // City/Postcode
     const cityY = startY + 10 + (addressLines.length * 4);
     doc.text(`${safeOrder.city || ""} ${safeOrder.postcode || ""}`, rightColX, cityY);
 
@@ -91,7 +86,6 @@ export const generateInvoiceBase64 = async (order: any, items: any[], options: {
       const name = item.product_name || item.name || "Item";
       const quantity = Number(item.quantity || 1);
 
-      // Price logic
       let unitPriceGross = 0;
       if (item.price_at_purchase !== undefined) unitPriceGross = Number(item.price_at_purchase);
       else if (item.price !== undefined) unitPriceGross = Number(item.price);
@@ -99,7 +93,6 @@ export const generateInvoiceBase64 = async (order: any, items: any[], options: {
       const totalLineGross = unitPriceGross * quantity;
       calculatedSubtotal += totalLineGross;
 
-      // Tax breakdown (20% VAT assumed included)
       const totalLineNet = totalLineGross / 1.2;
       const totalLineTax = totalLineGross - totalLineNet;
       const unitPriceNet = unitPriceGross / 1.2;
@@ -115,12 +108,12 @@ export const generateInvoiceBase64 = async (order: any, items: any[], options: {
       ];
     });
 
-    // Handle Discount Logic
+    // Detect Discount (If DB Total is less than sum of items)
     const dbGrandTotal = Number(safeOrder.total_amount || 0);
     let discountAmount = 0;
     
-    // If the DB total is less than item sum, implies a discount
-    if (dbGrandTotal < calculatedSubtotal - 0.05) { // 0.05 buffer for float errors
+    // 0.05 buffer handles tiny floating point differences
+    if (dbGrandTotal < calculatedSubtotal - 0.05) { 
         discountAmount = calculatedSubtotal - dbGrandTotal;
     }
 
@@ -128,20 +121,11 @@ export const generateInvoiceBase64 = async (order: any, items: any[], options: {
     autoTable(doc, {
       startY: barY + 15,
       theme: 'plain',
-      headStyles: { 
-          fillColor: [35, 47, 62], // Matches Logo Color
-          textColor: 255, 
-          fontStyle: 'bold', 
-          fontSize: 8, 
-          cellPadding: 3 
-      },
+      headStyles: { fillColor: [35, 47, 62], textColor: 255, fontStyle: 'bold', fontSize: 8, cellPadding: 3 },
       bodyStyles: { textColor: 50, fontSize: 9, cellPadding: 4, valign: 'middle', lineColor: [230, 230, 230], lineWidth: { bottom: 0.1 } },
       head: [["Description", "Unit Price (Net)", "Qty", "Net Amount", "Tax Rate", "Tax Amount", "Total"]],
       body: tableData,
-      columnStyles: {
-        0: { cellWidth: 70 },
-        6: { fontStyle: 'bold', halign: 'right' } 
-      }
+      columnStyles: { 0: { cellWidth: 70 }, 6: { fontStyle: 'bold', halign: 'right' } }
     });
 
     // --- 6. SUMMARY ---
@@ -160,16 +144,16 @@ export const generateInvoiceBase64 = async (order: any, items: any[], options: {
 
     let currentY = finalY + 5;
 
-    // Discount (Only show if exists)
+    // SHOW DISCOUNT ROW
     if (discountAmount > 0.01) {
-        doc.setTextColor(22, 163, 74); // Green for discount
+        doc.setTextColor(22, 163, 74); // Green color for discount
         doc.text("Discount:", summaryXLabel, currentY);
         doc.text(`-${formatCurrency(discountAmount)}`, summaryXValue, currentY, { align: "right" });
         currentY += 5;
-        doc.setTextColor(80); // Reset to grey
+        doc.setTextColor(80); // Back to grey
     }
 
-    // Tax Note (Informational)
+    // Tax Note
     const finalTax = dbGrandTotal - (dbGrandTotal / 1.2);
     doc.text("Included VAT (20%):", summaryXLabel, currentY);
     doc.text(formatCurrency(finalTax), summaryXValue, currentY, { align: "right" });

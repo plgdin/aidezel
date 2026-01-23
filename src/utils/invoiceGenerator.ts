@@ -9,9 +9,9 @@ export const generateInvoiceBase64 = async (order: any, items: any[], options: {
   try {
     const doc = new jsPDF({ compress: true });
 
-    // --- 1. HEADER (TEXT LOGO) ---
+    // --- 1. HEADER ---
+    // COLOR MATCH: Using Dark Blue (RGB: 35, 47, 62) to match the Table Header
     doc.setFontSize(28);
-    // CHANGED: Matched color to Table Headers (Dark Blue/Grey) instead of Green
     doc.setTextColor(35, 47, 62); 
     doc.setFont("helvetica", "bold");
     doc.text("AIDEZEL", 14, 25);
@@ -20,7 +20,7 @@ export const generateInvoiceBase64 = async (order: any, items: any[], options: {
     const safeOrder = order || {};
     const safeId = safeOrder.id || "PENDING";
     const displayId = String(safeId).toUpperCase();
-    const safeDate = new Date().toLocaleDateString('en-GB');
+    const safeDate = new Date(safeOrder.created_at || new Date()).toLocaleDateString('en-GB');
 
     // "TAX INVOICE" Label
     doc.setTextColor(0); 
@@ -31,7 +31,7 @@ export const generateInvoiceBase64 = async (order: any, items: any[], options: {
     doc.setFont("helvetica", "normal");
     doc.text("(Original for Recipient)", 196, 27, { align: "right" });
 
-    // --- 2. ADDRESSES (Fixed Placement) ---
+    // --- 2. ADDRESSES ---
     const startY = 50;
 
     // Left: Sold By
@@ -43,6 +43,7 @@ export const generateInvoiceBase64 = async (order: any, items: any[], options: {
     doc.text("Unit 42, Innovation Tech Park", 14, startY + 10);
     doc.text("123 Commerce Way, London", 14, startY + 15);
     doc.text("United Kingdom, EC1A 1BB", 14, startY + 20);
+    doc.text("VAT Reg No: GB 987 654 321", 14, startY + 30);
 
     // Right: Billing Address
     const rightColX = 130;
@@ -60,12 +61,12 @@ export const generateInvoiceBase64 = async (order: any, items: any[], options: {
     const addressLines = doc.splitTextToSize(addrText, 65);
     doc.text(addressLines, rightColX, startY + 10);
 
-    // City/Postcode position depends on address length
+    // City/Postcode
     const cityY = startY + 10 + (addressLines.length * 4);
     doc.text(`${safeOrder.city || ""} ${safeOrder.postcode || ""}`, rightColX, cityY);
 
     // --- 3. ORDER BAR ---
-    const barY = startY + 40;
+    const barY = startY + 45;
     doc.setFillColor(245, 245, 245);
     doc.rect(14, barY - 4, 182, 14, 'F');
 
@@ -84,18 +85,21 @@ export const generateInvoiceBase64 = async (order: any, items: any[], options: {
     doc.text(`${safeDate}`, 130, barY + 4);
 
     // --- 4. CALCULATE TOTALS ---
-    let calculatedTotal = 0;
+    let calculatedSubtotal = 0;
+    
     const tableData = safeItems.map((item: any) => {
       const name = item.product_name || item.name || "Item";
       const quantity = Number(item.quantity || 1);
 
+      // Price logic
       let unitPriceGross = 0;
       if (item.price_at_purchase !== undefined) unitPriceGross = Number(item.price_at_purchase);
       else if (item.price !== undefined) unitPriceGross = Number(item.price);
 
       const totalLineGross = unitPriceGross * quantity;
-      calculatedTotal += totalLineGross;
+      calculatedSubtotal += totalLineGross;
 
+      // Tax breakdown (20% VAT assumed included)
       const totalLineNet = totalLineGross / 1.2;
       const totalLineTax = totalLineGross - totalLineNet;
       const unitPriceNet = unitPriceGross / 1.2;
@@ -111,23 +115,25 @@ export const generateInvoiceBase64 = async (order: any, items: any[], options: {
       ];
     });
 
-    let grandTotal = Number(safeOrder.total_amount || 0);
-    if (grandTotal === 0 && calculatedTotal > 0) {
-      grandTotal = calculatedTotal;
+    // Handle Discount Logic
+    const dbGrandTotal = Number(safeOrder.total_amount || 0);
+    let discountAmount = 0;
+    
+    // If the DB total is less than item sum, implies a discount
+    if (dbGrandTotal < calculatedSubtotal - 0.05) { // 0.05 buffer for float errors
+        discountAmount = calculatedSubtotal - dbGrandTotal;
     }
-    const totalNet = grandTotal / 1.2;
-    const totalTax = grandTotal - totalNet;
 
     // --- 5. TABLE ---
     autoTable(doc, {
       startY: barY + 15,
       theme: 'plain',
-      headStyles: {
-        fillColor: [35, 47, 62], // Dark Blue/Grey (Matched by Header)
-        textColor: 255,
-        fontStyle: 'bold',
-        fontSize: 8,
-        cellPadding: 3
+      headStyles: { 
+          fillColor: [35, 47, 62], // Matches Logo Color
+          textColor: 255, 
+          fontStyle: 'bold', 
+          fontSize: 8, 
+          cellPadding: 3 
       },
       bodyStyles: { textColor: 50, fontSize: 9, cellPadding: 4, valign: 'middle', lineColor: [230, 230, 230], lineWidth: { bottom: 0.1 } },
       head: [["Description", "Unit Price (Net)", "Qty", "Net Amount", "Tax Rate", "Tax Amount", "Total"]],
@@ -139,7 +145,8 @@ export const generateInvoiceBase64 = async (order: any, items: any[], options: {
     });
 
     // --- 6. SUMMARY ---
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    // @ts-ignore
+    const finalY = doc.lastAutoTable.finalY + 10;
     const summaryXLabel = 140;
     const summaryXValue = 196;
 
@@ -147,21 +154,39 @@ export const generateInvoiceBase64 = async (order: any, items: any[], options: {
     doc.setFont("helvetica", "normal");
     doc.setTextColor(80);
 
-    doc.text("Total Net Amount:", summaryXLabel, finalY);
-    doc.text(formatCurrency(totalNet), summaryXValue, finalY, { align: "right" });
+    // Subtotal
+    doc.text("Subtotal:", summaryXLabel, finalY);
+    doc.text(formatCurrency(calculatedSubtotal), summaryXValue, finalY, { align: "right" });
 
-    doc.text("Total Tax (20%):", summaryXLabel, finalY + 5);
-    doc.text(formatCurrency(totalTax), summaryXValue, finalY + 5, { align: "right" });
+    let currentY = finalY + 5;
 
+    // Discount (Only show if exists)
+    if (discountAmount > 0.01) {
+        doc.setTextColor(22, 163, 74); // Green for discount
+        doc.text("Discount:", summaryXLabel, currentY);
+        doc.text(`-${formatCurrency(discountAmount)}`, summaryXValue, currentY, { align: "right" });
+        currentY += 5;
+        doc.setTextColor(80); // Reset to grey
+    }
+
+    // Tax Note (Informational)
+    const finalTax = dbGrandTotal - (dbGrandTotal / 1.2);
+    doc.text("Included VAT (20%):", summaryXLabel, currentY);
+    doc.text(formatCurrency(finalTax), summaryXValue, currentY, { align: "right" });
+    
+    currentY += 3;
     doc.setDrawColor(200);
-    doc.line(summaryXLabel, finalY + 8, summaryXValue, finalY + 8);
+    doc.line(summaryXLabel, currentY, summaryXValue, currentY);
+    currentY += 7;
 
+    // Grand Total
     doc.setFontSize(12);
     doc.setTextColor(0);
     doc.setFont("helvetica", "bold");
-    doc.text("Grand Total:", summaryXLabel, finalY + 15);
-    doc.text(formatCurrency(grandTotal), summaryXValue, finalY + 15, { align: "right" });
+    doc.text("Grand Total:", summaryXLabel, currentY);
+    doc.text(formatCurrency(dbGrandTotal), summaryXValue, currentY, { align: "right" });
 
+    // --- 7. FOOTER ---
     const pageHeight = doc.internal.pageSize.height;
     doc.setFontSize(8);
     doc.setTextColor(150);

@@ -1,8 +1,7 @@
-// src/components/layout/StaffLayout.tsx
 import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase'; 
-import { LayoutDashboard, Package, ShoppingCart, LogOut, Tags, ClipboardList, Loader2, UserCircle } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, LogOut, Tags, ClipboardList, Loader2, UserCircle, MessageSquare } from 'lucide-react';
 import { Toaster } from '../ui/toaster';
 
 const StaffLayout = () => {
@@ -124,6 +123,11 @@ const StaffLayout = () => {
           <Link to="/staff/orders" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive('/staff/orders')}`}>
             <ShoppingCart size={20} /> Orders
           </Link>
+          {/* --- NEW TICKETS LINK --- */}
+          <Link to="/staff/tickets" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive('/staff/tickets')}`}>
+            <MessageSquare size={20} /> Support Tickets
+          </Link>
+          {/* ------------------------ */}
         </nav>
 
         <div className="p-4 border-t border-slate-800">

@@ -11,6 +11,8 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { supabase } from '../../lib/supabase'; // Import Supabase
+import { toast } from '../../components/ui/toaster'; // Import your custom Toaster
 
 // --- Types ---
 type Topic = 'order' | 'return' | 'payment' | 'account' | 'other' | null;
@@ -59,13 +61,34 @@ const Contact = () => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // SIMULATE API CALL
-    setTimeout(() => {
-      const newTicket = generateTicketId();
-      setTicketId(newTicket);
-      setIsSubmitting(false);
+    const newTicketId = generateTicketId();
+
+    try {
+      // --- INSERT INTO DATABASE ---
+      const { error } = await supabase.from('support_tickets').insert({
+        ticket_id: newTicketId,
+        name: formData.name,
+        email: formData.email,
+        subject: formData.subject,
+        topic: activeTopic || 'other',
+        message: formData.message,
+        order_id: formData.orderId || null,
+        status: 'open'
+      });
+
+      if (error) throw error;
+
+      // Success
+      setTicketId(newTicketId);
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    }, 1500);
+      toast.success("Ticket Created", "We have received your request.");
+
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Error", "Failed to submit ticket. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // --- Sub-Components ---
@@ -292,7 +315,6 @@ const Contact = () => {
 };
 
 // --- Helper Component: Topic Card ---
-// FIXED: Replaced 'bg-brand-primary' with 'bg-blue-600' to ensure icons are visible.
 const TopicCard = ({ icon: Icon, label, active, onClick }: { icon: any, label: string, active: boolean, onClick: () => void }) => (
   <button 
     onClick={onClick}

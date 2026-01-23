@@ -1,4 +1,3 @@
-// src/components/layout/AdminLayout.tsx
 import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase'; 
@@ -13,7 +12,8 @@ import {
   FileText, 
   History, 
   Ticket, 
-  Users // <--- Added Users icon for Staff Management
+  Users,
+  MessageSquare // <--- Added Icon for Support Tickets
 } from 'lucide-react';
 import { Toaster } from '../ui/toaster';
 
@@ -93,13 +93,17 @@ const AdminLayout = () => {
           <Link to="/admin/coupons" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive('/admin/coupons')}`}>
             <Ticket size={20} /> Coupons
           </Link>
-          {/* ------------------------- */}
-
+          
           {/* --- NEW MANAGE STAFF LINK --- */}
           <Link to="/admin/staff-manage" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive('/admin/staff-manage')}`}>
             <Users size={20} /> Manage Staff
           </Link>
-          {/* ----------------------------- */}
+
+          {/* --- NEW TICKETS LINK --- */}
+          <Link to="/admin/tickets" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive('/admin/tickets')}`}>
+            <MessageSquare size={20} /> Support Tickets
+          </Link>
+          {/* ------------------------ */}
 
           <Link to="/admin/content" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive('/admin/content')}`}>
             <FileText size={20} /> Legal Content

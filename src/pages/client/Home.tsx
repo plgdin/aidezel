@@ -9,12 +9,24 @@ import { Helmet } from 'react-helmet-async';
 // FIX: Cast Helmet to 'any' to resolve TypeScript error
 const SeoHelmet = Helmet as any;
 
+// --- NEW: IMAGE OPTIMIZATION HELPER ---
+const optimizeImage = (url: string | undefined | null, width: number) => {
+  if (!url) return '';
+  // Only optimize if it's a Supabase URL
+  if (url.includes('supabase.co')) {
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}width=${width}&format=webp&quality=80`;
+  }
+  return url;
+};
+
 // --- HELPER: Extract Dominant Color from Image ---
 const getAverageColor = (imageUrl: string): Promise<string> => {
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = "Anonymous";
-    img.src = imageUrl;
+    // Optimization: Request tiny version for color extraction to save bandwidth
+    img.src = optimizeImage(imageUrl, 100); 
     
     img.onload = () => {
       const canvas = document.createElement('canvas');
@@ -237,8 +249,9 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
                    transition={{ duration: 0.3 }}
                    onClick={handleHeroClick} 
                  >
+                   {/* OPTIMIZATION: Request 600px width for mobile hero */}
                    <img 
-                     src={heroProduct.image_url} 
+                     src={optimizeImage(heroProduct.image_url, 600)} 
                      alt={heroProduct.name} 
                      className="w-full h-auto max-h-[300px] object-cover"
                      draggable={false} 
@@ -333,8 +346,9 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
               onClick={handleHeroClick}
             >
               {heroProduct ? (
+                 // OPTIMIZATION: Request 1200px width for desktop hero
                  <img 
-                   src={heroProduct.image_url} 
+                   src={optimizeImage(heroProduct.image_url, 1200)} 
                    alt={heroProduct.name} 
                    className="max-h-[90%] max-w-[90%] object-contain rounded-[2rem] transition-transform scale-[1.005] hover:scale-[1.05] duration-700 drop-shadow-2xl" 
                    loading="eager"
@@ -428,7 +442,8 @@ const HomePage: React.FC = () => {
                 id: item.id, 
                 name: item.name, 
                 price: `£${item.price}`, 
-                image: item.image_url, 
+                // OPTIMIZATION: Request 500px width for product cards
+                image: optimizeImage(item.image_url, 500), 
                 tag: 'New',
                 stock_quantity: item.stock_quantity
             })));
@@ -539,8 +554,9 @@ const HomePage: React.FC = () => {
                         <Link to={`/shop?category=${cat.name}`}>
                             <div className="group/card relative w-full aspect-[3/4] rounded-[2rem] overflow-hidden cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-slate-200 bg-white transform-gpu [-webkit-mask-image:linear-gradient(white,white)]">
                                 {cat.image_url ? (
+                                    // OPTIMIZATION: Request 400px width for category cards
                                     <img 
-                                        src={cat.image_url} 
+                                        src={optimizeImage(cat.image_url, 400)} 
                                         alt={cat.name} 
                                         loading="lazy"
                                         className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110"

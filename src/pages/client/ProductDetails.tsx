@@ -12,6 +12,18 @@ import ProductCard from '../../components/shared/ProductCard';
 // FIX: Cast Helmet to 'any' to resolve the TypeScript error
 const SeoHelmet = Helmet as any;
 
+// --- NEW: IMAGE OPTIMIZATION HELPER ---
+// resizing images on the fly using Supabase Image Transformations
+const optimizeImage = (url: string | undefined, width: number) => {
+  if (!url) return '';
+  // Only optimize if it's a Supabase URL to avoid breaking external links
+  if (url.includes('supabase.co')) {
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}width=${width}&format=webp&quality=80`;
+  }
+  return url;
+};
+
 const ProductDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();                      
@@ -96,7 +108,10 @@ const ProductDetails = () => {
             .order('created_at', { ascending: false });
         if (reviewsData) setRealReviews(reviewsData);
 
-        // --- FETCH SIMILAR PRODUCTS BY KEYWORDS ---
+        // ============================================================
+        // STRICT RECOMMENDATION LOGIC (Category + Stock + Safety Net)
+        // ============================================================
+        
         // 1. Extract keywords from title (words > 3 chars)
         const keywords = prod.name
             .split(' ')
@@ -104,67 +119,77 @@ const ProductDetails = () => {
             .filter((w: string) => w.length > 3) 
             .slice(0, 4); // Take top 4 words
 
+        // Helper: Format data for UI
+        const formatData = (items: any[]) => items.map((item: any) => ({
+            id: item.id,
+            name: item.name,
+            price: `£${item.price.toLocaleString()}`,
+            rawPrice: item.price,
+            // OPTIMIZATION: Resize similar product images to 400px width (smaller cards)
+            image: optimizeImage(item.image_url, 400),
+            category: item.category,
+            subcategory: item.subcategory,
+            brand: item.brand,
+            specs: item.specs || {},
+            options: item.options || [],
+            tag: item.status === 'Out of Stock' ? 'Sold Out' : item.is_hero ? 'Featured' : 'New',
+            stock_quantity: item.stock_quantity,
+            created_at: item.created_at, 
+            is_hero: item.is_hero 
+        }));
+
+        // Helper: Fallback Search (Same Category + In Stock ONLY)
+        const fetchFallback = async () => {
+            const { data: fallback } = await supabase
+                .from('products')
+                .select('*')
+                .eq('category', prod.category)     // Strict Category
+                .gt('stock_quantity', 0)           // Strict Stock > 0
+                .neq('status', 'Out of Stock')     // Strict Status
+                .neq('id', prod.id)
+                .limit(8);
+
+            if (fallback && fallback.length > 0) {
+                setSimilarProducts(formatData(fallback));
+            }
+        };
+
         if (keywords.length > 0) {
-            // 2. Build Query: name.ilike.%Word1%,name.ilike.%Word2%
             const searchString = keywords.map((k: string) => `name.ilike.%${k}%`).join(',');
 
+            // 2. Database Query with Filters
             const { data: related } = await supabase
                 .from('products')
                 .select('*')
-                .eq('category', prod.category) // Strict Category
-                .neq('id', prod.id) // Exclude current product
-                .or(searchString)   // Match ANY keyword
-                .limit(8);          // Increased limit slightly so the smaller row isn't empty
+                .eq('category', prod.category) // Ensure same category
+                .gt('stock_quantity', 0)       // Ensure stock exists
+                .neq('status', 'Out of Stock') // Ensure not manually marked out of stock
+                .neq('id', prod.id)
+                .or(searchString)
+                .limit(12); // Fetch extra to allow client-side filtering
             
             if (related && related.length > 0) {
-                // Format matching existing ProductCard structure
-                const formattedRelated = related.map((item: any) => ({
-                    id: item.id,
-                    name: item.name,
-                    price: `£${item.price.toLocaleString()}`,
-                    rawPrice: item.price,
-                    image: item.image_url,
-                    category: item.category,
-                    subcategory: item.subcategory,
-                    brand: item.brand,
-                    specs: item.specs || {},
-                    options: item.options || [],
-                    tag: item.status === 'Out of Stock' ? 'Sold Out' : item.is_hero ? 'Featured' : 'New',
-                    stock_quantity: item.stock_quantity,
-                    created_at: item.created_at, 
-                    is_hero: item.is_hero 
-                }));
-                setSimilarProducts(formattedRelated);
-            } else {
-                // FALLBACK: If keywords find nothing in this category, just show items from same category
-                const { data: fallback } = await supabase
-                    .from('products')
-                    .select('*')
-                    .eq('category', prod.category)
-                    .neq('id', prod.id)
-                    .limit(8);
+                // 3. Client-Side Safety Net (The Hard Filter)
+                // This manually checks every item to guarantee no bad data slips through
+                const strictRelated = related.filter((item: any) => 
+                    item.category === prod.category && 
+                    item.stock_quantity > 0 &&
+                    item.status !== 'Out of Stock'
+                ).slice(0, 8); // Take top 8 valid ones
 
-                if (fallback && fallback.length > 0) {
-                    const formattedFallback = fallback.map((item: any) => ({
-                        id: item.id,
-                        name: item.name,
-                        price: `£${item.price.toLocaleString()}`,
-                        rawPrice: item.price,
-                        image: item.image_url,
-                        category: item.category,
-                        subcategory: item.subcategory,
-                        brand: item.brand,
-                        specs: item.specs || {},
-                        options: item.options || [],
-                        tag: item.status === 'Out of Stock' ? 'Sold Out' : item.is_hero ? 'Featured' : 'New',
-                        stock_quantity: item.stock_quantity,
-                        created_at: item.created_at, 
-                        is_hero: item.is_hero 
-                    }));
-                    setSimilarProducts(formattedFallback);
+                if (strictRelated.length > 0) {
+                    setSimilarProducts(formatData(strictRelated));
+                } else {
+                    // If keywords matched but items were invalid, use Fallback
+                    fetchFallback();
                 }
+            } else {
+                fetchFallback();
             }
+        } else {
+            fetchFallback();
         }
+        // ============================================================
       }
       setLoading(false);
     };
@@ -298,7 +323,7 @@ const ProductDetails = () => {
       
       addToCart({ 
           ...product, 
-          quantity: qty,
+          quantity: qty, 
           selectedVariant: optionString 
       });
 
@@ -386,8 +411,9 @@ const ProductDetails = () => {
                         <Heart size={20} fill={isWishlisted ? "currentColor" : "none"} />
                     </button>
 
+                    {/* OPTIMIZATION: Request 800px width for main gallery image */}
                     <img 
-                      src={galleryImages[activeImage]} 
+                      src={optimizeImage(galleryImages[activeImage], 800)} 
                       alt={`${product.name} - View ${activeImage + 1}`} 
                       className={`w-full h-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-105 ${isOutOfStock ? 'grayscale opacity-70' : ''}`}
                       loading="eager" 
@@ -400,7 +426,8 @@ const ProductDetails = () => {
                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
                         {galleryImages.map((img, idx) => (
                             <button key={idx} onMouseEnter={() => setActiveImage(idx)} className={`w-16 h-16 flex-shrink-0 rounded-lg border-2 p-1 ${activeImage === idx ? 'border-blue-600 shadow-md' : 'border-gray-200 hover:border-gray-300'}`}>
-                                <img src={img} alt={`${product.name} thumbnail ${idx + 1}`} className="w-full h-full object-contain mix-blend-multiply"/>
+                                {/* OPTIMIZATION: Request 100px width for thumbnails */}
+                                <img src={optimizeImage(img, 100)} alt={`${product.name} thumbnail ${idx + 1}`} className="w-full h-full object-contain mix-blend-multiply"/>
                             </button>
                         ))}
                     </div>
@@ -422,13 +449,13 @@ const ProductDetails = () => {
                 </div>
                 <span className="text-blue-600 hover:underline cursor-pointer">{realReviews.length} ratings</span>
                 
-                {/* LOGIC: HIDE "bought count" if reviews are 0. Show dynamic count if reviews > 0 */}
-                {realReviews.length > 0 && (
-                    <>
-                        <span className="text-gray-300">|</span>
-                        <span className="text-gray-500">{realReviews.length * 10}+ bought in past month</span>
-                    </>
-                )}
+                {/* DYNAMIC LOGIC: If reviews > 0, show realistic number. ELSE (0 reviews), show "1K+" as fallback. */}
+                <span className="text-gray-300">|</span>
+                <span className="text-gray-500">
+                    {realReviews.length > 0 
+                        ? `${realReviews.length * 10}+ bought in past month` 
+                        : '1K+ bought in past month'}
+                </span>
             </div>
 
             <div className="space-y-1">
@@ -535,7 +562,7 @@ const ProductDetails = () => {
           </div>
         </div>
         
-        {/* --- NEW SECTION: SIMILAR PRODUCTS (KEYWORD BASED) --- */}
+        {/* --- NEW SECTION: SIMILAR PRODUCTS (KEYWORD BASED & STRICT) --- */}
         {similarProducts.length > 0 && (
             <div className="mt-16 border-t border-gray-200 pt-10">
                 <div className="flex items-center justify-between mb-6">
@@ -544,7 +571,7 @@ const ProductDetails = () => {
                         See all <ArrowRight size={14} />
                     </Link>
                 </div>
-                {/* --- MODIFIED GRID FOR SMALLER CARDS (Half Size) --- */}
+                {/* --- GRID: 4 columns mobile, 8 columns desktop (Half Size) --- */}
                 <div className="grid grid-cols-4 md:grid-cols-8 gap-4">
                     {similarProducts.map((item) => (
                         <ProductCard key={item.id} product={item} />
@@ -571,22 +598,15 @@ const ProductDetails = () => {
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Customer Reviews</h2>
                 <div className="flex items-center gap-4 mb-8">
                     <div className="flex items-center gap-1 text-yellow-400">
-                        {[1,2,3,4,5].map(i => (
-                            <Star key={i} size={24} fill={i <= Number(averageRating) ? "currentColor" : "none"} className={i <= Number(averageRating) ? "text-yellow-400" : "text-gray-200"}/>
-                        ))}
+                        {[1,2,3,4,5].map(i => <Star key={i} size={24} fill={i <= Number(averageRating) ? "currentColor" : "none"} className={i <= Number(averageRating) ? "text-yellow-400" : "text-gray-200"}/>)}
                     </div>
                     <span className="text-lg font-medium">{Number(averageRating) > 0 ? `${averageRating} out of 5` : 'No reviews yet'}</span>
                 </div>
-                {/* --- RENDER REVIEW FORM IF LOGGED IN --- */}
                 {session ? (
                     <form onSubmit={submitReview} className="bg-gray-50 p-4 rounded-xl mb-8 border border-gray-200">
                         <h4 className="font-bold text-sm mb-2">Write a review</h4>
                         <div className="flex gap-1 mb-2 text-yellow-500">
-                            {[1,2,3,4,5].map(star => (
-                                <button type="button" key={star} onClick={() => setRating(star)}>
-                                    <Star size={20} fill={star <= rating ? "currentColor" : "none"} />
-                                </button>
-                            ))}
+                            {[1,2,3,4,5].map(star => <button type="button" key={star} onClick={() => setRating(star)}><Star size={20} fill={star <= rating ? "currentColor" : "none"} /></button>)}
                         </div>
                         <textarea className="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:border-blue-500 text-sm" placeholder="What did you like or dislike?" value={newReview} onChange={e => setNewReview(e.target.value)} rows={3} />
                         <button type="submit" className="mt-2 bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">Submit</button>

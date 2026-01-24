@@ -3,28 +3,25 @@ import {
   X,
   SlidersHorizontal,
   Search,
-  ArrowRight,
   Check,
   ChevronLeft,
   ChevronRight,
   Zap,
-  Lightbulb,
   ChevronUp,
   ChevronDown,
-  ArrowUpDown,
-  ImageOff // Added for fallback
+  ArrowRight,
+  Lightbulb,
+  ImageOff,
+  ArrowUpDown
 } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import ProductCard, { Product } from '../../components/shared/ProductCard';
-// SEO: Import Helmet
 import { Helmet } from 'react-helmet-async';
 
-// FIX: Cast Helmet to 'any' to resolve the TypeScript error
 const SeoHelmet = Helmet as any;
 
 // --- CONFIGURATION ---
-
 const ALLOWED_FILTERS = [
   'Brand', 'Color', 'Material', 'Style', 'Type', 
   'Finish', 'Shape', 'Assembly', 'Seating Capacity', 'Room', 'Dimensions', 
@@ -33,9 +30,19 @@ const ALLOWED_FILTERS = [
 ];
 
 // Fallback image
-const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=300&auto=format&fit=crop';
+const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=600&auto=format&fit=crop';
 
-// Updated Interfaces
+// --- NEW: IMAGE OPTIMIZATION HELPER ---
+const optimizeImage = (url: string | undefined | null, width: number) => {
+  if (!url) return '';
+  // Only optimize if it's a Supabase URL
+  if (url.includes('supabase.co')) {
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}width=${width}&format=webp&quality=80`;
+  }
+  return url;
+};
+
 interface SubcategoryItem {
   name: string;
   image?: string;
@@ -45,15 +52,13 @@ interface CategoryData {
   id: number;
   name: string;
   is_illuminated: boolean;
-  subcategories: SubcategoryItem[]; // Changed from any[] to ensure image support
+  subcategories: SubcategoryItem[];
 }
 
 const standardizeValue = (val: string): string => {
   if (!val || typeof val !== 'string') return '';
   const parts = val.split(/[\+\/&,]+/).map(p => p.trim());
-  const formattedParts = parts.map(p => {
-    return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
-  }).sort();
+  const formattedParts = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).sort();
   return formattedParts.join(' + ');
 };
 
@@ -112,7 +117,11 @@ const Shop = () => {
             subcategories: Array.isArray(c.subcategories) 
               ? c.subcategories.map((s: any) => {
                   if (typeof s === 'string') return { name: s, image: null };
-                  return { name: s.name, image: s.image || s.image_url };
+                  // OPTIMIZATION: Resize subcategory card images to 400px
+                  return { 
+                    name: s.name, 
+                    image: optimizeImage(s.image || s.image_url, 400) 
+                  };
                 })
               : []
         }));
@@ -127,7 +136,8 @@ const Shop = () => {
           name: item.name,
           price: `£${item.price.toLocaleString()}`,
           rawPrice: item.price, // Ensure this exists in your DB
-          image: item.image_url,
+          // OPTIMIZATION: Resize product grid images to 500px
+          image: optimizeImage(item.image_url, 500),
           category: item.category,
           subcategory: item.subcategory,
           brand: item.brand,

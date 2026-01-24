@@ -96,7 +96,10 @@ const ProductDetails = () => {
             .order('created_at', { ascending: false });
         if (reviewsData) setRealReviews(reviewsData);
 
-        // --- UPDATED LOGIC: FETCH SIMILAR PRODUCTS (STRICT STOCK FILTER) ---
+        // ============================================================
+        // STRICT RECOMMENDATION LOGIC (Category + Stock + Safety Net)
+        // ============================================================
+        
         // 1. Extract keywords from title (words > 3 chars)
         const keywords = prod.name
             .split(' ')
@@ -104,7 +107,7 @@ const ProductDetails = () => {
             .filter((w: string) => w.length > 3) 
             .slice(0, 4); // Take top 4 words
 
-        // Helper to format data
+        // Helper: Format data for UI
         const formatData = (items: any[]) => items.map((item: any) => ({
             id: item.id,
             name: item.name,
@@ -122,14 +125,14 @@ const ProductDetails = () => {
             is_hero: item.is_hero 
         }));
 
-        // Helper for Fallback search
-        const runFallback = async () => {
-             const { data: fallback } = await supabase
+        // Helper: Fallback Search (Same Category + In Stock ONLY)
+        const fetchFallback = async () => {
+            const { data: fallback } = await supabase
                 .from('products')
                 .select('*')
-                .eq('category', prod.category)
-                .gt('stock_quantity', 0) // <--- STRICT STOCK FILTER
-                .neq('status', 'Out of Stock') // <--- STRICT STATUS FILTER
+                .eq('category', prod.category)     // Strict Category
+                .gt('stock_quantity', 0)           // Strict Stock > 0
+                .neq('status', 'Out of Stock')     // Strict Status
                 .neq('id', prod.id)
                 .limit(8);
 
@@ -139,38 +142,41 @@ const ProductDetails = () => {
         };
 
         if (keywords.length > 0) {
-            // 2. Build Query
             const searchString = keywords.map((k: string) => `name.ilike.%${k}%`).join(',');
 
+            // 2. Database Query with Filters
             const { data: related } = await supabase
                 .from('products')
                 .select('*')
-                .eq('category', prod.category) // Strict Category
-                .gt('stock_quantity', 0)       // <--- STRICT STOCK FILTER
-                .neq('status', 'Out of Stock') // <--- STRICT STATUS FILTER
-                .neq('id', prod.id)            // Exclude current
-                .or(searchString)              // Match Keywords
-                .limit(12); // Fetch slightly more to allow client-side filtering
+                .eq('category', prod.category) // Ensure same category
+                .gt('stock_quantity', 0)       // Ensure stock exists
+                .neq('status', 'Out of Stock') // Ensure not manually marked out of stock
+                .neq('id', prod.id)
+                .or(searchString)
+                .limit(12); // Fetch extra to allow client-side filtering
             
             if (related && related.length > 0) {
-                // Client-Side Double Check (Safety Net)
-                const validItems = related.filter((item: any) => 
-                    item.stock_quantity > 0 && 
-                    item.status !== 'Out of Stock' && 
-                    item.category === prod.category
-                ).slice(0, 8);
+                // 3. Client-Side Safety Net (The Hard Filter)
+                // This manually checks every item to guarantee no bad data slips through
+                const strictRelated = related.filter((item: any) => 
+                    item.category === prod.category && 
+                    item.stock_quantity > 0 &&
+                    item.status !== 'Out of Stock'
+                ).slice(0, 8); // Take top 8 valid ones
 
-                if (validItems.length > 0) {
-                    setSimilarProducts(formatData(validItems));
+                if (strictRelated.length > 0) {
+                    setSimilarProducts(formatData(strictRelated));
                 } else {
-                    runFallback();
+                    // If keywords matched but items were invalid, use Fallback
+                    fetchFallback();
                 }
             } else {
-                runFallback();
+                fetchFallback();
             }
         } else {
-            runFallback();
+            fetchFallback();
         }
+        // ============================================================
       }
       setLoading(false);
     };

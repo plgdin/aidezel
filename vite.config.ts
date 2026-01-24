@@ -3,10 +3,11 @@ import react from '@vitejs/plugin-react'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: '/', // <--- Add this to ensure absolute paths
   plugins: [react()],
   server: {
-    host: true,       // Exposes app to IPv4/IPv6 (Required for Vercel)
-    strictPort: true, // Prevents Vite from switching ports unexpectedly
-    port: 5173,       // Locks the internal port
+    host: true,       
+    strictPort: true, 
+    port: 5173,       
   }
 })

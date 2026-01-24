@@ -9,14 +9,48 @@ import { Helmet } from 'react-helmet-async';
 // FIX: Cast Helmet to 'any' to resolve TypeScript error
 const SeoHelmet = Helmet as any;
 
-// --- IMAGE HELPER (Restored & Safe) ---
-const getImageUrl = (url: string | undefined | null) => {
+// --- IMAGE OPTIMIZATION HELPER (Aggressive Compression) ---
+// Default quality lowered to 70 for significant size reduction
+const optimizeImage = (url: string | undefined | null, width: number, quality = 70) => {
   if (!url) return '';
-  // Returning the URL directly ensures images load immediately.
-  // If your Supabase tier supports image transformations via query params on the standard endpoint,
-  // you can uncomment the line below. Otherwise, this is the safest path.
-  // return `${url}?width=${width}&format=webp&quality=75`; 
+  // Only optimize if it's a Supabase URL
+  if (url.includes('supabase.co')) {
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}width=${width}&format=webp&quality=${quality}`;
+  }
   return url;
+};
+
+// --- HELPER: Extract Dominant Color from Image ---
+const getAverageColor = (imageUrl: string): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    // OPTIMIZATION: Request tiny 10px image. We only need color, not detail.
+    // This saves huge bandwidth on the hero load.
+    img.src = optimizeImage(imageUrl, 10, 20); 
+    
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve('#ffffff'); // Fallback
+        return;
+      }
+      canvas.width = 1;
+      canvas.height = 1;
+      
+      // Draw image to 1x1 canvas to get average color
+      ctx.drawImage(img, 0, 0, 1, 1);
+      const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+      
+      resolve(`rgb(${r},${g},${b})`);
+    };
+
+    img.onerror = () => {
+      resolve('#ffffff'); // Fallback on error
+    };
+  });
 };
 
 // --- HERO BANNER COMPONENT ---
@@ -30,6 +64,7 @@ interface HeroBannerProps {
 const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [dominantColor, setDominantColor] = useState<string>('rgb(255,255,255)'); 
   const navigate = useNavigate();
 
   // --- SWIPE LOGIC STATE ---
@@ -37,7 +72,16 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const minSwipeDistance = 50;
 
-  // 1. Swipe Handlers
+  // 1. Detect Color when heroProduct changes
+  useEffect(() => {
+    if (heroProduct && heroProduct.image_url) {
+      getAverageColor(heroProduct.image_url).then((color) => {
+        setDominantColor(color);
+      });
+    }
+  }, [heroProduct]);
+  
+  // 2. Swipe Handlers
   const onTouchStart = (e: React.TouchEvent) => {
     setTouchEnd(null);
     setTouchStart(e.targetTouches[0].clientX);
@@ -61,7 +105,7 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
     }
   };
 
-  // 2. Desktop Canvas Animation Logic
+  // 3. Desktop Canvas Animation Logic
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -157,19 +201,8 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
     }
   };
 
-  // Safe image URL retrieval
-  const heroImageUrl = heroProduct ? getImageUrl(heroProduct.image_url) : '';
-
   return (
     <div className="w-full bg-transparent pt-0 pb-4 lg:py-12">
-      {/* LCP OPTIMIZATION: Resource Hints */}
-      {heroProduct && (
-        <SeoHelmet>
-             {/* Preload the Hero Image immediately */}
-             <link rel="preload" as="image" href={heroImageUrl} />
-        </SeoHelmet>
-      )}
-
       {/* MOBILE HERO */}
       <div 
         className="md:hidden px-4"
@@ -180,8 +213,7 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
         <div 
           className="relative w-full rounded-2xl overflow-hidden shadow-md border border-white/20 min-h-[520px] flex flex-col"
           style={{
-            // Removed dynamic color extraction for performance. Using a clean brand gradient.
-            background: `linear-gradient(180deg, #ffffff 0%, rgba(229, 237, 247, 0.9) 85%, #e5edf7 100%)`
+            background: `linear-gradient(180deg, ${dominantColor} 0%, rgba(229, 237, 247, 0.9) 85%, #e5edf7 100%)`
           }}
         >
           <div className="p-6 pb-2 z-10 flex flex-col items-start w-full">
@@ -208,28 +240,32 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
           </div>
 
           <div className="flex-1 relative flex items-center justify-center p-4">
+             <AnimatePresence mode="wait">
                {heroProduct ? (
-                 <div 
+                 <motion.div 
                    key={heroProduct.id} 
-                   className="relative rounded-[32px] overflow-hidden shadow-2xl border-4 border-white/20 cursor-pointer w-full"
+                   className="relative rounded-[32px] overflow-hidden shadow-2xl border-4 border-white/20 cursor-pointer" 
+                   initial={{ opacity: 0, scale: 0.9 }}
+                   animate={{ opacity: 1, scale: 1 }}
+                   exit={{ opacity: 0, scale: 0.9 }}
+                   transition={{ duration: 0.3 }}
                    onClick={handleHeroClick} 
                  >
+                   {/* OPTIMIZATION: Request 500px width for mobile hero (Reduced from 600) */}
                    <img 
-                     src={heroImageUrl} 
+                     src={optimizeImage(heroProduct.image_url, 500)} 
                      alt={heroProduct.name} 
                      className="w-full h-auto max-h-[300px] object-cover"
                      draggable={false} 
-                     loading="eager"        // LCP Critical
-                     decoding="async"       // Non-blocking
+                     loading="eager"
                      // @ts-ignore
-                     fetchpriority="high"   // LCP Critical
-                     width="390"            
-                     height="300"
+                     fetchpriority="high"
                    />
-                 </div>
+                 </motion.div>
                ) : (
                  <Loader2 className="animate-spin text-gray-400" />
                )}
+             </AnimatePresence>
           </div>
 
           <div className="p-4 z-10">
@@ -312,16 +348,14 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
               onClick={handleHeroClick}
             >
               {heroProduct ? (
+                 // OPTIMIZATION: Request 1000px (Reduced from 1200) width for desktop hero. Quality 75.
                  <img 
-                   src={heroImageUrl} 
+                   src={optimizeImage(heroProduct.image_url, 1000, 75)} 
                    alt={heroProduct.name} 
                    className="max-h-[90%] max-w-[90%] object-contain rounded-[2rem] transition-transform scale-[1.005] hover:scale-[1.05] duration-700 drop-shadow-2xl" 
                    loading="eager"
-                   decoding="async"
                    // @ts-ignore
                    fetchpriority="high"
-                   width="1200"
-                   height="750"
                  />
                ) : (
                  <div className="w-full h-full bg-white/5 flex items-center justify-center border border-white/10 rounded-3xl">
@@ -347,11 +381,10 @@ const HomePage: React.FC = () => {
 
   const showArrows = categories.length > 5;
 
-  // --- FETCH DATA (Optimized: Specific Columns) ---
+  // --- FETCH DATA ---
   useEffect(() => {
     const fetchCats = async () => {
-        // Reduced payload size
-        const { data } = await supabase.from('categories').select('id, name, image_url').order('id');
+        const { data } = await supabase.from('categories').select('*').order('id');
         if (data) setCategories(data);
     };
     fetchCats();
@@ -359,10 +392,9 @@ const HomePage: React.FC = () => {
 
   useEffect(() => {
     const fetchHeroItems = async () => {
-      // Reduced payload size
       const { data } = await supabase
         .from('products')
-        .select('id, name, price, description, image_url, stock_quantity')
+        .select('*')
         .eq('is_hero', true) 
         .order('created_at', { ascending: false });
 
@@ -380,7 +412,7 @@ const HomePage: React.FC = () => {
       } else {
         const { data: fallback } = await supabase
             .from('products')
-            .select('id, name, price, description, image_url, stock_quantity')
+            .select('*')
             .order('created_at', { ascending: false })
             .limit(1);
         if (fallback) {
@@ -402,10 +434,9 @@ const HomePage: React.FC = () => {
 
   useEffect(() => {
     const fetchLatestGrid = async () => {
-        // Reduced payload size
         const { data } = await supabase
             .from('products')
-            .select('id, name, price, image_url, stock_quantity')
+            .select('*')
             .order('created_at', { ascending: false })
             .limit(8); 
         if (data) {
@@ -413,7 +444,8 @@ const HomePage: React.FC = () => {
                 id: item.id, 
                 name: item.name, 
                 price: `£${item.price}`, 
-                image: getImageUrl(item.image_url), 
+                // OPTIMIZATION: Request 320px width (Reduced from 500px)
+                image: optimizeImage(item.image_url, 320), 
                 tag: 'New',
                 stock_quantity: item.stock_quantity
             })));
@@ -524,8 +556,9 @@ const HomePage: React.FC = () => {
                         <Link to={`/shop?category=${cat.name}`}>
                             <div className="group/card relative w-full aspect-[3/4] rounded-[2rem] overflow-hidden cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-slate-200 bg-white transform-gpu [-webkit-mask-image:linear-gradient(white,white)]">
                                 {cat.image_url ? (
+                                    // OPTIMIZATION: Request 250px width for category cards (Reduced from 400)
                                     <img 
-                                        src={getImageUrl(cat.image_url)} 
+                                        src={optimizeImage(cat.image_url, 250)} 
                                         alt={cat.name} 
                                         loading="eager"
                                         className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110"

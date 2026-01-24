@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Loader2, MessageSquare, ArrowLeft } from 'lucide-react';
+import { Loader2, MessageSquare, ArrowLeft, Package } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import TicketChat from '../../components/tickets/TicketChat';
 
@@ -58,7 +58,17 @@ const ClientSupportTickets = () => {
                 }`}
               >
                 <div className="flex justify-between items-start mb-2">
-                   <span className="text-xs font-bold text-slate-400">{t.ticket_id}</span>
+                   <div className="flex flex-col">
+                       <span className="text-xs font-bold text-slate-400">{t.ticket_id}</span>
+                       
+                       {/* --- NEW: ORDER ID DISPLAY --- */}
+                       {t.order_id && (
+                           <span className="flex items-center gap-1 text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded mt-1 w-fit">
+                               <Package size={10} /> Order #{t.order_id}
+                           </span>
+                       )}
+                   </div>
+
                    <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${
                       t.status === 'open' ? 'bg-red-100 text-red-700' : 
                       t.status === 'resolved' ? 'bg-green-100 text-green-700' : 
@@ -67,9 +77,10 @@ const ClientSupportTickets = () => {
                       {t.status.replace('_', ' ')}
                    </span>
                 </div>
-                <h3 className="font-bold text-slate-800 text-sm line-clamp-1">{t.subject}</h3>
+                
+                <h3 className="font-bold text-slate-800 text-sm line-clamp-1 mt-2">{t.subject}</h3>
                 <p className="text-xs text-slate-500 mt-1 line-clamp-2">{t.message}</p>
-                <div className="text-[10px] text-slate-400 mt-2">
+                <div className="text-[10px] text-slate-400 mt-2 border-t border-slate-100 pt-2">
                   {new Date(t.created_at).toLocaleDateString()}
                 </div>
               </div>

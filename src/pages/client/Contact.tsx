@@ -1,21 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  MessageSquare, 
-  Package, 
-  RefreshCcw, 
-  CreditCard, 
-  User, 
   CheckCircle, 
-  ArrowRight,
   Send,
-  HelpCircle
+  MessageSquare,
+  Package
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { supabase } from '../../lib/supabase'; // Import Supabase
-import { toast } from '../../components/ui/toaster'; // Import your custom Toaster
-
-// --- Types ---
-type Topic = 'order' | 'return' | 'payment' | 'account' | 'other' | null;
+import { Link, useSearchParams } from 'react-router-dom';
+import { supabase } from '../../lib/supabase'; 
+import { toast } from '../../components/ui/toaster'; 
 
 interface ContactFormData {
   name: string;
@@ -26,7 +18,7 @@ interface ContactFormData {
 }
 
 const Contact = () => {
-  const [activeTopic, setActiveTopic] = useState<Topic>(null);
+  const [searchParams] = useSearchParams();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [ticketId, setTicketId] = useState<string | null>(null);
   
@@ -38,23 +30,37 @@ const Contact = () => {
     message: ''
   });
 
+  // --- 1. PREFILL DATA FROM URL (Coming from Order History) ---
+  useEffect(() => {
+    const urlOrderId = searchParams.get('orderId');
+    const urlSubject = searchParams.get('subject');
+
+    // Auto-fill user details if logged in
+    const fetchUser = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            setFormData(prev => ({
+                ...prev,
+                email: user.email || '',
+                // If the user has a display name in metadata, use it, otherwise empty
+                name: user.user_metadata?.full_name || ''
+            }));
+        }
+    };
+    fetchUser();
+
+    if (urlOrderId || urlSubject) {
+        setFormData(prev => ({
+            ...prev,
+            orderId: urlOrderId || '',
+            subject: urlSubject || `Inquiry about Order #${urlOrderId}`
+        }));
+    }
+  }, [searchParams]);
+
   // --- Helpers ---
   const generateTicketId = () => {
     return `ADZ-${Math.floor(100000 + Math.random() * 900000)}`;
-  };
-
-  const handleTopicSelect = (topic: Topic) => {
-    setActiveTopic(topic);
-    const subjectMap: Record<string, string> = {
-      order: "Inquiry regarding my order",
-      return: "I need to return an item",
-      payment: "Payment or Billing issue",
-      account: "Help with my account",
-      other: "General Inquiry"
-    };
-    if (topic) {
-      setFormData(prev => ({ ...prev, subject: subjectMap[topic] }));
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -70,9 +76,11 @@ const Contact = () => {
         name: formData.name,
         email: formData.email,
         subject: formData.subject,
-        topic: activeTopic || 'other',
+        // Default topic since we removed the selector
+        topic: 'General Support', 
         message: formData.message,
-        order_id: formData.orderId || null,
+        // Convert empty string to null for database
+        order_id: formData.orderId ? formData.orderId : null, 
         status: 'open'
       });
 
@@ -85,15 +93,13 @@ const Contact = () => {
 
     } catch (err: any) {
       console.error(err);
-      toast.error("Error", "Failed to submit ticket. Please try again.");
+      toast.error("Error", err.message || "Failed to submit ticket.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // --- Sub-Components ---
-  
-  // 1. The Success View (After submission)
+  // --- Success View ---
   if (ticketId) {
     return (
       <div className="container mx-auto px-4 py-20 max-w-2xl text-center">
@@ -130,74 +136,35 @@ const Contact = () => {
     );
   }
 
-  // 2. The Main View
+  // --- Main Form View ---
   return (
     <div className="min-h-screen bg-slate-50/50">
       
       {/* Header Section */}
-      <div className="bg-blue-50 text-slate-900 py-12 pb-36 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-200/40 rounded-full blur-3xl -translate-y-10 translate-x-10 pointer-events-none"></div>
+      <div className="bg-blue-900 text-white py-12 pb-24 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/20 rounded-full blur-3xl -translate-y-10 translate-x-10 pointer-events-none"></div>
         <div className="container mx-auto px-4 relative z-10 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-4 text-slate-900">How can we help you?</h1>
-          <p className="text-slate-600 max-w-xl mx-auto text-lg">
-            Select a topic below to get started. We're here to solve your issues quickly.
+          <h1 className="text-3xl md:text-4xl font-bold mb-4">Customer Support</h1>
+          <p className="text-blue-200 max-w-xl mx-auto text-lg">
+            Need help with an order or have a question? Fill out the form below.
           </p>
         </div>
       </div>
 
       <div className="container mx-auto px-4 -mt-16 pb-20 relative z-20">
-        
-        {/* TOPIC GRID */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-12">
-          <TopicCard 
-            icon={Package} 
-            label="My Order" 
-            active={activeTopic === 'order'} 
-            onClick={() => handleTopicSelect('order')} 
-          />
-          <TopicCard 
-            icon={RefreshCcw} 
-            label="Returns" 
-            active={activeTopic === 'return'} 
-            onClick={() => handleTopicSelect('return')} 
-          />
-          <TopicCard 
-            icon={CreditCard} 
-            label="Payments" 
-            active={activeTopic === 'payment'} 
-            onClick={() => handleTopicSelect('payment')} 
-          />
-          <TopicCard 
-            icon={User} 
-            label="Account" 
-            active={activeTopic === 'account'} 
-            onClick={() => handleTopicSelect('account')} 
-          />
-          <TopicCard 
-            icon={MessageSquare} 
-            label="Other" 
-            active={activeTopic === 'other'} 
-            onClick={() => handleTopicSelect('other')} 
-          />
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-8 items-start">
-          
-          {/* LEFT: The Dynamic Form */}
-          <div className="md:col-span-2">
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8">
-              <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
-                <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
-                  {activeTopic ? <CheckCircle size={20} /> : <HelpCircle size={20} />}
+        <div className="max-w-3xl mx-auto">
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 md:p-10">
+              
+              <div className="flex items-center gap-3 mb-8 border-b border-slate-100 pb-4">
+                <div className="p-3 bg-blue-50 rounded-xl text-blue-600">
+                  <MessageSquare size={24} />
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-slate-800">
-                    {activeTopic ? 'Tell us more' : 'Start by selecting a topic above'}
+                    How can we help?
                   </h2>
                   <p className="text-sm text-slate-500">
-                    {activeTopic 
-                      ? 'Please provide details so we can assist you faster.' 
-                      : 'This helps us route your ticket to the right team.'}
+                    Please provide detailed information so we can assist you faster.
                   </p>
                 </div>
               </div>
@@ -206,7 +173,7 @@ const Contact = () => {
                 
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Your Name</label>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Your Name</label>
                     <input 
                       required
                       type="text" 
@@ -217,7 +184,7 @@ const Contact = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Email Address</label>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Email Address</label>
                     <input 
                       required
                       type="email" 
@@ -229,42 +196,45 @@ const Contact = () => {
                   </div>
                 </div>
 
-                {/* Conditional Field: Order ID */}
-                {(activeTopic === 'order' || activeTopic === 'return') && (
-                  <div className="animate-in fade-in slide-in-from-top-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Order ID (Optional)</label>
+                {/* Order ID Field */}
+                <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Order ID (Optional)</label>
                     <div className="relative">
                       <Package className="absolute left-4 top-3.5 text-slate-400 w-5 h-5" />
                       <input 
                         type="text" 
                         className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition outline-none"
-                        placeholder="e.g. ADZ-8821"
+                        placeholder="e.g. 123"
                         value={formData.orderId}
                         onChange={e => setFormData({...formData, orderId: e.target.value})}
                       />
                     </div>
-                    <p className="text-xs text-slate-400 mt-1 ml-1">Found in your order confirmation email.</p>
-                  </div>
-                )}
+                    {formData.orderId && (
+                        <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                            <CheckCircle size={12}/> Linked to Order #{formData.orderId}
+                        </p>
+                    )}
+                </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Subject</label>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Subject</label>
                   <input 
                     required
                     type="text" 
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition outline-none"
+                    placeholder="Briefly describe the issue..."
                     value={formData.subject}
                     onChange={e => setFormData({...formData, subject: e.target.value})}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Message</label>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Message</label>
                   <textarea 
                     required
-                    rows={5}
+                    rows={6}
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition outline-none resize-none"
-                    placeholder="Describe your issue clearly..."
+                    placeholder="Describe your issue or question clearly..."
                     value={formData.message}
                     onChange={e => setFormData({...formData, message: e.target.value})}
                   ></textarea>
@@ -277,7 +247,7 @@ const Contact = () => {
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     {isSubmitting ? (
-                      <>Processing...</>
+                      <>Sending Ticket...</>
                     ) : (
                       <>Create Ticket <Send size={18} /></>
                     )}
@@ -286,56 +256,10 @@ const Contact = () => {
 
               </form>
             </div>
-          </div>
-
-          {/* RIGHT: Sidebar Info */}
-          <div className="md:col-span-1 space-y-6">
-            
-            {/* FAQ Mini Section */}
-            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-              <h3 className="font-bold text-slate-800 mb-4">Common Questions</h3>
-              <ul className="space-y-3">
-                <li className="text-sm text-slate-600 hover:text-blue-600 cursor-pointer flex items-center gap-2">
-                  <ArrowRight size={14} /> How do I track my order?
-                </li>
-                <li className="text-sm text-slate-600 hover:text-blue-600 cursor-pointer flex items-center gap-2">
-                  <ArrowRight size={14} /> What is your return policy?
-                </li>
-                <li className="text-sm text-slate-600 hover:text-blue-600 cursor-pointer flex items-center gap-2">
-                  <ArrowRight size={14} /> Can I change my delivery address?
-                </li>
-              </ul>
-            </div>
-          </div>
-
         </div>
       </div>
     </div>
   );
 };
-
-// --- Helper Component: Topic Card ---
-const TopicCard = ({ icon: Icon, label, active, onClick }: { icon: any, label: string, active: boolean, onClick: () => void }) => (
-  <button 
-    onClick={onClick}
-    className={`
-      flex flex-col items-center justify-center p-6 rounded-2xl transition-all duration-300
-      ${active 
-        ? 'bg-white shadow-lg ring-2 ring-blue-600 scale-105 z-10' 
-        : 'bg-white shadow-sm hover:shadow-md hover:-translate-y-1 border border-slate-100'
-      }
-    `}
-  >
-    <div className={`
-      mb-3 p-3 rounded-full 
-      ${active ? 'bg-blue-600 text-white' : 'bg-slate-50 text-slate-500'}
-    `}>
-      <Icon size={24} />
-    </div>
-    <span className={`font-semibold text-sm ${active ? 'text-blue-600' : 'text-slate-600'}`}>
-      {label}
-    </span>
-  </button>
-);
 
 export default Contact;

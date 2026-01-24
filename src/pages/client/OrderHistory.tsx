@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Package, FileText, RotateCw, ImageOff } from 'lucide-react';
+import { Package, FileText, RotateCw, ImageOff, MessageCircleQuestion } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface OrderWithPreview {
@@ -11,7 +11,7 @@ interface OrderWithPreview {
   // preview data we compute
   preview_product_name?: string | null;
   preview_image_url?: string | null;
-  preview_quantity?: number | null; // <--- Added Quantity Field
+  preview_quantity?: number | null; 
 }
 
 const OrderHistory: React.FC = () => {
@@ -53,12 +53,12 @@ const OrderHistory: React.FC = () => {
           baseOrders.map(async (order: any) => {
             let previewName: string | null = null;
             let previewImage: string | null = null;
-            let previewQty: number | null = null; // <--- Init Qty
+            let previewQty: number | null = null; 
 
             // 3A: get first order_item
             const { data: firstItem } = await supabase
               .from('order_items')
-              .select('product_id, product_name, quantity') // <--- Select quantity
+              .select('product_id, product_name, quantity')
               .eq('order_id', order.id)
               .order('id', { ascending: true })
               .limit(1)
@@ -66,7 +66,7 @@ const OrderHistory: React.FC = () => {
 
             if (firstItem) {
               previewName = firstItem.product_name;
-              previewQty = firstItem.quantity; // <--- Capture quantity
+              previewQty = firstItem.quantity;
 
               // 3B: get product image
               const { data: product } = await supabase
@@ -87,7 +87,7 @@ const OrderHistory: React.FC = () => {
               status: order.status,
               preview_product_name: previewName,
               preview_image_url: previewImage,
-              preview_quantity: previewQty, // <--- Return it
+              preview_quantity: previewQty, 
             };
           })
         );
@@ -201,7 +201,7 @@ const OrderHistory: React.FC = () => {
                 </p>
               </div>
 
-              <div className="flex flex-wrap justify-end gap-3">
+              <div className="flex flex-wrap justify-end gap-2">
                 <Link
                   to={`/orders/${order.id}`}
                   className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50"
@@ -213,6 +213,14 @@ const OrderHistory: React.FC = () => {
                   className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-black text-white hover:bg-gray-800"
                 >
                   <RotateCw size={14} /> Buy Again
+                </Link>
+                
+                {/* --- NEW: GET HELP BUTTON --- */}
+                <Link
+                  to={`/contact?orderId=${order.id}&subject=Help with Order #${order.id} - ${order.preview_product_name}`}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100"
+                >
+                  <MessageCircleQuestion size={14} /> Get Help
                 </Link>
               </div>
             </div>

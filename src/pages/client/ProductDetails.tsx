@@ -96,7 +96,7 @@ const ProductDetails = () => {
             .order('created_at', { ascending: false });
         if (reviewsData) setRealReviews(reviewsData);
 
-        // --- NEW LOGIC: FETCH SIMILAR PRODUCTS BY KEYWORDS ---
+        // --- UPDATED LOGIC: FETCH SIMILAR PRODUCTS BY KEYWORDS WITHIN SAME CATEGORY ---
         // 1. Extract keywords from title (words > 3 chars)
         const keywords = prod.name
             .split(' ')
@@ -105,15 +105,16 @@ const ProductDetails = () => {
             .slice(0, 4); // Take top 4 words
 
         if (keywords.length > 0) {
-            // 2. Build Query: name.ilike.%Word1%,name.ilike.%Word2%
+            // 2. Build Query
             const searchString = keywords.map((k: string) => `name.ilike.%${k}%`).join(',');
 
             const { data: related } = await supabase
                 .from('products')
                 .select('*')
-                .neq('id', prod.id) // Exclude current product
-                .or(searchString)   // Match ANY keyword
-                .limit(8);          // Increased limit slightly so the smaller row isn't empty
+                .eq('category', prod.category) // <--- FIX: STRICTLY FILTER BY CATEGORY
+                .neq('id', prod.id)            // Exclude current product
+                .or(searchString)              // Match ANY keyword
+                .limit(8);
             
             if (related && related.length > 0) {
                 // Format matching existing ProductCard structure
@@ -134,6 +135,34 @@ const ProductDetails = () => {
                     is_hero: item.is_hero 
                 }));
                 setSimilarProducts(formattedRelated);
+            } else {
+                // FALLBACK: If keywords find nothing in this category, just show items from same category
+                const { data: fallback } = await supabase
+                    .from('products')
+                    .select('*')
+                    .eq('category', prod.category)
+                    .neq('id', prod.id)
+                    .limit(8);
+
+                if (fallback && fallback.length > 0) {
+                    const formattedFallback = fallback.map((item: any) => ({
+                        id: item.id,
+                        name: item.name,
+                        price: `£${item.price.toLocaleString()}`,
+                        rawPrice: item.price,
+                        image: item.image_url,
+                        category: item.category,
+                        subcategory: item.subcategory,
+                        brand: item.brand,
+                        specs: item.specs || {},
+                        options: item.options || [],
+                        tag: item.status === 'Out of Stock' ? 'Sold Out' : item.is_hero ? 'Featured' : 'New',
+                        stock_quantity: item.stock_quantity,
+                        created_at: item.created_at, 
+                        is_hero: item.is_hero 
+                    }));
+                    setSimilarProducts(formattedFallback);
+                }
             }
         }
       }

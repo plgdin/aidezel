@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Link, useNavigate } from 'react-router-dom';
 import { Lock, Mail, ArrowRight, Loader2, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import { toast } from '../../components/ui/toaster'; // Using your new Toaster
 
 const Login = () => {
   const navigate = useNavigate();
@@ -21,22 +22,75 @@ const Login = () => {
     setLoading(true);
     setMessage(null);
 
+    // Optional: Show a loading toast
+    const loadId = toast.loading("Logging in...", "Verifying credentials");
+
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      // 1. Authenticate with Supabase Auth
+      const { data: { user }, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) throw error;
+      if (error || !user) throw new Error("Invalid email or password");
 
-      // Logic for Admin vs Client redirect
-      if (email === 'admin@aidezel.uk') {
-        navigate('/admin');
-      } else {
-        navigate('/');
+      // 2. Fetch Profile to get Role
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      if (!profile) throw new Error("Profile not found.");
+
+      // 3. Role-Based Logic
+      toast.dismiss(loadId);
+
+      // Check 1: Banned Users
+      if (profile.role === 'banned') {
+        await supabase.auth.signOut();
+        const msg = "Access Denied: Your account has been suspended.";
+        setMessage({ type: 'error', text: msg });
+        toast.error("Blocked", msg);
+        return;
       }
+
+      // Check 2: Pending Staff
+      if (profile.role === 'pending_staff') {
+        await supabase.auth.signOut();
+        const msg = "Account Pending: Please wait for admin approval.";
+        setMessage({ type: 'error', text: msg });
+        toast.error("Pending", msg);
+        return;
+      }
+
+      // Check 3: Redirect based on Role
+      if (profile.role === 'staff') {
+        // Optional: Log staff session for attendance
+        await supabase.from('staff_sessions').insert({
+            user_id: user.id,
+            login_at: new Date().toISOString()
+        });
+        
+        toast.success("Welcome Staff", "Redirecting to Staff Portal...");
+        navigate('/staff'); 
+        return;
+      }
+
+      if (profile.role === 'admin') {
+        toast.success("Welcome Admin", "Redirecting to Admin Panel...");
+        navigate('/admin');
+        return;
+      }
+
+      // Default: Client
+      toast.success("Welcome Back", "Login successful.");
+      navigate('/');
+
     } catch (error: any) {
+      toast.dismiss(loadId);
       setMessage({ type: 'error', text: error.message || 'Invalid login credentials' });
+      toast.error("Login Failed", error.message);
     } finally {
       setLoading(false);
     }
@@ -47,10 +101,12 @@ const Login = () => {
       <div className="bg-white w-full max-w-md rounded-2xl shadow-xl border border-gray-100 p-8 transition-all duration-300">
         
         {/* HEADER */}
-        <h2 className="text-3xl font-bold text-center mb-2">Welcome Back</h2>
-        <p className="text-center text-gray-500 text-sm mb-6">
-          Enter your credentials to access your account.
-        </p>
+        <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold mb-2 text-gray-900">Welcome Back</h2>
+            <p className="text-gray-500 text-sm">
+            Enter your credentials to access your account.
+            </p>
+        </div>
         
         {/* MESSAGE BOX */}
         {message && (
@@ -96,7 +152,7 @@ const Login = () => {
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
 
-            {/* UPDATED: FORGOT PASSWORD REDIRECT */}
+            {/* FORGOT PASSWORD REDIRECT */}
             <div className="text-right mt-2">
               <Link
                 to="/forgot-password"

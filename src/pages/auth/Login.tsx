@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Link, useNavigate } from 'react-router-dom';
 import { Lock, Mail, ArrowRight, Loader2, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import { toast } from '../../components/ui/toaster'; 
 
 const Login = () => {
   const navigate = useNavigate();
@@ -15,41 +16,107 @@ const Login = () => {
   const [message, setMessage] = useState<{ type: 'error' | 'success', text: string } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
+  // --- FIX: NUCLEAR CLEANUP ON LOAD ---
+  // This ensures that if you open this page, any old/stale session is destroyed immediately.
+  useEffect(() => {
+    const cleanSession = async () => {
+      // 1. Tell Supabase to kill the session
+      await supabase.auth.signOut();
+      // 2. Force clear local storage to fix the "Next Tab" issue
+      localStorage.removeItem('sb-access-token');
+      localStorage.removeItem('sb-refresh-token');
+    };
+    cleanSession();
+  }, []);
+
   // --- LOGIN HANDLER ---
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
 
+    const loadId = toast.loading("Logging in...", "Verifying credentials");
+
     try {
-      // FIX: Force cleanup of any stale local sessions before logging in
-      // This solves the issue where being logged in elsewhere or having an old token blocks new logins
+      // Double check: Ensure we are starting fresh
       await supabase.auth.signOut();
 
-      // 2. Attempt Login
+      // 1. Authenticate with Supabase Auth
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) throw error;
-
-      if (!data.user) throw new Error("No user returned");
-
-      // 3. Logic for Admin vs Client redirect
-      if (email === 'admin@aidezel.uk') {
-        navigate('/admin');
-      } else {
-        navigate('/');
+      if (error || !data.user) {
+        throw new Error(error?.message || "Invalid email or password");
       }
 
+      const user = data.user;
+
+      // 2. Fetch Profile to get Role
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      if (!profile) throw new Error("Profile not found.");
+
+      toast.dismiss(loadId);
+
+      // --- ROLE CHECKS ---
+
+      // Check 1: Banned Users
+      if (profile.role === 'banned') {
+        await supabase.auth.signOut();
+        const msg = "Access Denied: Your account has been suspended.";
+        setMessage({ type: 'error', text: msg });
+        toast.error("Blocked", msg);
+        return;
+      }
+
+      // Check 2: Pending Staff
+      if (profile.role === 'pending_staff') {
+        await supabase.auth.signOut();
+        const msg = "Account Pending: Please wait for admin approval.";
+        setMessage({ type: 'error', text: msg });
+        toast.error("Pending", msg);
+        return;
+      }
+
+      // Check 3: Staff Logic
+      if (profile.role === 'staff') {
+        // Log staff session
+        await supabase.from('staff_sessions').insert({
+          user_id: user.id,
+          login_at: new Date().toISOString()
+        });
+
+        toast.success("Welcome Staff", "Redirecting to Staff Portal...");
+        navigate('/staff');
+        return;
+      }
+
+      // Check 4: Admin Logic
+      if (profile.role === 'admin') {
+        toast.success("Welcome Admin", "Redirecting to Admin Panel...");
+        navigate('/admin');
+        return;
+      }
+
+      // Default: Client
+      toast.success("Welcome Back", "Login successful.");
+      navigate('/');
+
     } catch (error: any) {
-      console.error("Login Error:", error);
-      // Display the ACTUAL error message from Supabase to help debug
-      setMessage({
-        type: 'error',
-        text: error.message || 'Authentication failed. Please check your credentials.'
-      });
+      toast.dismiss(loadId);
+      // Show the ACTUAL error message
+      const errorMsg = error.message === "Invalid login credentials"
+        ? "Incorrect email or password."
+        : error.message;
+
+      setMessage({ type: 'error', text: errorMsg });
+      toast.error("Login Failed", errorMsg);
     } finally {
       setLoading(false);
     }
@@ -60,10 +127,12 @@ const Login = () => {
       <div className="bg-white w-full max-w-md rounded-2xl shadow-xl border border-gray-100 p-8 transition-all duration-300">
         
         {/* HEADER */}
-        <h2 className="text-3xl font-bold text-center mb-2">Welcome Back</h2>
-        <p className="text-center text-gray-500 text-sm mb-6">
-          Enter your credentials to access your account.
-        </p>
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-bold mb-2 text-gray-900">Welcome Back</h2>
+          <p className="text-gray-500 text-sm">
+            Enter your credentials to access your account.
+          </p>
+        </div>
         
         {/* MESSAGE BOX */}
         {message && (

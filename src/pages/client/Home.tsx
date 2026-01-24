@@ -250,6 +250,7 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
                    onClick={handleHeroClick} 
                  >
                    {/* OPTIMIZATION: Request 600px width for mobile hero */}
+                   {/* LCP OPTIMIZATION: loading="eager", fetchpriority="high" */}
                    <img 
                      src={optimizeImage(heroProduct.image_url, 600)} 
                      alt={heroProduct.name} 
@@ -347,6 +348,7 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
             >
               {heroProduct ? (
                  // OPTIMIZATION: Request 1200px width for desktop hero
+                 // LCP OPTIMIZATION: loading="eager", fetchpriority="high"
                  <img 
                    src={optimizeImage(heroProduct.image_url, 1200)} 
                    alt={heroProduct.name} 
@@ -555,10 +557,11 @@ const HomePage: React.FC = () => {
                             <div className="group/card relative w-full aspect-[3/4] rounded-[2rem] overflow-hidden cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-slate-200 bg-white transform-gpu [-webkit-mask-image:linear-gradient(white,white)]">
                                 {cat.image_url ? (
                                     // OPTIMIZATION: Request 400px width for category cards
+                                    // LCP FIX: Removed loading="lazy" (defaults to eager or explicitly eager)
                                     <img 
                                         src={optimizeImage(cat.image_url, 400)} 
                                         alt={cat.name} 
-                                        loading="lazy"
+                                        loading="eager"
                                         className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110"
                                     />
                                 ) : (

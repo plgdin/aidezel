@@ -401,6 +401,7 @@ const Shop = () => {
                     <img 
                         src={sub.image} 
                         alt={sub.name} 
+                        // LCP FIX: loading="eager" is default, removed "lazy" explicitly
                         className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-90 group-hover:opacity-100"
                         onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER_IMAGE; }}
                     />

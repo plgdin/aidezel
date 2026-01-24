@@ -27,7 +27,6 @@ const getAverageColor = (imageUrl: string): Promise<string> => {
     const img = new Image();
     img.crossOrigin = "Anonymous";
     // OPTIMIZATION: Request tiny 10px image. We only need color, not detail.
-    // This saves huge bandwidth on the hero load.
     img.src = optimizeImage(imageUrl, 10, 20); 
     
     img.onload = () => {
@@ -201,8 +200,32 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
     }
   };
 
+  // Pre-calculate image URLs for LCP hints
+  const mobileHeroUrl = heroProduct ? optimizeImage(heroProduct.image_url, 390, 70) : '';
+  const desktopHeroUrl = heroProduct ? optimizeImage(heroProduct.image_url, 1200, 75) : '';
+
   return (
     <div className="w-full bg-transparent pt-0 pb-4 lg:py-12">
+      {/* LCP OPTIMIZATION: Resource Hints */}
+      {heroProduct && (
+        <SeoHelmet>
+             {/* Preload Mobile Image (Media Query targeting mobile) */}
+             <link 
+               rel="preload" 
+               as="image" 
+               href={mobileHeroUrl} 
+               media="(max-width: 767px)"
+             />
+             {/* Preload Desktop Image (Media Query targeting desktop) */}
+             <link 
+               rel="preload" 
+               as="image" 
+               href={desktopHeroUrl} 
+               media="(min-width: 768px)"
+             />
+        </SeoHelmet>
+      )}
+
       {/* MOBILE HERO */}
       <div 
         className="md:hidden px-4"
@@ -240,32 +263,31 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
           </div>
 
           <div className="flex-1 relative flex items-center justify-center p-4">
-             <AnimatePresence mode="wait">
+             {/* LCP OPTIMIZATION: Removed AnimatePresence here to allow instant render */}
                {heroProduct ? (
                  <motion.div 
                    key={heroProduct.id} 
                    className="relative rounded-[32px] overflow-hidden shadow-2xl border-4 border-white/20 cursor-pointer" 
-                   initial={{ opacity: 0, scale: 0.9 }}
-                   animate={{ opacity: 1, scale: 1 }}
-                   exit={{ opacity: 0, scale: 0.9 }}
-                   transition={{ duration: 0.3 }}
+                   // Removed initial/animate opacity/scale for the IMAGE CONTAINER to speed up LCP
                    onClick={handleHeroClick} 
                  >
-                   {/* OPTIMIZATION: Request 500px width for mobile hero (Reduced from 600) */}
+                   {/* OPTIMIZATION: Request 390px width for mobile hero */}
                    <img 
-                     src={optimizeImage(heroProduct.image_url, 500)} 
+                     src={mobileHeroUrl} 
                      alt={heroProduct.name} 
                      className="w-full h-auto max-h-[300px] object-cover"
                      draggable={false} 
-                     loading="eager"
+                     loading="eager"        // LCP Critical
+                     decoding="async"       // Non-blocking
                      // @ts-ignore
-                     fetchpriority="high"
+                     fetchpriority="high"   // LCP Critical
+                     width="390"            // Prevent Layout Shift
+                     height="300"           // Prevent Layout Shift
                    />
                  </motion.div>
                ) : (
                  <Loader2 className="animate-spin text-gray-400" />
                )}
-             </AnimatePresence>
           </div>
 
           <div className="p-4 z-10">
@@ -341,6 +363,7 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
             </motion.div>
             <motion.div 
               key={`img-${heroProduct ? heroProduct.id : 'load'}`}
+              // LCP OPTIMIZATION: Keep opacity transition but ensure image loads instantly
               initial={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }} 
               transition={{ duration: 0.8 }} 
@@ -348,14 +371,17 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
               onClick={handleHeroClick}
             >
               {heroProduct ? (
-                 // OPTIMIZATION: Request 1000px (Reduced from 1200) width for desktop hero. Quality 75.
+                 // OPTIMIZATION: Request 1200px width for desktop hero. Quality 75.
                  <img 
-                   src={optimizeImage(heroProduct.image_url, 1000, 75)} 
+                   src={desktopHeroUrl} 
                    alt={heroProduct.name} 
                    className="max-h-[90%] max-w-[90%] object-contain rounded-[2rem] transition-transform scale-[1.005] hover:scale-[1.05] duration-700 drop-shadow-2xl" 
-                   loading="eager"
+                   loading="eager"        // LCP Critical
+                   decoding="async"       // Non-blocking
                    // @ts-ignore
-                   fetchpriority="high"
+                   fetchpriority="high"   // LCP Critical
+                   width="1200"           // Prevent Layout Shift
+                   height="750"           // Prevent Layout Shift
                  />
                ) : (
                  <div className="w-full h-full bg-white/5 flex items-center justify-center border border-white/10 rounded-3xl">
@@ -445,7 +471,7 @@ const HomePage: React.FC = () => {
                 name: item.name, 
                 price: `£${item.price}`, 
                 // OPTIMIZATION: Request 320px width (Reduced from 500px)
-                image: optimizeImage(item.image_url, 320), 
+                image: optimizeImage(item.image_url, 320, 70), 
                 tag: 'New',
                 stock_quantity: item.stock_quantity
             })));

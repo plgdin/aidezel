@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Send, Paperclip, Loader2, User, ShieldAlert, Image as ImageIcon } from 'lucide-react';
-import { toast } from '../ui/toaster'; // This path is now correct relative to src/components/tickets/
+import { toast } from '../ui/toaster'; 
 
 interface Message {
   id: string;
@@ -23,42 +23,44 @@ const TicketChat: React.FC<TicketChatProps> = ({ ticketId, userRole }) => {
   const [file, setFile] = useState<File | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Fetch Messages on Load
+  // --- 1. FETCH & SUBSCRIBE TO LIVE UPDATES ---
   useEffect(() => {
+    // A. Initial Fetch
+    const fetchMessages = async () => {
+        const { data } = await supabase
+          .from('ticket_messages')
+          .select('*')
+          .eq('ticket_id', ticketId)
+          .order('created_at', { ascending: true });
+        
+        if (data) setMessages(data as Message[]);
+    };
     fetchMessages();
     
-    // Realtime Subscription
-    const subscription = supabase
-      .channel('chat_updates')
+    // B. Realtime Subscription (Unique Channel ID)
+    const channel = supabase
+      .channel(`ticket_chat_${ticketId}`) // <--- UNIQUE CHANNEL NAME
       .on('postgres_changes', { 
         event: 'INSERT', 
         schema: 'public', 
         table: 'ticket_messages', 
         filter: `ticket_id=eq.${ticketId}` 
-      }, (payload: any) => { // <--- FIXED: Added ': any' type here
+      }, (payload: any) => {
+        // Append new message instantly
         setMessages((prev) => [...prev, payload.new as Message]);
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(subscription); };
+    // Cleanup
+    return () => { supabase.removeChannel(channel); };
   }, [ticketId]);
 
-  // Auto-scroll to bottom
+  // --- 2. AUTO-SCROLL TO BOTTOM ---
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
-
-  const fetchMessages = async () => {
-    const { data } = await supabase
-      .from('ticket_messages')
-      .select('*')
-      .eq('ticket_id', ticketId)
-      .order('created_at', { ascending: true });
-    
-    if (data) setMessages(data as Message[]);
-  };
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +68,7 @@ const TicketChat: React.FC<TicketChatProps> = ({ ticketId, userRole }) => {
 
     let attachmentUrl = null;
 
-    // 1. Handle File Upload
+    // Handle File Upload
     if (file) {
       setUploading(true);
       const fileExt = file.name.split('.').pop();
@@ -91,7 +93,7 @@ const TicketChat: React.FC<TicketChatProps> = ({ ticketId, userRole }) => {
       setUploading(false);
     }
 
-    // 2. Insert Message
+    // Insert Message (Realtime will handle the UI update)
     const { error } = await supabase.from('ticket_messages').insert({
       ticket_id: ticketId,
       sender_role: userRole,
@@ -111,7 +113,7 @@ const TicketChat: React.FC<TicketChatProps> = ({ ticketId, userRole }) => {
     <div className="flex flex-col h-[500px] bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
       
       {/* MESSAGES AREA */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth">
         {messages.length === 0 ? (
           <div className="text-center text-slate-400 mt-10 text-sm">
             No replies yet. Start the conversation!
@@ -122,7 +124,7 @@ const TicketChat: React.FC<TicketChatProps> = ({ ticketId, userRole }) => {
             const isSupport = msg.sender_role === 'admin' || msg.sender_role === 'staff';
             
             return (
-              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
                 <div className={`
                   max-w-[80%] rounded-2xl p-3 text-sm shadow-sm
                   ${isMe 

@@ -393,7 +393,7 @@ const ProductDetails = () => {
                 </div>
                 <span className="text-blue-600 hover:underline cursor-pointer">{realReviews.length} ratings</span>
                 
-                {/* HYBRID LOGIC: 0 reviews = "1K+ bought". >0 reviews = "X+ bought" */}
+                {/* DYNAMIC LOGIC: If reviews > 0, show realistic number. ELSE (0 reviews), show "1K+" as fallback. */}
                 <span className="text-gray-300">|</span>
                 <span className="text-gray-500">
                     {realReviews.length > 0 

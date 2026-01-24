@@ -30,24 +30,33 @@ const Contact = () => {
     message: ''
   });
 
-  // --- 1. PREFILL DATA FROM URL (Coming from Order History) ---
+  // --- 1. PREFILL DATA (User Profile + URL Params) ---
   useEffect(() => {
     const urlOrderId = searchParams.get('orderId');
     const urlSubject = searchParams.get('subject');
 
-    // Auto-fill user details if logged in
-    const fetchUser = async () => {
+    const fetchUserAndProfile = async () => {
+        // 1. Get Auth User
         const { data: { user } } = await supabase.auth.getUser();
+        
         if (user) {
+            // 2. Get Profile Data (for Full Name)
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('full_name')
+                .eq('id', user.id)
+                .single();
+
             setFormData(prev => ({
                 ...prev,
                 email: user.email || '',
-                // If the user has a display name in metadata, use it, otherwise empty
-                name: user.user_metadata?.full_name || ''
+                // Try profile name first, fallback to metadata, then empty
+                name: profile?.full_name || user.user_metadata?.full_name || ''
             }));
         }
     };
-    fetchUser();
+
+    fetchUserAndProfile();
 
     if (urlOrderId || urlSubject) {
         setFormData(prev => ({
@@ -76,10 +85,8 @@ const Contact = () => {
         name: formData.name,
         email: formData.email,
         subject: formData.subject,
-        // Default topic since we removed the selector
         topic: 'General Support', 
         message: formData.message,
-        // Convert empty string to null for database
         order_id: formData.orderId ? formData.orderId : null, 
         status: 'open'
       });

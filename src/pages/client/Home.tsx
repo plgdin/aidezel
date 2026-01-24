@@ -10,14 +10,19 @@ import { Helmet } from 'react-helmet-async';
 const SeoHelmet = Helmet as any;
 
 // --- IMAGE OPTIMIZATION HELPER (Aggressive Compression) ---
-// Default quality lowered to 70 for significant size reduction
+// FIX: Switched to '/render/image/' endpoint so Supabase actually resizes the file
 const optimizeImage = (url: string | undefined | null, width: number, quality = 70) => {
   if (!url) return '';
-  // Only optimize if it's a Supabase URL
+  
   if (url.includes('supabase.co')) {
-    const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}width=${width}&format=webp&quality=${quality}`;
+    // 1. Critical: Switch from standard storage endpoint to the image transformation endpoint
+    const optimizedUrl = url.replace('/object/public/', '/render/image/public/');
+    
+    // 2. Append parameters
+    const separator = optimizedUrl.includes('?') ? '&' : '?';
+    return `${optimizedUrl}${separator}width=${width}&format=webp&quality=${quality}`;
   }
+  
   return url;
 };
 
@@ -200,32 +205,8 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
     }
   };
 
-  // Pre-calculate image URLs for LCP hints
-  const mobileHeroUrl = heroProduct ? optimizeImage(heroProduct.image_url, 390, 70) : '';
-  const desktopHeroUrl = heroProduct ? optimizeImage(heroProduct.image_url, 1200, 75) : '';
-
   return (
     <div className="w-full bg-transparent pt-0 pb-4 lg:py-12">
-      {/* LCP OPTIMIZATION: Resource Hints */}
-      {heroProduct && (
-        <SeoHelmet>
-             {/* Preload Mobile Image (Media Query targeting mobile) */}
-             <link 
-               rel="preload" 
-               as="image" 
-               href={mobileHeroUrl} 
-               media="(max-width: 767px)"
-             />
-             {/* Preload Desktop Image (Media Query targeting desktop) */}
-             <link 
-               rel="preload" 
-               as="image" 
-               href={desktopHeroUrl} 
-               media="(min-width: 768px)"
-             />
-        </SeoHelmet>
-      )}
-
       {/* MOBILE HERO */}
       <div 
         className="md:hidden px-4"
@@ -263,31 +244,32 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
           </div>
 
           <div className="flex-1 relative flex items-center justify-center p-4">
-             {/* LCP OPTIMIZATION: Removed AnimatePresence here to allow instant render */}
+             <AnimatePresence mode="wait">
                {heroProduct ? (
                  <motion.div 
                    key={heroProduct.id} 
                    className="relative rounded-[32px] overflow-hidden shadow-2xl border-4 border-white/20 cursor-pointer" 
-                   // Removed initial/animate opacity/scale for the IMAGE CONTAINER to speed up LCP
+                   initial={{ opacity: 0, scale: 0.9 }}
+                   animate={{ opacity: 1, scale: 1 }}
+                   exit={{ opacity: 0, scale: 0.9 }}
+                   transition={{ duration: 0.3 }}
                    onClick={handleHeroClick} 
                  >
-                   {/* OPTIMIZATION: Request 390px width for mobile hero */}
+                   {/* OPTIMIZATION: Request 500px width for mobile hero */}
                    <img 
-                     src={mobileHeroUrl} 
+                     src={optimizeImage(heroProduct.image_url, 500)} 
                      alt={heroProduct.name} 
                      className="w-full h-auto max-h-[300px] object-cover"
                      draggable={false} 
-                     loading="eager"        // LCP Critical
-                     decoding="async"       // Non-blocking
+                     loading="eager"
                      // @ts-ignore
-                     fetchpriority="high"   // LCP Critical
-                     width="390"            // Prevent Layout Shift
-                     height="300"           // Prevent Layout Shift
+                     fetchpriority="high"
                    />
                  </motion.div>
                ) : (
                  <Loader2 className="animate-spin text-gray-400" />
                )}
+             </AnimatePresence>
           </div>
 
           <div className="p-4 z-10">
@@ -363,7 +345,6 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
             </motion.div>
             <motion.div 
               key={`img-${heroProduct ? heroProduct.id : 'load'}`}
-              // LCP OPTIMIZATION: Keep opacity transition but ensure image loads instantly
               initial={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }} 
               transition={{ duration: 0.8 }} 
@@ -371,17 +352,14 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
               onClick={handleHeroClick}
             >
               {heroProduct ? (
-                 // OPTIMIZATION: Request 1200px width for desktop hero. Quality 75.
+                 // OPTIMIZATION: Request 1000px (Reduced from 1200) width for desktop hero. Quality 75.
                  <img 
-                   src={desktopHeroUrl} 
+                   src={optimizeImage(heroProduct.image_url, 1000, 75)} 
                    alt={heroProduct.name} 
                    className="max-h-[90%] max-w-[90%] object-contain rounded-[2rem] transition-transform scale-[1.005] hover:scale-[1.05] duration-700 drop-shadow-2xl" 
-                   loading="eager"        // LCP Critical
-                   decoding="async"       // Non-blocking
+                   loading="eager"
                    // @ts-ignore
-                   fetchpriority="high"   // LCP Critical
-                   width="1200"           // Prevent Layout Shift
-                   height="750"           // Prevent Layout Shift
+                   fetchpriority="high"
                  />
                ) : (
                  <div className="w-full h-full bg-white/5 flex items-center justify-center border border-white/10 rounded-3xl">
@@ -410,7 +388,8 @@ const HomePage: React.FC = () => {
   // --- FETCH DATA ---
   useEffect(() => {
     const fetchCats = async () => {
-        const { data } = await supabase.from('categories').select('*').order('id');
+        // OPTIMIZATION: Fetch specific columns only to reduce TTFB
+        const { data } = await supabase.from('categories').select('id, name, image_url').order('id');
         if (data) setCategories(data);
     };
     fetchCats();
@@ -418,9 +397,10 @@ const HomePage: React.FC = () => {
 
   useEffect(() => {
     const fetchHeroItems = async () => {
+      // OPTIMIZATION: Fetch specific columns only to reduce TTFB
       const { data } = await supabase
         .from('products')
-        .select('*')
+        .select('id, name, price, description, image_url, stock_quantity')
         .eq('is_hero', true) 
         .order('created_at', { ascending: false });
 
@@ -438,7 +418,7 @@ const HomePage: React.FC = () => {
       } else {
         const { data: fallback } = await supabase
             .from('products')
-            .select('*')
+            .select('id, name, price, description, image_url, stock_quantity')
             .order('created_at', { ascending: false })
             .limit(1);
         if (fallback) {
@@ -460,16 +440,15 @@ const HomePage: React.FC = () => {
 
   useEffect(() => {
     const fetchLatestGrid = async () => {
+        // OPTIMIZATION: Fetch specific columns only to reduce TTFB
         const { data } = await supabase
             .from('products')
-            .select('*')
+            .select('id, name, price, image_url, stock_quantity, category, brand, is_hero, status, options, specs')
             .order('created_at', { ascending: false })
             .limit(8); 
         if (data) {
             setLatestProducts(data.map((item: any) => ({
-                id: item.id, 
-                name: item.name, 
-                price: `£${item.price}`, 
+                ...item,
                 // OPTIMIZATION: Request 320px width (Reduced from 500px)
                 image: optimizeImage(item.image_url, 320, 70), 
                 tag: 'New',

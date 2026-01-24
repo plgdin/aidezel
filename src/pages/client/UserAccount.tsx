@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Package, Heart, LogOut, MapPin, Save, Loader2, Settings, Lock, Eye, EyeOff, Plus, Trash2, Edit2, CheckCircle } from 'lucide-react';
+import { 
+  User, Package, Heart, LogOut, MapPin, Save, Loader2, Settings, Lock, Eye, EyeOff, Plus, Trash2, Edit2, CheckCircle, 
+  MessageSquare // <--- Added MessageSquare import
+} from 'lucide-react';
 import StatusModal, { StatusType } from '../../components/shared/StatusModal';
 import AddressModal from '../../components/shared/AddressModal';
 
@@ -225,7 +228,7 @@ const UserAccount = () => {
             <div className="space-y-6">
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 overflow-hidden">
                     
-                    {/* My Orders: CHANGED rounded-lg TO rounded-2xl on the ICON BOX */}
+                    {/* My Orders */}
                     <Link to="/orders" className="flex items-center gap-4 p-4 hover:bg-gray-100 rounded-2xl transition-all group mb-1">
                         <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
                             <Package size={20} />
@@ -233,17 +236,25 @@ const UserAccount = () => {
                         <div><h3 className="font-bold text-gray-900">My Orders</h3><p className="text-xs text-gray-500">Track & return</p></div>
                     </Link>
                     
-                    {/* Wishlist: CHANGED rounded-lg TO rounded-2xl on the ICON BOX */}
+                    {/* Wishlist */}
                     <Link to="/wishlist" className="flex items-center gap-4 p-4 hover:bg-gray-100 rounded-2xl transition-all group mb-1">
                         <div className="w-10 h-10 bg-pink-50 text-pink-600 rounded-2xl flex items-center justify-center group-hover:bg-pink-600 group-hover:text-white transition-colors">
                              <Heart size={20} />
                         </div>
                         <div><h3 className="font-bold text-gray-900">Wishlist</h3><p className="text-xs text-gray-500">Saved items</p></div>
                     </Link>
+
+                    {/* NEW: My Tickets Link */}
+                    <Link to="/my-tickets" className="flex items-center gap-4 p-4 hover:bg-gray-100 rounded-2xl transition-all group mb-1">
+                        <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                             <MessageSquare size={20} />
+                        </div>
+                        <div><h3 className="font-bold text-gray-900">Support Tickets</h3><p className="text-xs text-gray-500">Help center</p></div>
+                    </Link>
                     
                     <div className="h-px bg-gray-100 my-2 mx-2"></div>
                     
-                    {/* Sign Out: CHANGED rounded-lg TO rounded-2xl on the ICON BOX */}
+                    {/* Sign Out */}
                      <button onClick={handleLogout} className="w-full flex items-center gap-4 p-4 hover:bg-red-50 rounded-2xl transition-all group text-left">
                         <div className="w-10 h-10 bg-transparent text-gray-500 rounded-2xl flex items-center justify-center group-hover:bg-red-600 group-hover:text-white transition-colors">
                             <LogOut size={20} />

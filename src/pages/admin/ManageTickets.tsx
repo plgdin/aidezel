@@ -7,9 +7,12 @@ import {
   Clock, 
   ChevronDown, 
   ChevronUp, 
-  Package // <--- Added this missing import
+  Package,
+  User,
+  ShieldAlert
 } from 'lucide-react';
 import { toast } from '../../components/ui/toaster';
+import TicketChat from '../../components/tickets/TicketChat'; // Import the Chat Component
 
 interface Ticket {
   id: string;
@@ -28,10 +31,30 @@ const ManageTickets = () => {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState('all');
+  
+  // Store the current user's role to pass to the chat
+  const [currentUserRole, setCurrentUserRole] = useState<'admin' | 'staff' | null>(null);
 
   useEffect(() => {
     fetchTickets();
+    fetchUserRole();
   }, []);
+
+  const fetchUserRole = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      
+      if (data) {
+        // We cast this because we know the db only has these roles + client
+        setCurrentUserRole(data.role as 'admin' | 'staff');
+      }
+    }
+  };
 
   const fetchTickets = async () => {
     setLoading(true);
@@ -144,21 +167,42 @@ const ManageTickets = () => {
                 {/* Expanded Details */}
                 {expandedId === ticket.id && (
                   <div className="px-4 pb-4 pt-0 ml-14 border-l-2 border-slate-100 pl-6 mb-4">
-                    <div className="bg-slate-50 rounded-lg p-4 text-sm text-slate-700 leading-relaxed border border-slate-200">
-                      <p className="font-bold text-slate-900 mb-1">Message:</p>
-                      {ticket.message}
+                    
+                    {/* ORIGINAL REQUEST BOX */}
+                    <div className="bg-slate-50 rounded-lg p-4 text-sm text-slate-700 leading-relaxed border border-slate-200 mb-6">
+                      <div className="flex items-center gap-2 mb-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                         <MessageSquare size={12} /> Original Request
+                      </div>
+                      <p className="font-medium text-slate-900">{ticket.message}</p>
                       {ticket.order_id && (
                         <div className="mt-3 pt-3 border-t border-slate-200 flex items-center gap-2 text-blue-600 font-medium">
                           <Package size={16} /> Related Order: {ticket.order_id}
                         </div>
                       )}
                     </div>
+
+                    {/* --- CHAT INTERFACE --- */}
+                    <div className="mb-6">
+                         <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                            <ShieldAlert size={16} className="text-blue-600"/> 
+                            Reply & History
+                         </h3>
+                         
+                         {currentUserRole ? (
+                            <TicketChat ticketId={ticket.id} userRole={currentUserRole} />
+                         ) : (
+                            <div className="p-4 bg-slate-100 text-center rounded-lg text-sm text-slate-500">
+                                <Loader2 className="animate-spin inline mr-2" /> Loading chat...
+                            </div>
+                         )}
+                    </div>
                     
-                    <div className="mt-4 flex gap-3">
+                    {/* ACTION BUTTONS */}
+                    <div className="flex gap-3 border-t border-slate-100 pt-4">
                       {ticket.status !== 'resolved' && (
                         <button 
                           onClick={() => handleStatusUpdate(ticket.id, 'resolved')}
-                          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition"
+                          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition shadow-sm"
                         >
                           <CheckCircle size={16} /> Mark Resolved
                         </button>
@@ -166,7 +210,7 @@ const ManageTickets = () => {
                       {ticket.status !== 'in_progress' && ticket.status !== 'resolved' && (
                         <button 
                           onClick={() => handleStatusUpdate(ticket.id, 'in_progress')}
-                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition"
+                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition shadow-sm"
                         >
                           <Clock size={16} /> Mark In Progress
                         </button>

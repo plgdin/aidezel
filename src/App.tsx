@@ -32,6 +32,9 @@ const Privacy = lazy(() => import('./pages/client/Privacy'));
 const OrderInvoice = lazy(() => import('./pages/client/OrderInvoice'));
 const BuyAgain = lazy(() => import('./pages/client/BuyAgain'));
 
+// NEW: Client Support Ticket View
+const ClientSupportTickets = lazy(() => import('./pages/client/SupportTickets'));
+
 const AdminLayout = lazy(() => import('./components/layout/AdminLayout'));
 const StaffLayout = lazy(() => import('./components/layout/StaffLayout'));
 
@@ -50,7 +53,7 @@ const AdminLogs = lazy(() => import('./pages/admin/AdminLogs'));
 const AdminCoupons = lazy(() => import('./pages/admin/AdminCoupons'));
 const ManageStaff = lazy(() => import('./pages/admin/ManageStaff'));
 
-// NEW: Import the Ticket Management Page
+// NEW: Import the Ticket Management Page (For Admin/Staff)
 const ManageTickets = lazy(() => import('./pages/admin/ManageTickets'));
 
 const AppHelmetProvider = HelmetProvider as any;
@@ -77,8 +80,7 @@ function App() {
           <Route path="/" element={<ClientLayout />}>
             <Route index element={<HomePage />} />
             <Route path="shop" element={<ShopPage />} />
-            {/* NEW: SubCategories Route */}
-        
+            
             <Route path="product/:id" element={<ProductDetails />} />
             <Route path="cart" element={<Cart />} />
             <Route path="checkout" element={<Checkout />} />
@@ -91,6 +93,9 @@ function App() {
             <Route path="contact" element={<Contact />} />
             <Route path="terms" element={<Terms />} />
             <Route path="privacy" element={<Privacy />} />
+
+            {/* NEW: Customer Ticket Dashboard */}
+            <Route path="my-tickets" element={<ClientSupportTickets />} />
           </Route>
 
           {/* ADMIN ROUTES */}
@@ -107,7 +112,7 @@ function App() {
             <Route path="coupons" element={<AdminCoupons />} />
             <Route path="staff-manage" element={<ManageStaff />} />
             
-            {/* NEW: Ticket System Route */}
+            {/* NEW: Admin Ticket Management */}
             <Route path="tickets" element={<ManageTickets />} />
           </Route>
 
@@ -122,7 +127,7 @@ function App() {
             <Route path="orders" element={<ManageOrders />} />
             <Route path="orders/:id" element={<OrderInvoiceAdmin />} />
 
-            {/* NEW: Ticket System Route */}
+            {/* NEW: Staff Ticket Management */}
             <Route path="tickets" element={<ManageTickets />} />
           </Route>
 

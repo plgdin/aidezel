@@ -6,8 +6,8 @@ import { useCart } from '../../context/CartContext';
 import { Session } from '@supabase/supabase-js';
 // SEO: Import Helmet
 import { Helmet } from 'react-helmet-async';
-import { toast as shadcnToast } from '../../components/ui/use-toast'; // Import Toast Function
-import ProductCard from '../../components/shared/ProductCard'; // Imported ProductCard
+import { toast as shadcnToast } from '../../components/ui/use-toast'; 
+import ProductCard from '../../components/shared/ProductCard'; 
 
 // FIX: Cast Helmet to 'any' to resolve the TypeScript error
 const SeoHelmet = Helmet as any;
@@ -384,6 +384,7 @@ const ProductDetails = () => {
             <Link to="/shop" className="text-sm font-bold text-blue-600 hover:underline uppercase tracking-wide">Visit the {product.brand || 'Aidezel'} Store</Link>
             <h1 className="text-2xl font-medium text-gray-900 leading-snug">{product.name}</h1>
             
+            {/* --- REVIEW & BOUGHT COUNT SECTION --- */}
             <div className="flex items-center gap-2 text-sm border-b border-gray-100 pb-4">
                 <div className="flex text-yellow-400">
                     {[1,2,3,4,5].map(i => (
@@ -391,8 +392,14 @@ const ProductDetails = () => {
                     ))}
                 </div>
                 <span className="text-blue-600 hover:underline cursor-pointer">{realReviews.length} ratings</span>
+                
+                {/* HYBRID LOGIC: 0 reviews = "1K+ bought". >0 reviews = "X+ bought" */}
                 <span className="text-gray-300">|</span>
-                <span className="text-gray-500">1K+ bought in past month</span>
+                <span className="text-gray-500">
+                    {realReviews.length > 0 
+                        ? `${realReviews.length * 10}+ bought in past month` 
+                        : '1K+ bought in past month'}
+                </span>
             </div>
 
             <div className="space-y-1">
@@ -535,12 +542,10 @@ const ProductDetails = () => {
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Customer Reviews</h2>
                 <div className="flex items-center gap-4 mb-8">
                     <div className="flex items-center gap-1 text-yellow-400">
-                        {/* Dynamic Stars in Reviews Header */}
                         {[1,2,3,4,5].map(i => (
                             <Star key={i} size={24} fill={i <= Number(averageRating) ? "currentColor" : "none"} className={i <= Number(averageRating) ? "text-yellow-400" : "text-gray-200"}/>
                         ))}
                     </div>
-                    {/* FIXED: Check if number > 0 */}
                     <span className="text-lg font-medium">{Number(averageRating) > 0 ? `${averageRating} out of 5` : 'No reviews yet'}</span>
                 </div>
                 {/* --- RENDER REVIEW FORM IF LOGGED IN --- */}

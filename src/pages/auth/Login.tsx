@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Link, useNavigate } from 'react-router-dom';
 import { Lock, Mail, ArrowRight, Loader2, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
-import { toast } from '../../components/ui/toaster'; // Using your new Toaster
 
 const Login = () => {
   const navigate = useNavigate();
@@ -22,75 +21,35 @@ const Login = () => {
     setLoading(true);
     setMessage(null);
 
-    // Optional: Show a loading toast
-    const loadId = toast.loading("Logging in...", "Verifying credentials");
-
     try {
-      // 1. Authenticate with Supabase Auth
-      const { data: { user }, error } = await supabase.auth.signInWithPassword({
+      // FIX: Force cleanup of any stale local sessions before logging in
+      // This solves the issue where being logged in elsewhere or having an old token blocks new logins
+      await supabase.auth.signOut();
+
+      // 2. Attempt Login
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error || !user) throw new Error("Invalid email or password");
+      if (error) throw error;
 
-      // 2. Fetch Profile to get Role
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
+      if (!data.user) throw new Error("No user returned");
 
-      if (!profile) throw new Error("Profile not found.");
-
-      // 3. Role-Based Logic
-      toast.dismiss(loadId);
-
-      // Check 1: Banned Users
-      if (profile.role === 'banned') {
-        await supabase.auth.signOut();
-        const msg = "Access Denied: Your account has been suspended.";
-        setMessage({ type: 'error', text: msg });
-        toast.error("Blocked", msg);
-        return;
-      }
-
-      // Check 2: Pending Staff
-      if (profile.role === 'pending_staff') {
-        await supabase.auth.signOut();
-        const msg = "Account Pending: Please wait for admin approval.";
-        setMessage({ type: 'error', text: msg });
-        toast.error("Pending", msg);
-        return;
-      }
-
-      // Check 3: Redirect based on Role
-      if (profile.role === 'staff') {
-        // Optional: Log staff session for attendance
-        await supabase.from('staff_sessions').insert({
-            user_id: user.id,
-            login_at: new Date().toISOString()
-        });
-        
-        toast.success("Welcome Staff", "Redirecting to Staff Portal...");
-        navigate('/staff'); 
-        return;
-      }
-
-      if (profile.role === 'admin') {
-        toast.success("Welcome Admin", "Redirecting to Admin Panel...");
+      // 3. Logic for Admin vs Client redirect
+      if (email === 'admin@aidezel.uk') {
         navigate('/admin');
-        return;
+      } else {
+        navigate('/');
       }
-
-      // Default: Client
-      toast.success("Welcome Back", "Login successful.");
-      navigate('/');
 
     } catch (error: any) {
-      toast.dismiss(loadId);
-      setMessage({ type: 'error', text: error.message || 'Invalid login credentials' });
-      toast.error("Login Failed", error.message);
+      console.error("Login Error:", error);
+      // Display the ACTUAL error message from Supabase to help debug
+      setMessage({
+        type: 'error',
+        text: error.message || 'Authentication failed. Please check your credentials.'
+      });
     } finally {
       setLoading(false);
     }
@@ -101,12 +60,10 @@ const Login = () => {
       <div className="bg-white w-full max-w-md rounded-2xl shadow-xl border border-gray-100 p-8 transition-all duration-300">
         
         {/* HEADER */}
-        <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold mb-2 text-gray-900">Welcome Back</h2>
-            <p className="text-gray-500 text-sm">
-            Enter your credentials to access your account.
-            </p>
-        </div>
+        <h2 className="text-3xl font-bold text-center mb-2">Welcome Back</h2>
+        <p className="text-center text-gray-500 text-sm mb-6">
+          Enter your credentials to access your account.
+        </p>
         
         {/* MESSAGE BOX */}
         {message && (

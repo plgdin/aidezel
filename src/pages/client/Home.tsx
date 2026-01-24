@@ -9,13 +9,14 @@ import { Helmet } from 'react-helmet-async';
 // FIX: Cast Helmet to 'any' to resolve TypeScript error
 const SeoHelmet = Helmet as any;
 
-// --- NEW: IMAGE OPTIMIZATION HELPER ---
-const optimizeImage = (url: string | undefined | null, width: number) => {
+// --- IMAGE OPTIMIZATION HELPER (Aggressive Compression) ---
+// Default quality lowered to 70 for significant size reduction
+const optimizeImage = (url: string | undefined | null, width: number, quality = 70) => {
   if (!url) return '';
   // Only optimize if it's a Supabase URL
   if (url.includes('supabase.co')) {
     const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}width=${width}&format=webp&quality=80`;
+    return `${url}${separator}width=${width}&format=webp&quality=${quality}`;
   }
   return url;
 };
@@ -25,8 +26,9 @@ const getAverageColor = (imageUrl: string): Promise<string> => {
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = "Anonymous";
-    // Optimization: Request tiny version for color extraction to save bandwidth
-    img.src = optimizeImage(imageUrl, 100); 
+    // OPTIMIZATION: Request tiny 10px image. We only need color, not detail.
+    // This saves huge bandwidth on the hero load.
+    img.src = optimizeImage(imageUrl, 10, 20); 
     
     img.onload = () => {
       const canvas = document.createElement('canvas');
@@ -249,10 +251,9 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
                    transition={{ duration: 0.3 }}
                    onClick={handleHeroClick} 
                  >
-                   {/* OPTIMIZATION: Request 600px width for mobile hero */}
-                   {/* LCP OPTIMIZATION: loading="eager", fetchpriority="high" */}
+                   {/* OPTIMIZATION: Request 500px width for mobile hero (Reduced from 600) */}
                    <img 
-                     src={optimizeImage(heroProduct.image_url, 600)} 
+                     src={optimizeImage(heroProduct.image_url, 500)} 
                      alt={heroProduct.name} 
                      className="w-full h-auto max-h-[300px] object-cover"
                      draggable={false} 
@@ -347,10 +348,9 @@ const HeroBanner = ({ heroProduct, heroCount, onNext, onPrev }: HeroBannerProps)
               onClick={handleHeroClick}
             >
               {heroProduct ? (
-                 // OPTIMIZATION: Request 1200px width for desktop hero
-                 // LCP OPTIMIZATION: loading="eager", fetchpriority="high"
+                 // OPTIMIZATION: Request 1000px (Reduced from 1200) width for desktop hero. Quality 75.
                  <img 
-                   src={optimizeImage(heroProduct.image_url, 1200)} 
+                   src={optimizeImage(heroProduct.image_url, 1000, 75)} 
                    alt={heroProduct.name} 
                    className="max-h-[90%] max-w-[90%] object-contain rounded-[2rem] transition-transform scale-[1.005] hover:scale-[1.05] duration-700 drop-shadow-2xl" 
                    loading="eager"
@@ -444,8 +444,8 @@ const HomePage: React.FC = () => {
                 id: item.id, 
                 name: item.name, 
                 price: `£${item.price}`, 
-                // OPTIMIZATION: Request 500px width for product cards
-                image: optimizeImage(item.image_url, 500), 
+                // OPTIMIZATION: Request 320px width (Reduced from 500px)
+                image: optimizeImage(item.image_url, 320), 
                 tag: 'New',
                 stock_quantity: item.stock_quantity
             })));
@@ -556,10 +556,9 @@ const HomePage: React.FC = () => {
                         <Link to={`/shop?category=${cat.name}`}>
                             <div className="group/card relative w-full aspect-[3/4] rounded-[2rem] overflow-hidden cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-slate-200 bg-white transform-gpu [-webkit-mask-image:linear-gradient(white,white)]">
                                 {cat.image_url ? (
-                                    // OPTIMIZATION: Request 400px width for category cards
-                                    // LCP FIX: Removed loading="lazy" (defaults to eager or explicitly eager)
+                                    // OPTIMIZATION: Request 250px width for category cards (Reduced from 400)
                                     <img 
-                                        src={optimizeImage(cat.image_url, 400)} 
+                                        src={optimizeImage(cat.image_url, 250)} 
                                         alt={cat.name} 
                                         loading="eager"
                                         className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110"

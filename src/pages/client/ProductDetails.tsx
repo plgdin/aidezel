@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Star, ShieldCheck, User, MapPin, Heart, Truck, RefreshCw, ChevronDown, CheckCircle, ShoppingBag, X } from 'lucide-react';
+import { Star, ShieldCheck, User, MapPin, Heart, Truck, RefreshCw, ChevronDown, CheckCircle, ShoppingBag, X, ArrowRight } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useCart } from '../../context/CartContext';
 import { Session } from '@supabase/supabase-js';
 // SEO: Import Helmet
 import { Helmet } from 'react-helmet-async';
 import { toast as shadcnToast } from '../../components/ui/use-toast'; // Import Toast Function
+import ProductCard from '../../components/shared/ProductCard'; // Imported ProductCard
 
 // FIX: Cast Helmet to 'any' to resolve the TypeScript error
 const SeoHelmet = Helmet as any;
@@ -17,6 +18,9 @@ const ProductDetails = () => {
   const { addToCart } = useCart();
   
   const [product, setProduct] = useState<any>(null);
+  // --- NEW STATE: SIMILAR PRODUCTS ---
+  const [similarProducts, setSimilarProducts] = useState<any[]>([]);
+  
   const [loading, setLoading] = useState(true);
   const [qty, setQty] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
@@ -91,6 +95,47 @@ const ProductDetails = () => {
             .eq('product_id', id)
             .order('created_at', { ascending: false });
         if (reviewsData) setRealReviews(reviewsData);
+
+        // --- NEW LOGIC: FETCH SIMILAR PRODUCTS BY KEYWORDS ---
+        // 1. Extract keywords from title (words > 3 chars)
+        const keywords = prod.name
+            .split(' ')
+            .map((w: string) => w.replace(/[^\w\s]/gi, '')) // Remove special chars
+            .filter((w: string) => w.length > 3) 
+            .slice(0, 4); // Take top 4 words
+
+        if (keywords.length > 0) {
+            // 2. Build Query: name.ilike.%Word1%,name.ilike.%Word2%
+            const searchString = keywords.map((k: string) => `name.ilike.%${k}%`).join(',');
+
+            const { data: related } = await supabase
+                .from('products')
+                .select('*')
+                .neq('id', prod.id) // Exclude current product
+                .or(searchString)   // Match ANY keyword
+                .limit(8);          // Increased limit slightly so the smaller row isn't empty
+            
+            if (related && related.length > 0) {
+                // Format matching existing ProductCard structure
+                const formattedRelated = related.map((item: any) => ({
+                    id: item.id,
+                    name: item.name,
+                    price: `£${item.price.toLocaleString()}`,
+                    rawPrice: item.price,
+                    image: item.image_url,
+                    category: item.category,
+                    subcategory: item.subcategory,
+                    brand: item.brand,
+                    specs: item.specs || {},
+                    options: item.options || [],
+                    tag: item.status === 'Out of Stock' ? 'Sold Out' : item.is_hero ? 'Featured' : 'New',
+                    stock_quantity: item.stock_quantity,
+                    created_at: item.created_at, 
+                    is_hero: item.is_hero 
+                }));
+                setSimilarProducts(formattedRelated);
+            }
+        }
       }
       setLoading(false);
     };
@@ -454,6 +499,24 @@ const ProductDetails = () => {
           </div>
         </div>
         
+        {/* --- NEW SECTION: SIMILAR PRODUCTS (KEYWORD BASED) --- */}
+        {similarProducts.length > 0 && (
+            <div className="mt-16 border-t border-gray-200 pt-10">
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-2xl font-bold text-gray-900">Similar Products Like This</h2>
+                    <Link to={`/shop?category=${encodeURIComponent(product.category)}`} className="text-blue-600 font-bold hover:underline flex items-center gap-1 text-sm">
+                        See all <ArrowRight size={14} />
+                    </Link>
+                </div>
+                {/* --- MODIFIED GRID FOR SMALLER CARDS (Half Size) --- */}
+                <div className="grid grid-cols-4 md:grid-cols-8 gap-4">
+                    {similarProducts.map((item) => (
+                        <ProductCard key={item.id} product={item} />
+                    ))}
+                </div>
+            </div>
+        )}
+
         {/* LOWER SECTION */}
         <div className="mt-16 border-t border-gray-200 pt-10">
              <h2 className="text-xl font-bold text-gray-900 mb-6">Product Information</h2>

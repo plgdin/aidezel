@@ -156,11 +156,10 @@ const Shop = () => {
   }, []);
 
   // --- UPDATED: URL Sync Logic ---
-  // This now checks for 'subcategory' in the URL on load/back button
   useEffect(() => {
     const catUrl = searchParams.get('category');
     const searchUrl = searchParams.get('search');
-    const subcatUrl = searchParams.get('subcategory'); // <--- ADDED
+    const subcatUrl = searchParams.get('subcategory');
 
     if (catUrl) setSelectedCategory(decodeURIComponent(catUrl));
     else setSelectedCategory('All');
@@ -168,7 +167,6 @@ const Shop = () => {
     if (searchUrl) setSearchTerm(searchUrl);
     else setSearchTerm('');
 
-    // <--- ADDED: Handle Subcategory from URL
     if (subcatUrl) {
         setSelectedSubcats([decodeURIComponent(subcatUrl)]);
     } else {
@@ -189,7 +187,6 @@ const Shop = () => {
     }
 
     const catObj = categories.find((c) => c.name === selectedCategory);
-    // Use the object mapping for names
     const dbSubcats = catObj ? catObj.subcategories.map(s => s.name) : [];
     
     const productSubcats = Array.from(new Set(relevantProducts.map((p) => p.subcategory).filter(Boolean)));
@@ -302,7 +299,7 @@ const Shop = () => {
         newParams.set('category', cat);
     }
     
-    newParams.delete('subcategory'); // <--- ADDED: Clear subcategory when changing main category
+    newParams.delete('subcategory');
     newParams.delete('search');
     setSearchTerm('');
     setSearchParams(newParams);
@@ -318,7 +315,6 @@ const Shop = () => {
     
     setSelectedSubcats(newSubcats);
 
-    // <--- ADDED: Sync sidebar toggles with URL for history support
     const newParams = new URLSearchParams(searchParams);
     if (newSubcats.length === 1) {
         newParams.set('subcategory', newSubcats[0]);
@@ -328,11 +324,9 @@ const Shop = () => {
     setSearchParams(newParams);
   };
 
-  // --- UPDATED: Pushes to URL History Stack ---
   const handleEnterSubcategory = (subName: string) => {
     setSelectedSubcats([subName]); 
     
-    // Update URL so "Back" button works correctly
     const newParams = new URLSearchParams(searchParams);
     newParams.set('subcategory', subName);
     setSearchParams(newParams);
@@ -405,10 +399,7 @@ const Shop = () => {
   }, [selectedCategory]);
 
   const renderVisualSubcategories = () => {
-    // 1. Must be in a specific category (not 'All')
     if (selectedCategory === 'All') return null;
-    
-    // 2. Hide cards if a subcategory is ALREADY selected (User "entered" one)
     if (selectedSubcats.length > 0) return null;
 
     const currentCatObj = categories.find(c => c.name === selectedCategory);
@@ -425,7 +416,7 @@ const Shop = () => {
           {currentCatObj.subcategories.map((sub, index) => (
             <div 
                 key={`${sub.name}-${index}`}
-                onClick={() => handleEnterSubcategory(sub.name)} // <--- Calls the fixed function
+                onClick={() => handleEnterSubcategory(sub.name)}
                 className={`
                     group relative h-40 md:h-48 rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 bg-gray-900
                     ${isGlowing 
@@ -434,7 +425,6 @@ const Shop = () => {
                     }
                 `}
             >
-                {/* Image */}
                 {sub.image ? (
                     <img 
                         src={sub.image} 
@@ -448,10 +438,8 @@ const Shop = () => {
                     </div>
                 )}
                 
-                {/* Overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
 
-                {/* Content */}
                 <div className="absolute bottom-0 left-0 right-0 p-4">
                     {isGlowing && (
                         <Lightbulb size={14} className="mb-1 text-white/60 group-hover:text-[#fbbf24] transition-colors" />
@@ -608,15 +596,28 @@ const Shop = () => {
                 </div>
               )}
 
-              {/* SORT DROPDOWN */}
-              <div className="relative group">
-                <div className="flex items-center gap-2 bg-white border border-gray-200 px-3 py-2 rounded-lg shadow-sm hover:border-gray-400 transition-colors cursor-pointer">
-                    <ArrowUpDown size={16} className="text-gray-500" />
+              {/* SORT DROPDOWN: Fixed Click Area with Overlay */}
+              <div className="relative z-10 w-full sm:w-auto">
+                <div className="flex items-center justify-between gap-2 bg-white border border-gray-200 px-3 py-2 rounded-lg shadow-sm hover:border-gray-400 transition-colors w-full sm:w-auto min-w-[200px]">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                        <ArrowUpDown size={16} className="text-gray-500 flex-shrink-0" />
+                        <span className="text-sm font-bold text-gray-900 truncate">
+                            {sortBy === 'featured' ? 'Featured' : 
+                             sortBy === 'price-asc' ? 'Price: Low to high' : 
+                             sortBy === 'price-desc' ? 'Price: High to low' : 
+                             sortBy === 'newest' ? 'Newest arrivals' : 
+                             'Best Sellers'}
+                        </span>
+                    </div>
+                    
+                    <ChevronDown size={14} className="text-gray-400 flex-shrink-0" />
+
+                    {/* Invisible Select Covering Entire Area */}
                     <select 
                         value={sortBy} 
                         onChange={(e) => setSortBy(e.target.value)} 
-                        className="bg-transparent text-sm font-bold text-gray-900 outline-none appearance-none cursor-pointer pr-8"
-                        style={{ backgroundImage: 'none' }}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        aria-label="Sort by"
                     >
                         <option value="featured">Featured</option>
                         <option value="price-asc">Price: Low to high</option>
@@ -624,7 +625,6 @@ const Shop = () => {
                         <option value="newest">Newest arrivals</option>
                         <option value="best-selling">Best Sellers</option>
                     </select>
-                    <ChevronDown size={14} className="text-gray-400 absolute right-3 pointer-events-none" />
                 </div>
               </div>
             </div>

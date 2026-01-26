@@ -155,13 +155,25 @@ const Shop = () => {
     initData();
   }, []);
 
+  // --- UPDATED: URL Sync Logic ---
+  // This now checks for 'subcategory' in the URL on load/back button
   useEffect(() => {
     const catUrl = searchParams.get('category');
     const searchUrl = searchParams.get('search');
+    const subcatUrl = searchParams.get('subcategory'); // <--- ADDED
+
     if (catUrl) setSelectedCategory(decodeURIComponent(catUrl));
     else setSelectedCategory('All');
+
     if (searchUrl) setSearchTerm(searchUrl);
     else setSearchTerm('');
+
+    // <--- ADDED: Handle Subcategory from URL
+    if (subcatUrl) {
+        setSelectedSubcats([decodeURIComponent(subcatUrl)]);
+    } else {
+        setSelectedSubcats([]);
+    }
   }, [searchParams]);
 
   // Use this for checking "Glowing" status
@@ -282,23 +294,50 @@ const Shop = () => {
     setSelectedSubcats([]);
     setSelectedBrands([]);
     setSelectedSpecs({});
+    
     const newParams = new URLSearchParams(searchParams);
-    if (cat === 'All') newParams.delete('category');
-    else newParams.set('category', cat);
+    if (cat === 'All') {
+        newParams.delete('category');
+    } else {
+        newParams.set('category', cat);
+    }
+    
+    newParams.delete('subcategory'); // <--- ADDED: Clear subcategory when changing main category
     newParams.delete('search');
     setSearchTerm('');
     setSearchParams(newParams);
   };
 
   const toggleSubcat = (sub: string) => {
-    if (selectedSubcats.includes(sub)) setSelectedSubcats((prev) => prev.filter((s) => s !== sub));
-    else setSelectedSubcats((prev) => [...prev, sub]);
+    let newSubcats;
+    if (selectedSubcats.includes(sub)) {
+        newSubcats = selectedSubcats.filter((s) => s !== sub);
+    } else {
+        newSubcats = [...selectedSubcats, sub];
+    }
+    
+    setSelectedSubcats(newSubcats);
+
+    // <--- ADDED: Sync sidebar toggles with URL for history support
+    const newParams = new URLSearchParams(searchParams);
+    if (newSubcats.length === 1) {
+        newParams.set('subcategory', newSubcats[0]);
+    } else {
+        newParams.delete('subcategory');
+    }
+    setSearchParams(newParams);
   };
 
-  // --- NEW HANDLER: Enter a subcategory (Drill Down) ---
+  // --- UPDATED: Pushes to URL History Stack ---
   const handleEnterSubcategory = (subName: string) => {
-    setSelectedSubcats([subName]); // Select exclusively this subcat
-    window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll back up to see products
+    setSelectedSubcats([subName]); 
+    
+    // Update URL so "Back" button works correctly
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set('subcategory', subName);
+    setSearchParams(newParams);
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const toggleFilter = (item: string, list: string[], setList: Function) => {
@@ -365,7 +404,6 @@ const Shop = () => {
     return baseUrl;
   }, [selectedCategory]);
 
-  // --- NEW: Render Visual Subcategory Cards (The Grid System) ---
   const renderVisualSubcategories = () => {
     // 1. Must be in a specific category (not 'All')
     if (selectedCategory === 'All') return null;
@@ -387,7 +425,7 @@ const Shop = () => {
           {currentCatObj.subcategories.map((sub, index) => (
             <div 
                 key={`${sub.name}-${index}`}
-                onClick={() => handleEnterSubcategory(sub.name)} // <--- Updates state & hides cards
+                onClick={() => handleEnterSubcategory(sub.name)} // <--- Calls the fixed function
                 className={`
                     group relative h-40 md:h-48 rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 bg-gray-900
                     ${isGlowing 
@@ -401,7 +439,6 @@ const Shop = () => {
                     <img 
                         src={sub.image} 
                         alt={sub.name} 
-                        // LCP FIX: loading="eager" is default, removed "lazy" explicitly
                         className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-90 group-hover:opacity-100"
                         onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER_IMAGE; }}
                     />
